@@ -1,0 +1,67 @@
+import { OBSTACLE, VIEW } from './config'
+import type { Obstacle, ToyKind } from './types'
+
+const TOY_KINDS: ToyKind[] = ['cradle', 'duck', 'ball', 'teddy']
+
+/**
+ * Scatters a fresh set of toys for a round.
+ *
+ * The placement is random but not freely random: the usable width is cut into
+ * one lane per toy and each toy is jittered inside its own lane, with
+ * OBSTACLE.minGap held back at the lane's end. That guarantees the toys can
+ * never overlap, never touch the side walls, and never line up into a wall that
+ * seals off a column of the formation — the failure modes that make "random
+ * obstacles" read as broken rather than varied.
+ */
+export function placeObstacles(): Obstacle[] {
+  const usable = VIEW.width - OBSTACLE.sideMargin * 2
+  const lane = usable / OBSTACLE.count
+  const jitter = Math.max(0, lane - OBSTACLE.width - OBSTACLE.minGap)
+  const kinds = shuffledKinds(OBSTACLE.count)
+
+  const obstacles: Obstacle[] = []
+  for (let i = 0; i < OBSTACLE.count; i++) {
+    const laneStart = OBSTACLE.sideMargin + lane * i
+    obstacles.push({
+      kind: kinds[i] ?? 'ball',
+      x: Math.round(laneStart + Math.random() * jitter),
+      y: Math.round(OBSTACLE.minY + Math.random() * (OBSTACLE.maxY - OBSTACLE.minY)),
+      health: OBSTACLE.hitPoints,
+      scuffs: makeScuffs(),
+    })
+  }
+  return obstacles
+}
+
+/** One scuff mark per hit the toy can take, pre-positioned so a toy's damage
+ *  does not jump around between frames. */
+function makeScuffs(): Obstacle['scuffs'] {
+  const scuffs: Obstacle['scuffs'] = []
+  for (let i = 0; i < OBSTACLE.hitPoints; i++) {
+    scuffs.push({
+      x: 6 + Math.random() * (OBSTACLE.width - 12),
+      y: 6 + Math.random() * (OBSTACLE.height - 12),
+      r: 5 + Math.random() * 5,
+    })
+  }
+  return scuffs
+}
+
+/** Fisher-Yates over the toy kinds, so a round with four toys shows all four
+ *  in a different arrangement each time. */
+function shuffledKinds(count: number): ToyKind[] {
+  const pool = [...TOY_KINDS]
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const a = pool[i]
+    const b = pool[j]
+    if (a === undefined || b === undefined) continue
+    pool[i] = b
+    pool[j] = a
+  }
+  const picked: ToyKind[] = []
+  for (let i = 0; i < count; i++) {
+    picked.push(pool[i % pool.length] ?? 'ball')
+  }
+  return picked
+}
