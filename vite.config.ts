@@ -4,6 +4,6 @@ import { defineConfig } from 'vite'
 // needs that prefix. Change this to '/' if you ever put the game on a custom
 // domain or a user/organisation Pages site.
 export default defineConfig({
-  base: '/lolinvaders/',
+  base: '/farm-invaders/',
   build: { target: 'es2022' },
 })

@@ -348,7 +348,7 @@ export const ROUND = {
 } as const
 
 export const SCORES = {
-  storageKey: 'lolinvaders.highscores.v1',
+  storageKey: 'farminvaders.highscores.v1',
   keep: 5,
 } as const
 

@@ -1,4 +1,4 @@
-# LOL Invaders
+# Farm Invaders
 
 Space Invaders, except the invaders are flying saucers with enormous windscreens
 and the defender is a chicken in a space helmet, armed with eggs.
@@ -68,7 +68,7 @@ how long they can be carried unfired.
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173/lolinvaders/
+npm run dev      # http://localhost:5173/farm-invaders/
 npm test         # headless simulation checks
 npm run build    # typecheck + production build into dist/
 ```
@@ -255,7 +255,7 @@ canopies can share one hull. Swapping to emoji or PNGs means rewriting
 `main`. It assumes **this directory is the repository root**. Two things must be
 true before it works:
 
-1. The repository is named `lolinvaders`, so that `base` in `vite.config.ts`
-   matches the URL GitHub Pages serves from (`/lolinvaders/`). If the repository
-   has a different name, change `base` to match it.
+1. The repository is named `farm-invaders`, so that `base` in `vite.config.ts`
+   matches the URL GitHub Pages serves from (`/farm-invaders/`). If the
+   repository has a different name, change `base` to match it.
 2. Pages is enabled with **Settings → Pages → Source → GitHub Actions**.

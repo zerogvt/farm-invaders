@@ -32,7 +32,7 @@ export function createUi(root: HTMLElement): Ui {
     panel.hidden = false
     panel.innerHTML = ''
     panel.append(
-      heading('LOL Invaders'),
+      heading('Farm Invaders'),
       paragraph('The saucers want the cow. You are a chicken in a space helmet. Good luck.'),
       controlsList(),
       paragraph(
