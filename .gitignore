@@ -2,3 +2,21 @@ node_modules/
 dist/
 *.local
 .DS_Store
+
+# Editor, shell and agent-tooling files that land in the working directory.
+# In this checkout they are zero-byte character devices the Claude Code sandbox
+# shadows over the real ones, so none of them are project files.
+.claude/
+.idea
+.vscode
+.mcp.json
+.ripgreprc
+.bash_profile
+.bashrc
+.profile
+.zprofile
+.zshrc
+.gitconfig
+# .gitmodules is ignored for the same reason — it is a shadow here, not ours.
+# DELETE THIS LINE if the project ever gains a real submodule, or clones break.
+.gitmodules

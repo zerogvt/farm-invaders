@@ -6,16 +6,22 @@ it*.
 
 ## Where the project stands — 20 September 2026
 
-- Branch `ufos-and-chickens`, eight commits ahead of `main`.
-- **No git remote. Nothing has ever been pushed.** The branch exists because
-  committing straight to `main` is disallowed; it is waiting on a remote and a
-  pull request, both of which need explicit say-so.
+- Branch `main`, tracking `origin/main` at
+  <https://github.com/zerogvt/farm-invaders.git>. All twelve commits are pushed
+  and the two refs are level. The branch was called `ufos-and-chickens` for as
+  long as there was no remote to open a pull request against; it was renamed to
+  `main` when the repository was created.
+- **A push to `main` is a deploy.** `.github/workflows/deploy.yml` runs
+  `npm ci`, `npm test` and `npm run build` on every push and publishes `dist/`
+  to GitHub Pages, so a red check is a failed deploy rather than a note to
+  yourself.
 - Renamed on 20 September 2026 from `lolinvaders` / "LOL Invaders". `base` in
   `vite.config.ts` must match the **GitHub repository name**, not the folder
   name — if they diverge, Pages serves `index.html` from one path and its asset
-  tags point at another, and the page comes up blank.
-- The high-score key in `src/config.ts` was renamed with everything else. It had
-  never been deployed, so no real score was lost.
+  tags point at another, and the page comes up blank. It is `/farm-invaders/`,
+  which matches the repository that was created.
+- The high-score key in `src/config.ts` was renamed with everything else. It
+  had never been deployed at that point, so no real score was lost.
 
 ## Running the checks
 
