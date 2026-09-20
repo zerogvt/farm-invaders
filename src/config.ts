@@ -36,9 +36,11 @@ export const EGG = {
 export const LASER = {
   width: 6,
   height: 20,
-  baseSpeed: 210,
+  /** Half what it was. Slower fire also lingers longer, so the on-screen cap
+   *  bites more often and the fleet effectively shoots less as well. */
+  baseSpeed: 105,
   /** Added to baseSpeed for every round beyond the first. */
-  speedPerRound: 16,
+  speedPerRound: 8,
 } as const
 
 export const UFO = {
@@ -103,12 +105,12 @@ export const BOSS = {
   sinkSpeed: 3.4,
   startY: 58,
   /** Seconds between volleys in round 2... */
-  baseFireInterval: 6.4,
+  baseFireInterval: 4.8,
   /** ...shortened by this much per round, down to minFireInterval. All three
-   *  have been doubled twice now: the mothership was ramping into unplayable
-   *  long before the rounds it was meant to. */
-  fireIntervalPerRound: 0.24,
-  minFireInterval: 2.6,
+   *  were doubled twice to stop the mothership ramping into unplayable, then
+   *  taken back down by a quarter, which is a third more volleys. */
+  fireIntervalPerRound: 0.18,
+  minFireInterval: 1.95,
   /** Total spread of a volley, in radians. Wide enough that standing still is
    *  never the answer, narrow enough to leave gaps to run through. */
   volleySpread: 1.5,

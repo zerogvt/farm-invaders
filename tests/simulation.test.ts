@@ -1,6 +1,20 @@
 import { bossHitPoints, createGame, isBossRound, startRound, update, HEN_TOP } from '../src/game.ts'
 import type { InputState } from '../src/input.ts'
-import { ABDUCTION, BLACK_HOLE, BOSS, DESERT, EGG, FREEZE, HEN, OBSTACLE, PARLEY, POWER, UFO, VIEW } from '../src/config.ts'
+import {
+  ABDUCTION,
+  BLACK_HOLE,
+  BOSS,
+  DESERT,
+  EGG,
+  FREEZE,
+  HEN,
+  LASER,
+  OBSTACLE,
+  PARLEY,
+  POWER,
+  UFO,
+  VIEW,
+} from '../src/config.ts'
 import type { GameState, Laser, Power, Shot, Ufo } from '../src/types.ts'
 
 const DT = 1 / 60
@@ -270,9 +284,9 @@ const gv = newGame()
 enterRound(gv, 6)
 step(gv, 2.6, idle)
 gv.lasers = []
-step(gv, 2.9, idle)
-check('the old volley interval is no longer enough', gv.lasers.length === 0, `${gv.lasers.length} early`)
-step(gv, 3.2, idle)
+step(gv, 3.9, idle)
+check('nothing has been fired before the interval is up', gv.lasers.length === 0, `${gv.lasers.length} early`)
+step(gv, 0.4, idle)
 check('a round-6 volley is two lasers', gv.lasers.length === 2, `${gv.lasers.length}`)
 check('volley shots are fanned, not parallel', new Set(gv.lasers.map((l) => l.vx)).size === gv.lasers.length)
 check('and every one of them is angled', gv.lasers.every((l) => l.vx !== 0))
@@ -282,7 +296,7 @@ const gv2 = newGame()
 enterRound(gv2, 2)
 step(gv2, 2.6, idle)
 gv2.lasers = []
-step(gv2, 6.5, idle)
+step(gv2, 5.2, idle)
 check('a round-2 mothership still fires one', gv2.lasers.length === 1, `${gv2.lasers.length}`)
 
 // 13. Rank-and-file saucers, by contrast, only ever fire straight down.
@@ -362,7 +376,7 @@ intoPlay(gbm)
 // under a known saucer rather than wherever she happens to start.
 gbm.hen.x = gbm.ufos[0]!.x + UFO.width / 2 - HEN.width / 2
 grant(gbm, { kind: 'beam', remaining: 5, duration: 5 })
-gbm.lasers = [{ x: gbm.hen.x + 20, y: 200, vx: 0, vy: 200 }]
+gbm.lasers = [{ x: gbm.hen.x + 20, y: 200, vx: 0, vy: LASER.baseSpeed }]
 update(gbm, DT, idle)
 check(
   'the beam splatters what is above it',
@@ -393,7 +407,7 @@ const gsh = newGame()
 intoPlay(gsh)
 gsh.hen.invulnerable = 0
 grant(gsh, { kind: 'shield', remaining: 5, duration: 5 })
-gsh.lasers = [{ x: gsh.hen.x + 10, y: HEN_TOP - 4, vx: 0, vy: 210 }]
+gsh.lasers = [{ x: gsh.hen.x + 10, y: HEN_TOP - 4, vx: 0, vy: LASER.baseSpeed }]
 update(gsh, 0.05, idle)
 check('the shield eats a laser', gsh.hen.lives === 3, `lives ${gsh.hen.lives}`)
 check('and the laser is gone', gsh.lasers.length === 0)
@@ -402,7 +416,7 @@ check('and the laser is gone', gsh.lasers.length === 0)
 const g5 = newGame()
 intoPlay(g5)
 g5.hen.invulnerable = 0
-g5.lasers = [{ x: g5.hen.x + 10, y: HEN_TOP - 4, vx: 0, vy: 210 }]
+g5.lasers = [{ x: g5.hen.x + 10, y: HEN_TOP - 4, vx: 0, vy: LASER.baseSpeed }]
 update(g5, 0.05, idle)
 check('a laser on the hen costs a life', g5.hen.lives === 2, `lives ${g5.hen.lives}`)
 
@@ -574,7 +588,7 @@ check('a knocked toy tumbles', toy.spin !== 0)
 const gt2 = newGame()
 intoPlay(gt2)
 const toy2 = gt2.obstacles[0]!
-gt2.lasers = [{ x: toy2.x + 20, y: toy2.y + 8, vx: 0, vy: 210 }]
+gt2.lasers = [{ x: toy2.x + 20, y: toy2.y + 8, vx: 0, vy: LASER.baseSpeed }]
 update(gt2, DT, idle)
 check('a laser damages a toy without moving it', toy2.health === OBSTACLE.hitPoints - 1 && toy2.vy === 0)
 
@@ -646,7 +660,7 @@ check('with the whole freeze still to run', visit !== null && visit.remaining > 
 
 const marchX = gz.ufos[0]!.x
 const marchY = gz.ufos[0]!.y
-gz.lasers = [{ x: 100, y: 100, vx: 0, vy: 210 }]
+gz.lasers = [{ x: 100, y: 100, vx: 0, vy: LASER.baseSpeed }]
 const henX = gz.hen.x
 step(gz, 2, { left: false, right: true, fire: false })
 check('the fleet does not march', gz.ufos[0]!.x === marchX && gz.ufos[0]!.y === marchY)

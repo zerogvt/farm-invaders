@@ -25,7 +25,7 @@ toy pushed downwards is cover turning into a hazard the hen cannot dodge.
 **Every second round is a mothership** rather than a fleet. It takes one egg per
 round number to see off, and the banner says so before the round starts. It
 answers with a volley of two directions fewer than the round number and then
-halved, fired at a quarter of the rate it started at — it is also the only thing
+halved, fired at a third of the rate it started at — it is also the only thing
 out there that shoots at an angle, since rank-and-file saucers only ever fire
 straight down.
 
@@ -191,6 +191,12 @@ waves at one per wave), the heart is refused, and multishot and the shield do
 what they always do. That spread is deliberate: a boss round should sometimes be
 stolen by a lucky pickup, but two of the eight have to be earned and two are no
 help at all.
+
+**Lasers travel at half the speed they once did.** That has a second effect
+worth knowing about: a slower shot is on screen for longer, so the cap on lasers
+in flight bites more often. In round 1, where the cap is two, the fleet gets off
+about a quarter fewer shots as a result; by round 3 the cap has grown and the
+interval has shortened enough that it makes no difference.
 
 **Difficulty scales on four axes, not one.** Each round adds rows (to five),
 fires lasers more often and faster, allows more of them on screen at once, and
