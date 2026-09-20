@@ -10,6 +10,12 @@ nearer. It scores when it is gone. Toys scattered across the floor absorb
 anything that hits them — the hen's eggs and the saucers' lasers alike — until
 they fall apart.
 
+**The toys are not nailed down.** An egg comes from below, so it punts the toy it
+hits up into the fleet, and anything a loose toy ploughs into goes up. Every
+wreck costs the toy a hit point, so a punted teddy bear is worth three or four
+saucers and no more. Lasers only damage a toy; they never move one, because a
+toy pushed downwards is cover turning into a hazard the hen cannot dodge.
+
 **Every second round is a mothership** rather than a fleet. It takes one egg per
 round number to see off and answers with a volley of that many lasers at a time,
 and the banner says so before the round starts. It is also the only thing out
@@ -135,18 +141,29 @@ help at all.
 **Difficulty scales on four axes, not one.** Each round adds rows (to five),
 fires lasers more often and faster, allows more of them on screen at once, and
 starts the formation lower. On top of that the formation accelerates as its
-ranks thin within a round, so the last saucer is the frightening one. The ranks
-start one row shallower than they once did, which is the single biggest lever on
-how hard the early rounds feel.
+ranks thin within a round, so the last saucer is the frightening one. The fleet
+is six columns by two ranks in round 1, narrower and shallower than it once was,
+which is the single biggest lever on how hard the early rounds feel.
 
-**Toys are destructible on purpose.** They absorb four shots and then break. An
-indestructible shield would turn every round after the third into camping behind
-one, which is exactly the failure the original's erodable bunkers avoid.
+**Toys are destructible on purpose, and now spendable too.** They absorb four
+shots and then break. An indestructible shield would turn every round after the
+third into camping behind one, which is exactly the failure the original's
+erodable bunkers avoid — and now that a toy can be launched into the fleet,
+those four hit points are also the player's decision about whether cover is
+worth more standing still or in the air.
+
+**A wrecked saucer costs the loose toy a hit point.** Without that, one egg into
+a toy would sweep a whole column and the toy would still be climbing. With it, a
+kick is worth three or four saucers, the toy's hit points stay the currency they
+always were, and punting cover into the fleet is a trade rather than a free
+win.
 
 **Toy placement is constrained, not freely random.** The usable width is divided
 into one lane per toy and each toy is jittered inside its own lane. They can
-therefore never overlap, never touch the walls, and never line up into a barrier
-that seals off a column.
+therefore never overlap at the start of a round, never touch the walls, and
+never line up into a barrier that seals off a column. Once they are loose they
+are free to go anywhere, including through each other — four toys are too few
+for toy-on-toy collisions to be worth the frame time.
 
 **Sprites are drawn in code rather than loaded.** Cruder than hand-drawn art, but
 identical on every platform, nothing to license, and clean and egg-covered
@@ -164,10 +181,10 @@ canopies can share one hull. Swapping to emoji or PNGs means rewriting
 - **Upgrades are not chosen.** Which of the four a Rambo egg grants is random and
   cannot be influenced. That is deliberate — being able to plan around it would
   spoil the joke — but it does mean a run can be decided by a coin flip.
-- **The obstacles are still nursery toys.** They are carried over unchanged from
-  the previous theme, so a cradle and a teddy bear are what shields the hen from
-  orbital laser fire. Replacing them is confined to the four toy painters in
-  `src/sprites.ts` and the `ToyKind` union.
+- **The obstacles are still nursery toys.** They are carried over from the
+  previous theme, so a cradle and a teddy bear are what shields the hen from
+  orbital laser fire — and, now, what she fires back. Replacing them is confined
+  to the four toy painters in `src/sprites.ts` and the `ToyKind` union.
 
 ## Deploying to GitHub Pages
 

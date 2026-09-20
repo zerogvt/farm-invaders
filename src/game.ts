@@ -197,6 +197,7 @@ export function update(state: GameState, dt: number, input: InputState, events: 
   marchFormation(state, dt, events)
   tickLeaving(state, dt, events)
   tickWobble(state, dt, events)
+  tickObstacles(state, dt, events)
   tickDesertions(state, dt, events)
   tickBoss(state, dt, events)
   if (state.boss === null) fireLasers(state, dt)
@@ -924,7 +925,7 @@ function resolveCollisions(state: GameState, events: GameEvents): void {
     }
     const eggRect: Rect = { x: shot.x, y: shot.y, width: EGG.width, height: EGG.height }
     if (hitsPickup(state, eggRect, events)) continue
-    if (damagesObstacle(state, eggRect)) continue
+    if (hitsObstacle(state, eggRect, { vx: shot.vx })) continue
     if (hitsBoss(state, eggRect, events)) continue
     if (splattersUfo(state, eggRect, events)) continue
     survivingShots.push(shot)
@@ -936,7 +937,7 @@ function resolveCollisions(state: GameState, events: GameEvents): void {
   const survivingLasers = []
   for (const laser of state.lasers) {
     const laserRect: Rect = { x: laser.x, y: laser.y, width: LASER.width, height: LASER.height }
-    if (damagesObstacle(state, laserRect)) continue
+    if (hitsObstacle(state, laserRect, null)) continue
     if (overlaps(laserRect, henRect)) {
       // The shield eats the shot outright; without it, only the post-hit
       // invulnerability saves her.
@@ -951,19 +952,94 @@ function resolveCollisions(state: GameState, events: GameEvents): void {
   state.lasers = survivingLasers
 }
 
-/** Returns true when the projectile was absorbed. Toys soak eggs and lasers
- *  alike, and lose a hit point either way. */
-function damagesObstacle(state: GameState, projectile: Rect): boolean {
+/**
+ * Returns true when the projectile was absorbed. Toys soak eggs and lasers
+ * alike and lose a hit point either way, but only an egg moves one: it comes
+ * from below and punts the toy up into the fleet. Laser fire would push a toy
+ * down onto the hen, which turns her own cover into a hazard she cannot dodge.
+ */
+function hitsObstacle(state: GameState, projectile: Rect, kick: { vx: number } | null): boolean {
   for (let i = 0; i < state.obstacles.length; i++) {
     const obstacle = state.obstacles[i]
     if (obstacle === undefined) continue
     const rect: Rect = { x: obstacle.x, y: obstacle.y, width: OBSTACLE.width, height: OBSTACLE.height }
     if (!overlaps(projectile, rect)) continue
+
+    if (kick !== null) {
+      if (obstacle.spin === 0) obstacle.spin = (Math.random() < 0.5 ? -1 : 1) * OBSTACLE.spin
+      obstacle.vy = Math.max(-OBSTACLE.maxSpeed, obstacle.vy - OBSTACLE.kick)
+      obstacle.vx = clamp(obstacle.vx + kick.vx * OBSTACLE.kickDrag, -OBSTACLE.maxSpeed, OBSTACLE.maxSpeed)
+    }
+
     obstacle.health -= 1
-    if (obstacle.health <= 0) state.obstacles.splice(i, 1)
+    if (obstacle.health <= 0) {
+      if (obstacle.vy !== 0 || obstacle.vx !== 0) pop(state, obstacle.x + OBSTACLE.width / 2, obstacle.y + OBSTACLE.height / 2)
+      state.obstacles.splice(i, 1)
+    }
     return true
   }
   return false
+}
+
+/**
+ * Toys that have been knocked loose. They keep whatever speed they were kicked
+ * with until they leave the view, and anything they plough into goes up.
+ *
+ * Each wreck costs the toy a hit point, which is the whole of the balance here:
+ * without it a single egg into a toy would sweep a column clean, and the toy
+ * would still be going.
+ */
+function tickObstacles(state: GameState, dt: number, events: GameEvents): void {
+  const standing = []
+  for (const obstacle of state.obstacles) {
+    if (obstacle.vx === 0 && obstacle.vy === 0) {
+      standing.push(obstacle)
+      continue
+    }
+
+    obstacle.x += obstacle.vx * dt
+    obstacle.y += obstacle.vy * dt
+    obstacle.rotation += obstacle.spin * dt
+
+    const rect: Rect = { x: obstacle.x, y: obstacle.y, width: OBSTACLE.width, height: OBSTACLE.height }
+    const survivors: Ufo[] = []
+    for (const ufo of state.ufos) {
+      if (obstacle.health > 0 && overlaps(rect, ufoRect(ufo))) {
+        pop(state, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
+        const points = ufoPoints(ufo)
+        awardScore(state, points, events)
+        events.onUfoDowned?.(ufo, points)
+        obstacle.health -= 1
+        continue
+      }
+      survivors.push(ufo)
+    }
+    state.ufos = survivors
+
+    // The mothership is too big to be knocked out by a teddy bear, so a toy
+    // costs it a hit point and breaks up against the hull, as a gravity wave
+    // does.
+    const boss = state.boss
+    if (boss !== null && boss.state.kind === 'flying') {
+      const hull: Rect = { x: boss.x, y: boss.y, width: BOSS.width, height: BOSS.height }
+      if (overlaps(rect, hull)) {
+        damageBoss(state, 1, events)
+        obstacle.health = 0
+      }
+    }
+
+    const offBoard =
+      obstacle.y + OBSTACLE.height < 0 ||
+      obstacle.y > VIEW.height ||
+      obstacle.x + OBSTACLE.width < 0 ||
+      obstacle.x > VIEW.width
+    if (obstacle.health <= 0 || offBoard) {
+      if (!offBoard) pop(state, obstacle.x + OBSTACLE.width / 2, obstacle.y + OBSTACLE.height / 2)
+      continue
+    }
+    standing.push(obstacle)
+  }
+  state.obstacles = standing
 }
 
 function hitsPickup(state: GameState, egg: Rect, events: GameEvents): boolean {

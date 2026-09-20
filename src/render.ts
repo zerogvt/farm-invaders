@@ -109,14 +109,38 @@ function drawSpace(ctx: CanvasRenderingContext2D, time: number): void {
   ctx.setLineDash([])
 }
 
+/** Toys, tumbling once an egg has knocked them loose. Everything is drawn about
+ *  the toy's centre so the scuff marks turn with it rather than sliding across
+ *  it. */
 function drawObstacles(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
+  const halfWidth = OBSTACLE.width / 2
+  const halfHeight = OBSTACLE.height / 2
+
   for (const obstacle of state.obstacles) {
     const damage = OBSTACLE.hitPoints - obstacle.health
     ctx.save()
+    ctx.translate(obstacle.x + halfWidth, obstacle.y + halfHeight)
+    ctx.rotate(obstacle.rotation)
+
+    // A loose toy is a weapon, so it gets a warm glow the static ones do not —
+    // otherwise a teddy bear sailing into the fleet reads as scenery drifting.
+    if (obstacle.vx !== 0 || obstacle.vy !== 0) {
+      ctx.save()
+      ctx.globalCompositeOperation = 'lighter'
+      const heat = ctx.createRadialGradient(0, 0, halfWidth * 0.4, 0, 0, halfWidth * 1.1)
+      heat.addColorStop(0, 'rgba(255,190,110,0.35)')
+      heat.addColorStop(1, 'rgba(255,140,60,0)')
+      ctx.fillStyle = heat
+      ctx.beginPath()
+      ctx.arc(0, 0, halfWidth * 1.1, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+
     // A battered toy fades as well as scuffs, so its remaining health reads
     // from across the screen rather than only up close.
     ctx.globalAlpha = 1 - damage * 0.13
-    ctx.drawImage(sprites.toys[obstacle.kind], obstacle.x, obstacle.y, OBSTACLE.width, OBSTACLE.height)
+    ctx.drawImage(sprites.toys[obstacle.kind], -halfWidth, -halfHeight, OBSTACLE.width, OBSTACLE.height)
 
     ctx.globalAlpha = 1
     ctx.fillStyle = 'rgba(5,9,21,0.82)'
@@ -124,7 +148,7 @@ function drawObstacles(ctx: CanvasRenderingContext2D, state: GameState, sprites:
       const scuff = obstacle.scuffs[i]
       if (scuff === undefined) continue
       ctx.beginPath()
-      ctx.arc(obstacle.x + scuff.x, obstacle.y + scuff.y, scuff.r, 0, Math.PI * 2)
+      ctx.arc(scuff.x - halfWidth, scuff.y - halfHeight, scuff.r, 0, Math.PI * 2)
       ctx.fill()
     }
     ctx.restore()

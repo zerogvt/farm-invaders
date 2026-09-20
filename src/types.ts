@@ -164,8 +164,15 @@ export interface Obstacle {
   kind: ToyKind
   x: number
   y: number
-  /** Counts down from OBSTACLE.hitPoints; the toy is removed at zero. */
+  /** Counts down from OBSTACLE.hitPoints; the toy is removed at zero. Every
+   *  saucer a loose toy wrecks costs it one as well. */
   health: number
+  /** Velocity. Zero until an egg knocks the toy off its spot. */
+  vx: number
+  vy: number
+  /** Tumble, once it is loose. */
+  spin: number
+  rotation: number
   /** Fixed random offsets so a toy's scuff marks stay put between frames. */
   scuffs: Array<{ x: number; y: number; r: number }>
 }

@@ -44,7 +44,7 @@ export const LASER = {
 export const UFO = {
   width: 46,
   height: 30,
-  columns: 9,
+  columns: 6,
   /** Rows in round 1; grows with the round up to maxRows. */
   baseRows: 2,
   maxRows: 5,
@@ -245,6 +245,16 @@ export const OBSTACLE = {
   minGap: 34,
   /** Toys are kept this far from the side walls. */
   sideMargin: 40,
+
+  /** Upward speed a single egg knocks into a toy. Each further egg adds
+   *  another, so a toy can be walked up the screen — at the cost of a hit
+   *  point every time, which is what stops one egg clearing a formation. */
+  kick: 175,
+  /** Share of a fanned egg's sideways drift that carries into the toy. */
+  kickDrag: 0.35,
+  maxSpeed: 500,
+  /** Radians per second a loose toy tumbles at. */
+  spin: 2.4,
 } as const
 
 export const ROUND = {

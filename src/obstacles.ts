@@ -27,6 +27,10 @@ export function placeObstacles(): Obstacle[] {
       x: Math.round(laneStart + Math.random() * jitter),
       y: Math.round(OBSTACLE.minY + Math.random() * (OBSTACLE.maxY - OBSTACLE.minY)),
       health: OBSTACLE.hitPoints,
+      vx: 0,
+      vy: 0,
+      spin: 0,
+      rotation: 0,
       scuffs: makeScuffs(),
     })
   }

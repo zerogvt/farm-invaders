@@ -1,6 +1,6 @@
 import { bossHitPoints, createGame, isBossRound, startRound, update, HEN_TOP } from '../src/game.ts'
 import type { InputState } from '../src/input.ts'
-import { BLACK_HOLE, BOSS, DESERT, EGG, POWER, UFO, VIEW } from '../src/config.ts'
+import { BLACK_HOLE, BOSS, DESERT, EGG, HEN, OBSTACLE, POWER, UFO, VIEW } from '../src/config.ts'
 import type { GameState, Laser, Power, Shot, Ufo } from '../src/types.ts'
 
 const DT = 1 / 60
@@ -311,6 +311,9 @@ check('and spares the toys', gse.obstacles.length === toyCount, `${gse.obstacles
 // 17. The beam burns whatever is above the hen, and clears incoming fire.
 const gbm = createGame()
 step(gbm, 2, idle)
+// Six columns leaves a gap at the centre of the view, so the hen is parked
+// under a known saucer rather than wherever she happens to start.
+gbm.hen.x = gbm.ufos[0]!.x + UFO.width / 2 - HEN.width / 2
 grant(gbm, { kind: 'beam', remaining: 5 })
 gbm.lasers = [{ x: gbm.hen.x + 20, y: 200, vx: 0, vy: 200 }]
 update(gbm, DT, idle)
@@ -358,8 +361,10 @@ check('a laser on the hen costs a life', g5.hen.lives === 2, `lives ${g5.hen.liv
 
 // --- a lighter formation, and desertions ------------------------------------
 
-// 20. One row fewer than before, at every stage of the ramp.
-check('the round-1 formation is two ranks deep', new Set(createGame().ufos.map((u) => u.row)).size === 2)
+// 20. A shallower, narrower formation than the game started with.
+const shape = createGame().ufos
+check('the round-1 formation is two ranks deep', new Set(shape.map((u) => u.row)).size === 2)
+check('and six columns wide', new Set(shape.map((u) => u.column)).size === 6)
 
 // 21. A tenth of every formation loses its nerve, and goes home unscored.
 const gd = createGame()
@@ -498,6 +503,72 @@ gmb.shotCooldown = 0
 update(gmb, DT, firing)
 step(gmb, 3.2, idle)
 check('the record takes the mothership too', gmb.boss === null)
+
+// --- toys that have been knocked loose --------------------------------------
+
+// 27. An egg punts a toy off its spot; a laser only damages it.
+const gt = createGame()
+step(gt, 2, idle)
+const toy = gt.obstacles[0]!
+gt.shots = [egg(toy.x + OBSTACLE.width / 2 - 6, toy.y + OBSTACLE.height / 2)]
+update(gt, DT, idle)
+check('an egg knocks a toy loose', toy.vy < 0, `vy ${toy.vy.toFixed(0)}`)
+check('and still costs it a hit point', toy.health === OBSTACLE.hitPoints - 1, `${toy.health} left`)
+check('a knocked toy tumbles', toy.spin !== 0)
+
+const gt2 = createGame()
+step(gt2, 2, idle)
+const toy2 = gt2.obstacles[0]!
+gt2.lasers = [{ x: toy2.x + 20, y: toy2.y + 8, vx: 0, vy: 210 }]
+update(gt2, DT, idle)
+check('a laser damages a toy without moving it', toy2.health === OBSTACLE.hitPoints - 1 && toy2.vy === 0)
+
+// 28. A loose toy wrecks what it ploughs into, and pays a hit point for each.
+const gt3 = createGame()
+gt3.hen.lives = 99
+step(gt3, 2, idle)
+const target3 = gt3.ufos[0]!
+const toy3 = gt3.obstacles[0]!
+toy3.x = target3.x + UFO.width / 2 - OBSTACLE.width / 2
+toy3.y = target3.y + 120
+toy3.vy = -300
+const fleet3 = gt3.ufos.length
+step(gt3, 0.6, idle)
+const wrecked = fleet3 - gt3.ufos.length
+check('a loose toy wrecks what it hits', wrecked > 0, `${wrecked} wrecked`)
+check('which scores', gt3.score > 0, `score ${gt3.score}`)
+check(
+  'and every wreck costs the toy a hit point',
+  gt3.obstacles.includes(toy3) ? OBSTACLE.hitPoints - toy3.health === wrecked : wrecked === OBSTACLE.hitPoints,
+  `${wrecked} wrecked, ${toy3.health} health left`,
+)
+
+// 29. One that reaches the edge of the view is simply gone.
+const gt4 = createGame()
+gt4.hen.lives = 99
+step(gt4, 2, idle)
+const toy4 = gt4.obstacles[0]!
+toy4.x = 5
+toy4.y = 200
+toy4.vy = -600
+const toyCount4 = gt4.obstacles.length
+step(gt4, 0.8, idle)
+check('a loose toy that leaves the view is gone', gt4.obstacles.length === toyCount4 - 1, `${gt4.obstacles.length} left`)
+
+// 30. The mothership is too big to be taken out by a teddy bear.
+const gt5 = createGame()
+gt5.hen.lives = 99
+startRound(gt5, 6)
+step(gt5, 3, idle)
+const hull = gt5.boss!
+const toy5 = gt5.obstacles[0]!
+toy5.x = hull.x + BOSS.width / 2 - OBSTACLE.width / 2
+toy5.y = hull.y + BOSS.height + 40
+toy5.vy = -300
+const hullBefore = hull.hitPoints
+step(gt5, 0.5, idle)
+check('a loose toy costs the mothership one hit point', hull.hitPoints === hullBefore - 1, `${hull.hitPoints} left`)
+check('and breaks up against the hull', !gt5.obstacles.includes(toy5))
 
 // Throwing rather than calling process.exit keeps this runnable without pulling
 // in @types/node just for one line; an uncaught error is a non-zero exit too.
