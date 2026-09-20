@@ -36,6 +36,12 @@ export const LASER = {
   baseSpeed: 210,
   /** Added to baseSpeed for every round beyond the first. */
   speedPerRound: 16,
+  /** Chance a saucer's shot is aimed off the vertical rather than straight
+   *  down. Strays are what stop the player parking under a column and
+   *  sidestepping on a metronome. */
+  strayChance: 0.35,
+  /** Widest angle from vertical, in radians, that a stray can take. */
+  strayAngle: 0.6,
 } as const
 
 export const UFO = {
@@ -85,6 +91,74 @@ export const SPLAT = {
   bankAngle: 0.45,
 } as const
 
+/**
+ * The mothership that replaces the formation on every second round. It takes
+ * one egg per round number to see off and answers with a volley of that many
+ * lasers, so a boss round is a short, loud test of dodging rather than of
+ * clearing a grid.
+ */
+export const BOSS = {
+  width: 172,
+  height: 96,
+  /** Horizontal patrol speed. It turns at the walls rather than descending. */
+  speed: 98,
+  /** Slow sink, so a boss round cannot be stalled indefinitely. */
+  sinkSpeed: 3.4,
+  startY: 58,
+  /** Seconds between volleys in round 2... */
+  baseFireInterval: 1.6,
+  /** ...shortened by this much per round, down to minFireInterval. */
+  fireIntervalPerRound: 0.06,
+  minFireInterval: 0.65,
+  /** Total spread of a volley, in radians. Wide enough that standing still is
+   *  never the answer, narrow enough to leave gaps to run through. */
+  volleySpread: 1.5,
+  /** Random wobble added to each shot in a volley. */
+  volleyJitter: 0.18,
+  /** Points for seeing one off, multiplied by the round. */
+  scorePerRound: 100,
+} as const
+
+/**
+ * The Rambo egg: a bandana-wearing pickup that turns up in a top corner on
+ * random rounds and upgrades the hen's eggs if she can hit it before it leaves.
+ */
+export const POWER = {
+  /** Chance a round shows one at all. Never set below one round in three. */
+  chance: 0.4,
+  /** Seconds into the round it turns up. */
+  minDelay: 1.5,
+  maxDelay: 5,
+  /** Seconds it stays before giving up and leaving. */
+  linger: 10,
+  width: 44,
+  height: 54,
+  /** Distance from the side wall and the top of the view. */
+  sideMargin: 26,
+  top: 34,
+
+  /** Eggs per volley once multishot lands, picked at random in this range. */
+  multishotMin: 5,
+  multishotMax: 20,
+  multishotDuration: 6,
+  /** Half-angle of the volley fan, in radians. */
+  multishotSpread: 0.85,
+
+  /** The super egg bursts at this fraction of the view height... */
+  superEggBurstY: 0.45,
+  superEggWidth: 46,
+  superEggHeight: 58,
+  superEggSpeed: 380,
+  /** ...and the shockwave ring is drawn for this long afterwards. */
+  blastDuration: 0.7,
+  blastRadius: 520,
+
+  beamDuration: 6,
+  beamWidth: 18,
+
+  shieldDuration: 10,
+} as const
+
 export const OBSTACLE = {
   count: 4,
   width: 56,
@@ -111,6 +185,8 @@ export const ROUND = {
   baseMaxLasers: 2,
   /** Seconds the round banner is shown before the saucers start marching. */
   introDuration: 1.8,
+  /** Longer on a boss round, because the banner has something to say. */
+  bossIntroDuration: 2.6,
 } as const
 
 export const SCORES = {

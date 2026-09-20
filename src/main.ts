@@ -1,12 +1,16 @@
 import { VIEW } from './config'
-import { createGame, restart, update, type GameEvents } from './game'
+import { bossHitPoints, createGame, isBossRound, restart, update, type GameEvents } from './game'
 import { createInput } from './input'
 import { render } from './render'
 import { buildSprites } from './sprites'
+import type { GameState, Power } from './types'
 import { createUi } from './ui'
 import './style.css'
 
 type Screen = 'title' | 'running' | 'over'
+
+/** How long a picked-up upgrade is announced over the playfield. */
+const NOTICE_DURATION = 2.2
 
 function main(): void {
   const canvas = document.querySelector<HTMLCanvasElement>('#stage')
@@ -22,10 +26,18 @@ function main(): void {
   const game = createGame()
 
   let screen: Screen = 'title'
+  // A transient line over the playfield, used for upgrade pickups. The
+  // simulation announces the pickup and the UI decides what to say about it,
+  // which is why this timer lives here rather than in the game state.
+  let notice: { text: string; remaining: number } | null = null
 
   const events: GameEvents = {
+    onPowerGained: (power) => {
+      notice = { text: noticeFor(power), remaining: NOTICE_DURATION }
+    },
     onGameOver: (score, round) => {
       screen = 'over'
+      notice = null
       ui.setBanner(null)
       ui.showGameOver(score, round, () => {
         restart(game)
@@ -51,7 +63,13 @@ function main(): void {
 
     if (screen === 'running') {
       update(game, dt, input, events)
-      ui.setBanner(bannerFor(game.phase))
+      if (notice !== null) {
+        notice.remaining -= dt
+        if (notice.remaining <= 0) notice = null
+      }
+      // A fresh upgrade outranks the round banner: the player has two seconds
+      // to learn what they are now holding.
+      ui.setBanner(notice?.text ?? bannerFor(game))
     }
 
     render(ctx, game, sprites, now / 1000)
@@ -60,15 +78,34 @@ function main(): void {
   requestAnimationFrame(frame)
 }
 
-function bannerFor(phase: ReturnType<typeof createGame>['phase']): string | null {
-  switch (phase.kind) {
+function bannerFor(game: GameState): string | null {
+  switch (game.phase.kind) {
     case 'intro':
-      return 'Here they come'
+      // The boss round says what it is going to cost before it starts, because
+      // the answer changes every time it comes round.
+      return isBossRound(game.round)
+        ? `Mothership — ${bossHitPoints(game.round)} eggs`
+        : 'Here they come'
     case 'cleared':
       return 'Sector cleared'
     case 'playing':
     case 'over':
       return null
+  }
+}
+
+function noticeFor(power: Power): string {
+  switch (power.kind) {
+    case 'multishot':
+      return `Multishot ×${power.eggs}`
+    case 'superEgg':
+      return 'Super egg — one shot'
+    case 'beam':
+      return 'Beam online'
+    case 'shield':
+      return 'Shield up'
+    case 'none':
+      return ''
   }
 }
 

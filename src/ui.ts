@@ -41,6 +41,12 @@ export function createUi(root: HTMLElement): Ui {
           'Toys on the floor soak up anything that hits them, from either side, until they ' +
           'fall apart.',
       ),
+      paragraph(
+        'Every second round sends one mothership instead of a fleet: it takes as many eggs ' +
+          'as the round number, and answers with that many lasers at a time. Watch the ' +
+          'corners for a Rambo egg — shoot it and your eggs are upgraded to something ' +
+          'you do not get to choose.',
+      ),
       scoreBoard(loadScores()),
     )
     const start = button('Start', () => {

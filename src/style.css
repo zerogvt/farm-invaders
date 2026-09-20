@@ -138,6 +138,12 @@ button:focus-visible {
 .banner {
   position: absolute;
   top: 34%;
+  /* Bounded and centred: the boss-round and upgrade lines are far longer than
+     the two words the banner originally had to show. */
+  max-width: 88%;
+  padding: 0 1rem;
+  text-align: center;
+  text-wrap: balance;
   font-size: clamp(1.4rem, 4vw, 2.4rem);
   font-weight: 700;
   letter-spacing: 0.08em;

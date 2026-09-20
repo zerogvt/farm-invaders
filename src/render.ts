@@ -1,4 +1,4 @@
-import { EGG, HEN, LASER, OBSTACLE, PALETTE, SPLAT, UFO, VIEW } from './config'
+import { BOSS, EGG, HEN, LASER, OBSTACLE, PALETTE, POWER, SPLAT, UFO, VIEW } from './config'
 import { HEN_TOP } from './game'
 import { rowVariant, type SpriteSet } from './sprites'
 import type { GameState } from './types'
@@ -9,8 +9,13 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawSpace(ctx, time)
   drawObstacles(ctx, state, sprites)
   drawUfos(ctx, state, sprites, time)
+  drawBoss(ctx, state, sprites, time)
+  drawPickup(ctx, state, sprites, time)
   drawProjectiles(ctx, state, sprites)
+  drawBeam(ctx, state, time)
   drawHen(ctx, state, sprites, time)
+  drawShield(ctx, state, time)
+  drawBlasts(ctx, state)
   drawHud(ctx, state, sprites)
 }
 
@@ -133,21 +138,68 @@ function drawUfos(ctx: CanvasRenderingContext2D, state: GameState, sprites: Spri
 
     ctx.save()
     ctx.translate(centreX, centreY)
-    if (reeling <= 0) drawExhaust(ctx, direction, speed, time, ufo.wobblePhase)
+    if (reeling <= 0) drawExhaust(ctx, direction, speed, time, ufo.wobblePhase, UFO.width)
     ctx.rotate(tilt)
     ctx.drawImage(sprites.ufoSplattered[variant] ?? clean, -UFO.width / 2, -UFO.height / 2, UFO.width, UFO.height)
     ctx.restore()
   }
 }
 
-/** An engine plume trailing a saucer that is leaving under protest. Drawn in
- *  the saucer's untilted frame so it stays behind the hull, not below it. */
+/**
+ * The mothership, with one egg mark blitted onto its canopy for every hit it
+ * has taken. The marks are positioned once when the round starts, so damage
+ * accumulates in a fixed pattern rather than rearranging itself each frame.
+ */
+function drawBoss(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  const boss = state.boss
+  if (boss === null) return
+
+  const retreating = boss.state.kind === 'splattered'
+
+  ctx.save()
+  ctx.translate(boss.x + BOSS.width / 2, boss.y + BOSS.height / 2)
+
+  if (boss.state.kind === 'splattered') {
+    const { direction, reeling, speed } = boss.state
+    if (reeling <= 0) drawExhaust(ctx, direction, speed, time, 0, BOSS.width)
+    ctx.rotate(
+      reeling > 0
+        ? Math.sin(time * 26) * 0.08
+        : direction * SPLAT.bankAngle * Math.min(1, speed / SPLAT.fleeMaxSpeed),
+    )
+  } else {
+    ctx.translate(0, Math.sin(time * 2.2) * 3)
+  }
+
+  ctx.drawImage(sprites.boss, -BOSS.width / 2, -BOSS.height / 2, BOSS.width, BOSS.height)
+
+  const taken = retreating
+    ? boss.splats.length
+    : Math.min(boss.splats.length, Math.floor(boss.maxHitPoints - boss.hitPoints))
+  for (let i = 0; i < taken; i++) {
+    const splat = boss.splats[i]
+    if (splat === undefined) continue
+    const width = 38 * splat.scale
+    const height = 32 * splat.scale
+    ctx.save()
+    ctx.translate(splat.x - BOSS.width / 2, splat.y - BOSS.height / 2)
+    ctx.rotate(splat.rotation)
+    ctx.drawImage(sprites.bossSplat, -width / 2, -height / 2, width, height)
+    ctx.restore()
+  }
+
+  ctx.restore()
+}
+
+/** An engine plume trailing a hull that is leaving under protest. Drawn in the
+ *  hull's untilted frame so it stays behind it, not below it. */
 function drawExhaust(
   ctx: CanvasRenderingContext2D,
   direction: -1 | 1,
   speed: number,
   time: number,
   phase: number,
+  size: number,
 ): void {
   const intensity = Math.min(1, speed / SPLAT.fleeMaxSpeed)
 
@@ -157,9 +209,9 @@ function drawExhaust(
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
   for (let i = 0; i < 3; i++) {
-    const x = -direction * UFO.width * (0.48 + i * 0.3)
+    const x = -direction * size * (0.48 + i * 0.3)
     const y = Math.sin(time * 9 + phase + i) * 2
-    const radius = UFO.width * (0.15 + i * 0.07)
+    const radius = size * (0.15 + i * 0.07)
     const alpha = (0.8 - i * 0.22) * intensity
 
     const plume = ctx.createRadialGradient(x, y, 0, x, y, radius)
@@ -174,18 +226,106 @@ function drawExhaust(
   ctx.restore()
 }
 
+/** The Rambo egg, bobbing in its corner. It flashes over its last two seconds,
+ *  so a player who has not noticed it still gets a warning that it is going. */
+function drawPickup(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  const pickup = state.pickup
+  if (pickup === null) return
+  if (pickup.remaining < 2 && Math.floor(time * 8) % 2 === 0) return
+
+  const centreX = pickup.x + POWER.width / 2
+  const centreY = pickup.y + POWER.height / 2 + Math.sin(time * 3) * 3
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  const glow = ctx.createRadialGradient(centreX, centreY, POWER.width * 0.3, centreX, centreY, POWER.width * 0.95)
+  glow.addColorStop(0, 'rgba(255,205,90,0.4)')
+  glow.addColorStop(1, 'rgba(255,160,60,0)')
+  ctx.fillStyle = glow
+  ctx.beginPath()
+  ctx.arc(centreX, centreY, POWER.width * 0.95, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+
+  ctx.drawImage(sprites.rambo, pickup.x, centreY - POWER.height / 2, POWER.width, POWER.height)
+}
+
 function drawProjectiles(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
   for (const egg of state.eggs) {
+    const width = egg.kind === 'super' ? POWER.superEggWidth : EGG.width
+    const height = egg.kind === 'super' ? POWER.superEggHeight : EGG.height
+
+    if (egg.kind === 'super') {
+      // The halo is painted here rather than into the sprite so it can be
+      // additive: inside the sprite it was competing with the shell for the
+      // same pixels and came out as a grey ring.
+      const cx = egg.x + width / 2
+      const cy = egg.y + height / 2
+      ctx.save()
+      ctx.globalCompositeOperation = 'lighter'
+      const halo = ctx.createRadialGradient(cx, cy, width * 0.24, cx, cy, width * 1.15)
+      halo.addColorStop(0, 'rgba(255,208,110,0.6)')
+      halo.addColorStop(1, 'rgba(255,160,50,0)')
+      ctx.fillStyle = halo
+      ctx.beginPath()
+      ctx.arc(cx, cy, width * 1.15, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+
     ctx.save()
-    ctx.translate(egg.x + EGG.width / 2, egg.y + EGG.height / 2)
+    ctx.translate(egg.x + width / 2, egg.y + height / 2)
     ctx.rotate(egg.rotation)
-    ctx.drawImage(sprites.egg, -EGG.width / 2, -EGG.height / 2, EGG.width, EGG.height)
+    ctx.drawImage(egg.kind === 'super' ? sprites.superEgg : sprites.egg, -width / 2, -height / 2, width, height)
     ctx.restore()
   }
 
   for (const laser of state.lasers) {
-    ctx.drawImage(sprites.laser, laser.x, laser.y, LASER.width, LASER.height)
+    ctx.save()
+    ctx.translate(laser.x + LASER.width / 2, laser.y + LASER.height / 2)
+    // The sprite is drawn pointing down the +y axis, so this turns it to face
+    // wherever the shot is actually travelling.
+    ctx.rotate(Math.atan2(-laser.vx, laser.vy))
+    ctx.drawImage(sprites.laser, -LASER.width / 2, -LASER.height / 2, LASER.width, LASER.height)
+    ctx.restore()
   }
+}
+
+/** The continuous beam: a hot column from the hen's helmet to the top of the
+ *  view, drawn additively so whatever it crosses glows through it. */
+function drawBeam(ctx: CanvasRenderingContext2D, state: GameState, time: number): void {
+  if (state.power.kind !== 'beam') return
+  if (state.phase.kind !== 'playing') return
+
+  const centreX = state.hen.x + HEN.width / 2
+  // A little flutter, so it reads as something being sustained rather than a
+  // rectangle that has been pasted on.
+  const width = POWER.beamWidth * (0.9 + Math.sin(time * 40) * 0.1)
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+
+  const glow = ctx.createLinearGradient(centreX - width * 1.6, 0, centreX + width * 1.6, 0)
+  glow.addColorStop(0, 'rgba(255,170,50,0)')
+  glow.addColorStop(0.5, 'rgba(255,196,80,0.5)')
+  glow.addColorStop(1, 'rgba(255,170,50,0)')
+  ctx.fillStyle = glow
+  ctx.fillRect(centreX - width * 1.6, 0, width * 3.2, HEN_TOP)
+
+  ctx.fillStyle = 'rgba(255,238,190,0.85)'
+  ctx.fillRect(centreX - width / 2, 0, width, HEN_TOP)
+  ctx.fillStyle = 'rgba(255,255,255,0.95)'
+  ctx.fillRect(centreX - width * 0.22, 0, width * 0.44, HEN_TOP)
+
+  // Muzzle flare where it leaves the helmet.
+  const muzzle = ctx.createRadialGradient(centreX, HEN_TOP, 0, centreX, HEN_TOP, width * 2.2)
+  muzzle.addColorStop(0, 'rgba(255,245,215,0.9)')
+  muzzle.addColorStop(1, 'rgba(255,180,60,0)')
+  ctx.fillStyle = muzzle
+  ctx.beginPath()
+  ctx.arc(centreX, HEN_TOP, width * 2.2, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
 }
 
 function drawHen(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
@@ -197,6 +337,91 @@ function drawHen(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
   ctx.drawImage(sprite, state.hen.x, HEN_TOP, HEN.width, HEN.height)
 }
 
+/** The shield bubble. Drawn over the hen rather than under her, so it stays
+ *  legible on the frames where the hurt blink has hidden her. */
+function drawShield(ctx: CanvasRenderingContext2D, state: GameState, time: number): void {
+  if (state.power.kind !== 'shield') return
+
+  const centreX = state.hen.x + HEN.width / 2
+  const centreY = HEN_TOP + HEN.height * 0.55
+  const radius = HEN.width * 0.78
+  // Pulse faster as it runs out, which is the only warning the player gets.
+  const urgency = state.power.remaining < 3 ? 9 : 3
+  const pulse = 0.55 + Math.sin(time * urgency) * 0.2
+
+  ctx.save()
+  const fill = ctx.createRadialGradient(centreX, centreY, radius * 0.5, centreX, centreY, radius)
+  fill.addColorStop(0, 'rgba(120,220,255,0.05)')
+  fill.addColorStop(1, `rgba(120,220,255,${0.22 * pulse})`)
+  ctx.fillStyle = fill
+  ctx.beginPath()
+  ctx.arc(centreX, centreY, radius, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.strokeStyle = `rgba(180,240,255,${pulse})`
+  ctx.lineWidth = 2.5
+  ctx.stroke()
+  ctx.restore()
+}
+
+/** A super egg's shockwave: one ring racing outwards, plus a white flash over
+ *  the first fifth of it. */
+function drawBlasts(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const blast of state.blasts) {
+    const progress = Math.min(1, blast.age / POWER.blastDuration)
+    const fade = 1 - progress
+
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+
+    if (progress < 0.2) {
+      const flash = 1 - progress / 0.2
+      ctx.fillStyle = `rgba(255,248,220,${flash * 0.55})`
+      ctx.fillRect(0, 0, VIEW.width, VIEW.height)
+    }
+
+    // Three passes at full saturation. A single semi-transparent stroke
+    // averaged out to khaki against the sky and read as a drawn circle rather
+    // than as something detonating.
+    const radius = POWER.blastRadius * progress
+    ctx.strokeStyle = `rgba(255,150,40,${fade * 0.8})`
+    ctx.lineWidth = 26 * fade + 4
+    ctx.beginPath()
+    ctx.arc(blast.x, blast.y, radius, 0, Math.PI * 2)
+    ctx.stroke()
+
+    ctx.strokeStyle = `rgba(255,224,150,${fade})`
+    ctx.lineWidth = 11 * fade + 2
+    ctx.beginPath()
+    ctx.arc(blast.x, blast.y, radius, 0, Math.PI * 2)
+    ctx.stroke()
+
+    ctx.strokeStyle = `rgba(255,255,255,${fade})`
+    ctx.lineWidth = 4 * fade + 1
+    ctx.beginPath()
+    ctx.arc(blast.x, blast.y, radius * 0.94, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.restore()
+  }
+}
+
+/** The HUD label for whatever upgrade is active, or null on ordinary eggs. */
+function powerLabel(state: GameState): string | null {
+  const power = state.power
+  switch (power.kind) {
+    case 'none':
+      return null
+    case 'superEgg':
+      return 'SUPER EGG — ONE SHOT'
+    case 'multishot':
+      return `MULTISHOT ×${power.eggs}   ${power.remaining.toFixed(1)}s`
+    case 'beam':
+      return `BEAM   ${power.remaining.toFixed(1)}s`
+    case 'shield':
+      return `SHIELD   ${power.remaining.toFixed(1)}s`
+  }
+}
+
 function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
   ctx.fillStyle = PALETTE.hud
   ctx.font = '600 18px system-ui, sans-serif'
@@ -205,9 +430,26 @@ function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
   ctx.textAlign = 'left'
   ctx.fillText(`SCORE ${state.score}`, 16, 14)
 
+  const label = powerLabel(state)
+  if (label !== null) {
+    ctx.font = '600 13px system-ui, sans-serif'
+    ctx.fillStyle = PALETTE.accent
+    ctx.fillText(label, 16, 38)
+  }
+
+  ctx.font = '600 18px system-ui, sans-serif'
   ctx.textAlign = 'center'
   ctx.fillStyle = PALETTE.hudDim
   ctx.fillText(`ROUND ${state.round}`, VIEW.width / 2, 14)
+
+  // While a mothership is up, how many eggs it still owes is the only number
+  // that matters, so it goes directly under the round.
+  const boss = state.boss
+  if (boss !== null && boss.state.kind === 'flying') {
+    ctx.font = '600 13px system-ui, sans-serif'
+    ctx.fillStyle = PALETTE.accent
+    ctx.fillText(`MOTHERSHIP — ${Math.ceil(boss.hitPoints)} EGGS LEFT`, VIEW.width / 2, 38)
+  }
 
   // Lives as little hens, minus the one currently on the field.
   const iconWidth = 17

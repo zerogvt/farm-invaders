@@ -1,4 +1,4 @@
-import { EGG, HEN, LASER, OBSTACLE, UFO } from './config'
+import { BOSS, EGG, HEN, LASER, OBSTACLE, POWER, UFO } from './config'
 import type { ToyKind } from './types'
 
 /**
@@ -38,7 +38,13 @@ export interface SpriteSet {
   hen: HTMLCanvasElement
   henHurt: HTMLCanvasElement
   egg: HTMLCanvasElement
+  superEgg: HTMLCanvasElement
   laser: HTMLCanvasElement
+  boss: HTMLCanvasElement
+  /** One egg mark, blitted repeatedly onto the mothership's canopy as it takes
+   *  hits. Kept separate from the hull so the damage can build up. */
+  bossSplat: HTMLCanvasElement
+  rambo: HTMLCanvasElement
   toys: Record<ToyKind, HTMLCanvasElement>
 }
 
@@ -56,7 +62,11 @@ export function buildSprites(): SpriteSet {
     hen: sprite(HEN.width, HEN.height, (ctx, w, h) => drawHen(ctx, w, h, false)),
     henHurt: sprite(HEN.width, HEN.height, (ctx, w, h) => drawHen(ctx, w, h, true)),
     egg: sprite(EGG.width, EGG.height, drawEgg),
+    superEgg: sprite(POWER.superEggWidth, POWER.superEggHeight, drawSuperEgg),
     laser: sprite(LASER.width, LASER.height, drawLaser),
+    boss: sprite(BOSS.width, BOSS.height, drawBoss),
+    bossSplat: sprite(38, 32, drawEggMark),
+    rambo: sprite(POWER.width, POWER.height, drawRambo),
     toys: {
       cradle: sprite(OBSTACLE.width, OBSTACLE.height, drawCradle),
       duck: sprite(OBSTACLE.width, OBSTACLE.height, drawDuck),
@@ -382,6 +392,208 @@ function drawLaser(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   capsule(0, 'rgba(255,74,122,0.28)')
   capsule(w * 0.18, '#ff4d7d')
   capsule(w * 0.34, '#ffe6ec')
+}
+
+// --- the mothership --------------------------------------------------------
+
+/**
+ * The boss is the same saucer grammar at four times the size: one enormous
+ * canopy on a hull. It is drawn in steel and warning-red rather than the
+ * pastels of the rank and file, so a boss round reads as a different kind of
+ * round from the first frame.
+ */
+function drawBoss(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const steel = '#8794b4'
+  const steelDark = '#414d6b'
+  const steelLight = '#c3cde3'
+  const warning = '#e8455f'
+
+  const domeX = w * 0.5
+  const domeY = h * 0.6
+  const domeRx = w * 0.29
+  const domeRy = h * 0.46
+
+  // Side fins, behind the hull so they read as swept back.
+  ctx.fillStyle = steelDark
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(domeX + side * w * 0.3, h * 0.52)
+    ctx.lineTo(domeX + side * w * 0.52, h * 0.3)
+    ctx.lineTo(domeX + side * w * 0.47, h * 0.66)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  // Hull.
+  ellipse(ctx, w * 0.5, h * 0.7, w * 0.49, h * 0.2, steelDark)
+  ellipse(ctx, w * 0.5, h * 0.62, w * 0.49, h * 0.16, steel)
+
+  // Canopy.
+  const glass = ctx.createLinearGradient(0, domeY - domeRy, 0, domeY)
+  glass.addColorStop(0, 'rgba(214,246,255,0.88)')
+  glass.addColorStop(0.55, 'rgba(120,196,240,0.58)')
+  glass.addColorStop(1, 'rgba(58,118,178,0.6)')
+  ctx.beginPath()
+  ctx.ellipse(domeX, domeY, domeRx, domeRy, 0, Math.PI, 0)
+  ctx.fillStyle = glass
+  ctx.fill()
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.ellipse(domeX, domeY, domeRx, domeRy, 0, Math.PI, 0)
+  ctx.clip()
+
+  // The commander: a bigger head than the rank and file, with a brow that
+  // slopes the other way. At this size the crew have to be readable, since the
+  // canopy is most of what the player is shooting at.
+  ellipse(ctx, domeX, domeY - domeRy * 0.4, w * 0.11, h * 0.2, '#86d98f')
+  ellipse(ctx, domeX - w * 0.04, domeY - domeRy * 0.46, w * 0.024, h * 0.06, DARK)
+  ellipse(ctx, domeX + w * 0.04, domeY - domeRy * 0.46, w * 0.024, h * 0.06, DARK)
+  ctx.strokeStyle = DARK
+  ctx.lineWidth = w * 0.012
+  ctx.beginPath()
+  ctx.moveTo(domeX - w * 0.075, domeY - domeRy * 0.68)
+  ctx.lineTo(domeX - w * 0.015, domeY - domeRy * 0.56)
+  ctx.moveTo(domeX + w * 0.075, domeY - domeRy * 0.68)
+  ctx.lineTo(domeX + w * 0.015, domeY - domeRy * 0.56)
+  ctx.stroke()
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.65)'
+  ctx.lineWidth = w * 0.018
+  ctx.beginPath()
+  ctx.ellipse(domeX, domeY, domeRx * 0.7, domeRy * 0.74, 0, Math.PI * 1.06, Math.PI * 1.42)
+  ctx.stroke()
+  ctx.restore()
+
+  // Canopy rim and a warning stripe around the hull.
+  ellipse(ctx, domeX, domeY, w * 0.34, h * 0.06, steelLight)
+  ctx.fillStyle = warning
+  ctx.fillRect(w * 0.06, h * 0.66, w * 0.88, h * 0.035)
+
+  // Running lights, more of them than a scout carries.
+  for (let i = 0; i < 9; i++) {
+    const x = w * (0.1 + i * 0.1)
+    ellipse(ctx, x, h * 0.76, w * 0.016, h * 0.032, i % 2 === 0 ? '#fff3b0' : '#a8f0ff')
+  }
+
+  // The emitter the volleys come out of.
+  ellipse(ctx, w * 0.5, h * 0.87, w * 0.12, h * 0.07, steelDark)
+  ellipse(ctx, w * 0.5, h * 0.87, w * 0.07, h * 0.042, '#ff6b88')
+  ellipse(ctx, w * 0.5, h * 0.87, w * 0.035, h * 0.022, '#ffe6ec')
+}
+
+/** A single burst egg, blitted onto the mothership once per hit it has taken. */
+function drawEggMark(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const white = 'rgba(250,248,238,0.95)'
+  ellipse(ctx, w * 0.46, h * 0.5, w * 0.34, h * 0.36, white)
+  ellipse(ctx, w * 0.72, h * 0.6, w * 0.2, h * 0.22, white)
+  ellipse(ctx, w * 0.24, h * 0.64, w * 0.16, h * 0.18, white)
+  ellipse(ctx, w * 0.56, h * 0.26, w * 0.17, h * 0.16, white)
+  ellipse(ctx, w * 0.46, h * 0.5, w * 0.16, h * 0.19, '#ffbe2e')
+  ellipse(ctx, w * 0.41, h * 0.44, w * 0.07, h * 0.07, '#ffe08a')
+}
+
+// --- upgrades --------------------------------------------------------------
+
+/**
+ * The super egg. It has to read as "not an ordinary egg" from across the
+ * playfield at a glance, so it gets a halo and a crack with light coming out of
+ * it rather than just a larger version of the normal shell.
+ */
+function drawSuperEgg(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const halo = ctx.createRadialGradient(w * 0.5, h * 0.5, w * 0.2, w * 0.5, h * 0.5, w * 0.5)
+  halo.addColorStop(0, 'rgba(255,214,110,0.55)')
+  halo.addColorStop(1, 'rgba(255,170,60,0)')
+  ctx.fillStyle = halo
+  ctx.fillRect(0, 0, w, h)
+
+  ellipse(ctx, w * 0.5, h * 0.62, w * 0.38, h * 0.34, '#fffaf0')
+  ellipse(ctx, w * 0.5, h * 0.37, w * 0.3, h * 0.3, '#fffaf0')
+  ellipse(ctx, w * 0.5, h * 0.72, w * 0.28, h * 0.18, '#f6e6c0')
+
+  // A crack with light behind it.
+  ctx.strokeStyle = '#ffc33a'
+  ctx.lineWidth = w * 0.06
+  ctx.beginPath()
+  ctx.moveTo(w * 0.3, h * 0.42)
+  ctx.lineTo(w * 0.46, h * 0.52)
+  ctx.lineTo(w * 0.36, h * 0.62)
+  ctx.lineTo(w * 0.56, h * 0.74)
+  ctx.stroke()
+  ctx.strokeStyle = '#fff6d8'
+  ctx.lineWidth = w * 0.025
+  ctx.stroke()
+
+  ellipse(ctx, w * 0.36, h * 0.32, w * 0.1, h * 0.08, 'rgba(255,255,255,0.9)')
+}
+
+/**
+ * The Rambo egg: bandana, scowl and a belt of ammunition. It is a pickup rather
+ * than a threat, so it is drawn warm and slightly ridiculous — the player has
+ * to want to shoot it, not avoid it.
+ */
+function drawRambo(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const shell = '#fdf3dd'
+
+  // Body.
+  ellipse(ctx, w * 0.5, h * 0.62, w * 0.4, h * 0.35, shell)
+  ellipse(ctx, w * 0.5, h * 0.35, w * 0.32, h * 0.3, shell)
+  ellipse(ctx, w * 0.5, h * 0.74, w * 0.3, h * 0.18, '#eee0bf')
+
+  // Ammunition belt, slung across the shell.
+  ctx.save()
+  ctx.beginPath()
+  ctx.ellipse(w * 0.5, h * 0.58, w * 0.42, h * 0.4, 0, 0, Math.PI * 2)
+  ctx.clip()
+  ctx.strokeStyle = '#6b4a2a'
+  ctx.lineWidth = h * 0.1
+  ctx.beginPath()
+  ctx.moveTo(w * 0.02, h * 0.52)
+  ctx.lineTo(w * 0.98, h * 0.86)
+  ctx.stroke()
+  ctx.fillStyle = '#e8b53c'
+  for (let i = 0; i < 5; i++) {
+    const t = 0.1 + i * 0.2
+    ellipse(ctx, w * (0.02 + t * 0.96), h * (0.52 + t * 0.34), w * 0.05, h * 0.035, '#e8b53c')
+  }
+  ctx.restore()
+
+  // Bandana across the brow, with two tails streaming off to one side.
+  ctx.fillStyle = '#d63b52'
+  ctx.beginPath()
+  ctx.roundRect(w * 0.18, h * 0.22, w * 0.64, h * 0.1, w * 0.04)
+  ctx.fill()
+  ctx.strokeStyle = '#d63b52'
+  ctx.lineWidth = w * 0.06
+  ctx.beginPath()
+  ctx.moveTo(w * 0.8, h * 0.28)
+  ctx.quadraticCurveTo(w * 0.98, h * 0.3, w * 0.94, h * 0.44)
+  ctx.moveTo(w * 0.8, h * 0.31)
+  ctx.quadraticCurveTo(w * 1.0, h * 0.4, w * 0.86, h * 0.52)
+  ctx.stroke()
+
+  // A scowl: angled brows over small hard eyes.
+  ctx.strokeStyle = DARK
+  ctx.lineWidth = w * 0.05
+  ctx.beginPath()
+  ctx.moveTo(w * 0.3, h * 0.38)
+  ctx.lineTo(w * 0.44, h * 0.43)
+  ctx.moveTo(w * 0.7, h * 0.38)
+  ctx.lineTo(w * 0.56, h * 0.43)
+  ctx.stroke()
+
+  ctx.fillStyle = DARK
+  ctx.beginPath()
+  ctx.arc(w * 0.38, h * 0.48, w * 0.04, 0, Math.PI * 2)
+  ctx.arc(w * 0.62, h * 0.48, w * 0.04, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.strokeStyle = '#8c5a4a'
+  ctx.lineWidth = w * 0.035
+  ctx.beginPath()
+  ctx.moveTo(w * 0.42, h * 0.6)
+  ctx.lineTo(w * 0.58, h * 0.6)
+  ctx.stroke()
 }
 
 // --- toys ------------------------------------------------------------------
