@@ -232,7 +232,7 @@ export const GRAVITY = {
 export const BLACK_HOLE = {
   radius: (12 / 2) * 3,
   /** Multiple of the radius it reaches out to. */
-  reach: 2,
+  reach: 4,
   speed: 150,
   /** Unlike the other heavy ordnance this one is not a single shot: while it is
    *  held, every trigger pull sends another up the screen. */
@@ -311,8 +311,8 @@ export const OBSTACLE = {
   count: 4,
   width: 56,
   height: 44,
-  /** Shots absorbed before the toy is destroyed. Finite on purpose: an
-   *  indestructible shield turns every round after the third into camping. */
+  /** Saucers a loose toy can wreck before it breaks up. Shots no longer wear a
+   *  toy down at all — cover is removed by launching it, not by eroding it. */
   hitPoints: 4,
   /** Vertical band the toys are scattered in, between the formation and the hen. */
   minY: 415,

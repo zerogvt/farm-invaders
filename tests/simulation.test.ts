@@ -517,16 +517,23 @@ grant(gg, { kind: 'gravity', remaining: 5, duration: 5 })
 gg.shotCooldown = 0
 update(gg, DT, firing)
 check('firing gravity sends a ring out, not a projectile', gg.waves.length === 1 && gg.shots.length === 0)
-step(gg, 3, idle)
-check('the wave sets saucers tumbling', gg.ufos.some((u) => u.state.kind === 'wobbling'))
+// Watched across the window rather than sampled at the end of it: the wave
+// reaches the fleet part way through, and a saucer it catches can have already
+// detonated against its neighbour by the time the window closes.
+let sawTumbling = false
 const fleetBefore = gg.ufos.length
+for (let i = 0; i < Math.round(3.5 / DT); i++) {
+  update(gg, DT, idle)
+  if (gg.ufos.some((u) => u.state.kind === 'wobbling')) sawTumbling = true
+}
+check('the wave sets saucers tumbling', sawTumbling)
 step(gg, 4, idle)
 check('and tumbling saucers come off the board', gg.ufos.length < fleetBefore, `${fleetBefore} -> ${gg.ufos.length}`)
 check('which scores', gg.score > 0, `score ${gg.score}`)
 
 // 25. The black hole: three egg-radii across, swallowing everything at twice that.
 check('the black hole is three egg radii', BLACK_HOLE.radius === (EGG.width / 2) * 3, `${BLACK_HOLE.radius}`)
-check('and swallows at twice its radius', BLACK_HOLE.reach === 2)
+check('and swallows out to four times that', BLACK_HOLE.reach === 4)
 
 const gbh = newGame()
 gbh.hen.lives = 99
@@ -575,22 +582,48 @@ check('the record takes the mothership too', gmb.boss === null)
 
 // --- toys that have been knocked loose --------------------------------------
 
-// 27. An egg punts a toy off its spot; a laser only damages it.
+// 27. An egg punts a toy off its spot without wearing it down; a laser is
+//     absorbed and does neither.
 const gt = newGame()
 intoPlay(gt)
 const toy = gt.obstacles[0]!
 gt.shots = [egg(toy.x + OBSTACLE.width / 2 - 6, toy.y + OBSTACLE.height / 2)]
 update(gt, DT, idle)
 check('an egg knocks a toy loose', toy.vy < 0, `vy ${toy.vy.toFixed(0)}`)
-check('and still costs it a hit point', toy.health === OBSTACLE.hitPoints - 1, `${toy.health} left`)
+check('and the egg is spent on it', gt.shots.length === 0)
+check('but the toy is no worse for it', toy.health === OBSTACLE.hitPoints, `${toy.health} left`)
 check('a knocked toy tumbles', toy.spin !== 0)
+
+// Repeated eggs keep adding speed rather than eroding it.
+gt.shotCooldown = 0
+const speedAfterOne = toy.vy
+gt.shots = [egg(toy.x + OBSTACLE.width / 2 - 6, toy.y + OBSTACLE.height / 2)]
+update(gt, DT, idle)
+check('a second egg pushes it harder still', toy.vy < speedAfterOne, `vy ${toy.vy.toFixed(0)}`)
+check('and it is still in one piece', toy.health === OBSTACLE.hitPoints && gt.obstacles.includes(toy))
 
 const gt2 = newGame()
 intoPlay(gt2)
 const toy2 = gt2.obstacles[0]!
 gt2.lasers = [{ x: toy2.x + 20, y: toy2.y + 8, vx: 0, vy: LASER.baseSpeed }]
 update(gt2, DT, idle)
-check('a laser damages a toy without moving it', toy2.health === OBSTACLE.hitPoints - 1 && toy2.vy === 0)
+check('a laser is absorbed by a toy', gt2.lasers.length === 0)
+check('without damaging or moving it', toy2.health === OBSTACLE.hitPoints && toy2.vy === 0)
+
+// A toy under sustained fire is still standing, and still whole.
+const gt2b = newGame()
+intoPlay(gt2b)
+gt2b.hen.lives = 99
+const toy2b = gt2b.obstacles[0]!
+for (let i = 0; i < OBSTACLE.hitPoints * 3; i++) {
+  gt2b.lasers = [{ x: toy2b.x + 20, y: toy2b.y + 8, vx: 0, vy: LASER.baseSpeed }]
+  update(gt2b, DT, idle)
+}
+check(
+  'no amount of fire wears a toy down',
+  gt2b.obstacles.includes(toy2b) && toy2b.health === OBSTACLE.hitPoints,
+  `${toy2b.health} left`,
+)
 
 // 28. A loose toy wrecks what it ploughs into, and pays a hit point for each.
 const gt3 = newGame()

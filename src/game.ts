@@ -1051,14 +1051,17 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
 
 /**
  * Returns true when the projectile was absorbed. Toys soak eggs and lasers
- * alike and lose a hit point either way, but only an egg moves one: it comes
- * from below and punts the toy up into the fleet. Laser fire would push a toy
- * down onto the hen, which turns her own cover into a hazard she cannot dodge.
+ * alike and are worn down by neither: nothing that is shot at a toy damages it.
+ * What an egg does instead is move it — it arrives from below and punts the toy
+ * up into the fleet. Laser fire deliberately does not, because a toy pushed
+ * down is cover turning into a hazard the hen cannot dodge.
+ *
+ * Cover is therefore removed by launching it rather than by eroding it, and a
+ * toy the hen has not launched also blocks her own eggs, so parking behind one
+ * is not free.
  */
 function hitsObstacle(state: GameState, projectile: Rect, kick: { vx: number } | null): boolean {
-  for (let i = 0; i < state.obstacles.length; i++) {
-    const obstacle = state.obstacles[i]
-    if (obstacle === undefined) continue
+  for (const obstacle of state.obstacles) {
     const rect: Rect = { x: obstacle.x, y: obstacle.y, width: OBSTACLE.width, height: OBSTACLE.height }
     if (!overlaps(projectile, rect)) continue
 
@@ -1066,12 +1069,6 @@ function hitsObstacle(state: GameState, projectile: Rect, kick: { vx: number } |
       if (obstacle.spin === 0) obstacle.spin = (Math.random() < 0.5 ? -1 : 1) * OBSTACLE.spin
       obstacle.vy = Math.max(-OBSTACLE.maxSpeed, obstacle.vy - OBSTACLE.kick)
       obstacle.vx = clamp(obstacle.vx + kick.vx * OBSTACLE.kickDrag, -OBSTACLE.maxSpeed, OBSTACLE.maxSpeed)
-    }
-
-    obstacle.health -= 1
-    if (obstacle.health <= 0) {
-      if (obstacle.vy !== 0 || obstacle.vx !== 0) pop(state, obstacle.x + OBSTACLE.width / 2, obstacle.y + OBSTACLE.height / 2)
-      state.obstacles.splice(i, 1)
     }
     return true
   }
@@ -1082,9 +1079,9 @@ function hitsObstacle(state: GameState, projectile: Rect, kick: { vx: number } |
  * Toys that have been knocked loose. They keep whatever speed they were kicked
  * with until they leave the view, and anything they plough into goes up.
  *
- * Each wreck costs the toy a hit point, which is the whole of the balance here:
- * without it a single egg into a toy would sweep a column clean, and the toy
- * would still be going.
+ * Each wreck costs the toy a hit point — the only thing that ever does. Without
+ * it a single egg into a toy would sweep a column clean, and the toy would
+ * still be going.
  */
 function tickObstacles(state: GameState, dt: number, events: GameEvents): void {
   const standing = []

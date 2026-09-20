@@ -13,14 +13,14 @@ An egg does not shoot a saucer down. One that connects bursts across the canopy
 and blinds the pilot: the saucer drops out of the formation, hangs there reeling
 for a moment, then banks over and limps off whichever side of the screen is
 nearer. It scores when it is gone. Toys scattered across the floor absorb
-anything that hits them — the hen's eggs and the saucers' lasers alike — until
-they fall apart.
+anything that hits them — the hen's eggs and the saucers' lasers alike — and no
+amount of fire wears them down.
 
 **The toys are not nailed down.** An egg comes from below, so it punts the toy it
 hits up into the fleet, and anything a loose toy ploughs into goes up. Every
 wreck costs the toy a hit point, so a punted teddy bear is worth three or four
-saucers and no more. Lasers only damage a toy; they never move one, because a
-toy pushed downwards is cover turning into a hazard the hen cannot dodge.
+saucers and no more. Lasers are simply absorbed; they never move a toy, because
+a toy pushed downwards is cover turning into a hazard the hen cannot dodge.
 
 **Every second round is a mothership** rather than a fleet. It takes one egg per
 round number to see off, and the banner says so before the round starts. It
@@ -55,7 +55,7 @@ can hit it before it leaves. Which upgrade is not up to her:
 | Shield | Ten seconds during which lasers simply do not land. |
 | Exploding heart | One shot. The whole fleet deserts. The mothership declines — *"no xmas truce. This aint 1914. I'm da central command!"* — and the hen gets a super egg for her trouble. |
 | Gravity waves | Five seconds of expanding rings. Anything a ring washes over loses attitude control, tumbles off at random, and detonates against whatever it blunders into, itself included. |
-| Black hole | Six seconds of them. Three egg-radii across, swallowing everything inside twice that as each one climbs. |
+| Black hole | Six seconds of them. Three egg-radii across, swallowing everything inside four times that as each one climbs. |
 | Gramophone | One shot. It drifts up playing, and three seconds later the entire fleet goes up with it. |
 
 Every upgrade announces itself over the playfield, because which one you have is
@@ -205,18 +205,18 @@ ranks thin within a round, so the last saucer is the frightening one. The fleet
 is six columns by two ranks in round 1, narrower and shallower than it once was,
 which is the single biggest lever on how hard the early rounds feel.
 
-**Toys are destructible on purpose, and now spendable too.** They absorb four
-shots and then break. An indestructible shield would turn every round after the
-third into camping behind one, which is exactly the failure the original's
-erodable bunkers avoid — and now that a toy can be launched into the fleet,
-those four hit points are also the player's decision about whether cover is
-worth more standing still or in the air.
+**Cover is spent, not eroded.** Nothing that is shot at a toy damages it: eggs,
+lasers and everything the upgrades fire are all simply absorbed. What stops the
+player parking behind one for ever is that a toy blocks her own eggs as
+readily as it blocks the fleet's lasers, so a toy overhead is a wall in both
+directions. The only way to clear it is to punt it up into the fleet with those
+same eggs — which costs shots and gives up the cover. That is a decision rather
+than an erosion, and it replaces the original's crumbling bunkers with a trade.
 
-**A wrecked saucer costs the loose toy a hit point.** Without that, one egg into
-a toy would sweep a whole column and the toy would still be climbing. With it, a
-kick is worth three or four saucers, the toy's hit points stay the currency they
-always were, and punting cover into the fleet is a trade rather than a free
-win.
+**A wrecked saucer costs the loose toy a hit point, and nothing else does.**
+Those four hit points are no longer a health bar — they are how many saucers a
+launched toy is worth before it breaks up. Without the cost one egg into a toy
+would sweep a column clean and the toy would still be climbing.
 
 **Toy placement is constrained, not freely random.** The usable width is divided
 into one lane per toy and each toy is jittered inside its own lane. They can
