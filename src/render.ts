@@ -1,5 +1,20 @@
-import { BOSS, EGG, HEN, LASER, OBSTACLE, PALETTE, POWER, SPLAT, UFO, VIEW } from './config'
-import { HEN_TOP } from './game'
+import {
+  BLACK_HOLE,
+  BOSS,
+  DESERT,
+  GRAMOPHONE,
+  GRAVITY,
+  HEN,
+  LASER,
+  OBSTACLE,
+  PALETTE,
+  POWER,
+  SPLAT,
+  TAUNT,
+  UFO,
+  VIEW,
+} from './config'
+import { HEN_TOP, shotSize } from './game'
 import { rowVariant, type SpriteSet } from './sprites'
 import type { GameState } from './types'
 
@@ -10,8 +25,10 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawObstacles(ctx, state, sprites)
   drawUfos(ctx, state, sprites, time)
   drawBoss(ctx, state, sprites, time)
+  drawSpeech(ctx, state)
   drawPickup(ctx, state, sprites, time)
-  drawProjectiles(ctx, state, sprites)
+  drawWaves(ctx, state)
+  drawProjectiles(ctx, state, sprites, time)
   drawBeam(ctx, state, time)
   drawHen(ctx, state, sprites, time)
   drawShield(ctx, state, time)
@@ -127,20 +144,133 @@ function drawUfos(ctx: CanvasRenderingContext2D, state: GameState, sprites: Spri
       continue
     }
 
-    // Splattered: shuddering on the spot while it reels, then banking into its
-    // run for the edge. The bank is what sells the retreat as flight rather
-    // than as the sprite simply sliding sideways.
-    const { direction, reeling, speed } = ufo.state
+    // Caught by a gravity wave: spinning on its own axis with a violet halo,
+    // which is the only cue that it is about to take something else with it.
+    if (ufo.state.kind === 'wobbling') {
+      ctx.save()
+      ctx.translate(centreX, centreY)
+      ctx.globalCompositeOperation = 'lighter'
+      const halo = ctx.createRadialGradient(0, 0, UFO.width * 0.15, 0, 0, UFO.width * 0.7)
+      halo.addColorStop(0, 'rgba(178,120,255,0.5)')
+      halo.addColorStop(1, 'rgba(130,70,220,0)')
+      ctx.fillStyle = halo
+      ctx.beginPath()
+      ctx.arc(0, 0, UFO.width * 0.7, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.rotate(Math.sin(time * 11 + ufo.wobblePhase) * 0.8)
+      ctx.drawImage(clean, -UFO.width / 2, -UFO.height / 2, UFO.width, UFO.height)
+      ctx.restore()
+      continue
+    }
+
+    // Leaving: shuddering on the spot while it reels or makes its point, then
+    // banking into its run for the edge. The bank is what sells the retreat as
+    // flight rather than as the sprite simply sliding sideways.
+    const { direction, reason, reeling, speed } = ufo.state
     const tilt =
       reeling > 0
         ? Math.sin(time * 34 + ufo.wobblePhase) * 0.13
         : direction * SPLAT.bankAngle * Math.min(1, speed / SPLAT.fleeMaxSpeed)
+    const hull = reason === 'splattered' ? (sprites.ufoSplattered[variant] ?? clean) : clean
 
     ctx.save()
     ctx.translate(centreX, centreY)
     if (reeling <= 0) drawExhaust(ctx, direction, speed, time, ufo.wobblePhase, UFO.width)
     ctx.rotate(tilt)
-    ctx.drawImage(sprites.ufoSplattered[variant] ?? clean, -UFO.width / 2, -UFO.height / 2, UFO.width, UFO.height)
+    ctx.drawImage(hull, -UFO.width / 2, -UFO.height / 2, UFO.width, UFO.height)
+    ctx.restore()
+  }
+}
+
+/**
+ * Everything that has something to say: the deserters, and the mothership's
+ * reply to a heart. Drawn in a pass of their own after the hulls, so a bubble is
+ * never half-covered by the saucer in front.
+ */
+function drawSpeech(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const ufo of state.ufos) {
+    if (ufo.state.kind !== 'leaving' || ufo.state.reason !== 'deserted') continue
+    drawBubble(ctx, ufo.x + UFO.width / 2, ufo.y - 2, DESERT.bubble, 150)
+  }
+
+  const boss = state.boss
+  if (state.bossTaunt === null || boss === null) return
+  drawBubble(ctx, boss.x + BOSS.width / 2, boss.y - 2, TAUNT.text, 250)
+}
+
+/** A speech bubble with its tail on a hull, kept inside the view so a saucer at
+ *  the wall does not talk off the edge of the screen. */
+function drawBubble(ctx: CanvasRenderingContext2D, centreX: number, bottomY: number, text: string, maxWidth: number): void {
+  ctx.save()
+  ctx.font = '600 13px system-ui, sans-serif'
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = 'center'
+
+  const lines = wrapText(ctx, text, maxWidth)
+  const lineHeight = 17
+  const padX = 11
+  const padY = 8
+  let widest = 0
+  for (const line of lines) widest = Math.max(widest, ctx.measureText(line).width)
+
+  const boxWidth = widest + padX * 2
+  const boxHeight = lines.length * lineHeight + padY * 2
+  const left = Math.min(Math.max(centreX - boxWidth / 2, 6), VIEW.width - boxWidth - 6)
+  const top = Math.max(4, bottomY - 11 - boxHeight)
+  const tailX = Math.min(Math.max(centreX, left + 14), left + boxWidth - 14)
+
+  ctx.fillStyle = 'rgba(250,250,255,0.95)'
+  ctx.beginPath()
+  ctx.roundRect(left, top, boxWidth, boxHeight, 9)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.moveTo(tailX - 6, top + boxHeight - 1)
+  ctx.lineTo(tailX + 6, top + boxHeight - 1)
+  ctx.lineTo(tailX, top + boxHeight + 10)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.fillStyle = '#1a2033'
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i] ?? '', left + boxWidth / 2, top + padY + lineHeight * (i + 0.5))
+  }
+  ctx.restore()
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(' ')
+  const lines: string[] = []
+  let line = ''
+  for (const word of words) {
+    const candidate = line === '' ? word : `${line} ${word}`
+    if (line !== '' && ctx.measureText(candidate).width > maxWidth) {
+      lines.push(line)
+      line = word
+      continue
+    }
+    line = candidate
+  }
+  if (line !== '') lines.push(line)
+  return lines
+}
+
+/** Gravity waves: rings of warped space, fading as they thin out. */
+function drawWaves(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const wave of state.waves) {
+    const fade = 1 - wave.radius / GRAVITY.maxRadius
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.strokeStyle = `rgba(150,96,255,${fade * 0.5})`
+    ctx.lineWidth = 14 * fade + 3
+    ctx.beginPath()
+    ctx.arc(wave.x, wave.y, wave.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.strokeStyle = `rgba(226,205,255,${fade * 0.8})`
+    ctx.lineWidth = 3 * fade + 1
+    ctx.beginPath()
+    ctx.arc(wave.x, wave.y, wave.radius, 0, Math.PI * 2)
+    ctx.stroke()
     ctx.restore()
   }
 }
@@ -154,12 +284,12 @@ function drawBoss(ctx: CanvasRenderingContext2D, state: GameState, sprites: Spri
   const boss = state.boss
   if (boss === null) return
 
-  const retreating = boss.state.kind === 'splattered'
+  const retreating = boss.state.kind === 'leaving'
 
   ctx.save()
   ctx.translate(boss.x + BOSS.width / 2, boss.y + BOSS.height / 2)
 
-  if (boss.state.kind === 'splattered') {
+  if (boss.state.kind === 'leaving') {
     const { direction, reeling, speed } = boss.state
     if (reeling <= 0) drawExhaust(ctx, direction, speed, time, 0, BOSS.width)
     ctx.rotate(
@@ -250,33 +380,42 @@ function drawPickup(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sp
   ctx.drawImage(sprites.rambo, pickup.x, centreY - POWER.height / 2, POWER.width, POWER.height)
 }
 
-function drawProjectiles(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
-  for (const egg of state.eggs) {
-    const width = egg.kind === 'super' ? POWER.superEggWidth : EGG.width
-    const height = egg.kind === 'super' ? POWER.superEggHeight : EGG.height
+function drawProjectiles(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  for (const shot of state.shots) {
+    const { width, height } = shotSize(shot.kind)
+    const cx = shot.x + width / 2
+    const cy = shot.y + height / 2
 
-    if (egg.kind === 'super') {
-      // The halo is painted here rather than into the sprite so it can be
-      // additive: inside the sprite it was competing with the shell for the
-      // same pixels and came out as a grey ring.
-      const cx = egg.x + width / 2
-      const cy = egg.y + height / 2
+    // The upgrades all get an additive halo painted here rather than into their
+    // sprites: inside a sprite the glow competes with the shell for the same
+    // pixels and comes out as a grey ring.
+    if (shot.kind === 'super') glow(ctx, cx, cy, width * 1.15, 'rgba(255,208,110,0.6)', 'rgba(255,160,50,0)')
+    if (shot.kind === 'heart') glow(ctx, cx, cy, width * 1.1, 'rgba(255,120,170,0.55)', 'rgba(220,50,110,0)')
+    if (shot.kind === 'gramophone') {
+      // Brighter as the record runs out, which is the only warning the fleet
+      // gets and the only clock the player can see.
+      const urgency = 1 - shot.fuse / GRAMOPHONE.fuse
+      glow(ctx, cx, cy, width * (0.8 + urgency * 0.5), `rgba(255,214,120,${0.3 + urgency * 0.4})`, 'rgba(255,170,60,0)')
+      drawNotes(ctx, cx, cy, time)
+    }
+    if (shot.kind === 'blackHole') {
+      // A faint ring at the swallow reach, so what it is about to take is
+      // legible before it takes it.
+      const reach = BLACK_HOLE.radius * BLACK_HOLE.reach
       ctx.save()
       ctx.globalCompositeOperation = 'lighter'
-      const halo = ctx.createRadialGradient(cx, cy, width * 0.24, cx, cy, width * 1.15)
-      halo.addColorStop(0, 'rgba(255,208,110,0.6)')
-      halo.addColorStop(1, 'rgba(255,160,50,0)')
-      ctx.fillStyle = halo
+      ctx.strokeStyle = 'rgba(168,104,255,0.35)'
+      ctx.lineWidth = 2
       ctx.beginPath()
-      ctx.arc(cx, cy, width * 1.15, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.arc(cx, cy, reach, 0, Math.PI * 2)
+      ctx.stroke()
       ctx.restore()
     }
 
     ctx.save()
-    ctx.translate(egg.x + width / 2, egg.y + height / 2)
-    ctx.rotate(egg.rotation)
-    ctx.drawImage(egg.kind === 'super' ? sprites.superEgg : sprites.egg, -width / 2, -height / 2, width, height)
+    ctx.translate(cx, cy)
+    ctx.rotate(shot.rotation)
+    ctx.drawImage(spriteFor(sprites, shot.kind), -width / 2, -height / 2, width, height)
     ctx.restore()
   }
 
@@ -289,6 +428,54 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, state: GameState, sprite
     ctx.drawImage(sprites.laser, -LASER.width / 2, -LASER.height / 2, LASER.width, LASER.height)
     ctx.restore()
   }
+}
+
+function spriteFor(sprites: SpriteSet, kind: GameState['shots'][number]['kind']): HTMLCanvasElement {
+  switch (kind) {
+    case 'super':
+      return sprites.superEgg
+    case 'heart':
+      return sprites.heart
+    case 'blackHole':
+      return sprites.blackHole
+    case 'gramophone':
+      return sprites.gramophone
+    case 'normal':
+      return sprites.egg
+  }
+}
+
+function glow(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, inner: string, outer: string): void {
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  const halo = ctx.createRadialGradient(x, y, radius * 0.22, x, y, radius)
+  halo.addColorStop(0, inner)
+  halo.addColorStop(1, outer)
+  ctx.fillStyle = halo
+  ctx.beginPath()
+  ctx.arc(x, y, radius, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+}
+
+/** Notes drifting out of the gramophone's horn. The game has no audio, so this
+ *  is the whole of "it is playing something". */
+function drawNotes(ctx: CanvasRenderingContext2D, x: number, y: number, time: number): void {
+  ctx.save()
+  ctx.font = '600 15px system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (let i = 0; i < 3; i++) {
+    const drift = (time * 0.9 + i * 0.37) % 1
+    ctx.globalAlpha = 0.85 * (1 - drift)
+    ctx.fillStyle = '#ffe9a8'
+    ctx.fillText(
+      i % 2 === 0 ? '\u266a' : '\u266b',
+      x + 16 + Math.sin(drift * 6 + i) * 9,
+      y - 14 - drift * 46,
+    )
+  }
+  ctx.restore()
 }
 
 /** The continuous beam: a hot column from the hen's helmet to the top of the
@@ -368,13 +555,18 @@ function drawShield(ctx: CanvasRenderingContext2D, state: GameState, time: numbe
  *  the first fifth of it. */
 function drawBlasts(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const blast of state.blasts) {
-    const progress = Math.min(1, blast.age / POWER.blastDuration)
+    const progress = Math.min(1, blast.age / blast.duration)
     const fade = 1 - progress
+    // One saucer popping and a super egg going off share this code, so the ring
+    // weight is scaled to the blast rather than fixed: a pop drawn at the super
+    // egg's stroke width is all stroke and no ring.
+    const weight = Math.max(0.3, blast.radius / POWER.blastRadius)
 
     ctx.save()
     ctx.globalCompositeOperation = 'lighter'
 
-    if (progress < 0.2) {
+    // Only something screen-sized is allowed to wash out the screen.
+    if (progress < 0.2 && blast.radius > POWER.blastRadius * 0.4) {
       const flash = 1 - progress / 0.2
       ctx.fillStyle = `rgba(255,248,220,${flash * 0.55})`
       ctx.fillRect(0, 0, VIEW.width, VIEW.height)
@@ -383,21 +575,21 @@ function drawBlasts(ctx: CanvasRenderingContext2D, state: GameState): void {
     // Three passes at full saturation. A single semi-transparent stroke
     // averaged out to khaki against the sky and read as a drawn circle rather
     // than as something detonating.
-    const radius = POWER.blastRadius * progress
+    const radius = blast.radius * progress
     ctx.strokeStyle = `rgba(255,150,40,${fade * 0.8})`
-    ctx.lineWidth = 26 * fade + 4
+    ctx.lineWidth = (26 * fade + 4) * weight
     ctx.beginPath()
     ctx.arc(blast.x, blast.y, radius, 0, Math.PI * 2)
     ctx.stroke()
 
     ctx.strokeStyle = `rgba(255,224,150,${fade})`
-    ctx.lineWidth = 11 * fade + 2
+    ctx.lineWidth = (11 * fade + 2) * weight
     ctx.beginPath()
     ctx.arc(blast.x, blast.y, radius, 0, Math.PI * 2)
     ctx.stroke()
 
     ctx.strokeStyle = `rgba(255,255,255,${fade})`
-    ctx.lineWidth = 4 * fade + 1
+    ctx.lineWidth = (4 * fade + 1) * weight
     ctx.beginPath()
     ctx.arc(blast.x, blast.y, radius * 0.94, 0, Math.PI * 2)
     ctx.stroke()
@@ -419,6 +611,14 @@ function powerLabel(state: GameState): string | null {
       return `BEAM   ${power.remaining.toFixed(1)}s`
     case 'shield':
       return `SHIELD   ${power.remaining.toFixed(1)}s`
+    case 'heart':
+      return 'EXPLODING HEART — ONE SHOT'
+    case 'gravity':
+      return `GRAVITY WAVES   ${power.remaining.toFixed(1)}s`
+    case 'blackHole':
+      return 'BLACK HOLE — ONE SHOT'
+    case 'gramophone':
+      return 'GRAMOPHONE — ONE SHOT'
   }
 }
 

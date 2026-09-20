@@ -8,22 +8,39 @@ export interface Rect {
 }
 
 /**
- * A saucer's life cycle. `flying` saucers march with the formation and fire
- * lasers; `splattered` ones have taken an egg to the windscreen, can no longer
- * see out, and have left the formation to limp off the side of the screen.
- * There is deliberately no `dead` state — a saucer is removed from the array
- * outright once it has cleared the view.
+ * A saucer's life cycle.
+ *
+ * `flying` saucers march with the formation and fire lasers. `leaving` ones are
+ * on their way off the side of the screen, either because an egg took out their
+ * windscreen or because they have decided the war is not for them — the two
+ * share every movement rule and differ only in what is drawn. `wobbling` ones
+ * have been caught by a gravity wave, have lost attitude control, and detonate
+ * against whatever they drift into.
+ *
+ * There is deliberately no `dead` state: a saucer is removed from the array
+ * outright once it has cleared the view or gone up.
  */
 export type UfoState =
   | { kind: 'flying' }
   | {
-      kind: 'splattered'
-      /** -1 to run for the left wall, 1 for the right. Fixed when hit. */
+      kind: 'leaving'
+      /** Why it is going, which decides the sprite and the speech bubble. */
+      reason: 'splattered' | 'deserted'
+      /** -1 to run for the left wall, 1 for the right. Fixed when it turns. */
       direction: -1 | 1
-      /** Seconds of reeling in place left before the retreat begins. */
+      /** Seconds left of hanging in place — reeling, or making its point. */
       reeling: number
       /** Current horizontal escape speed, ramping up while it runs. */
       speed: number
+    }
+  | {
+      kind: 'wobbling'
+      /** Fixed side to drift off towards, so a random walk still terminates. */
+      drift: -1 | 1
+      vx: number
+      vy: number
+      /** Seconds until it picks a new random heading. */
+      turn: number
     }
 
 export interface Ufo {
@@ -38,7 +55,13 @@ export interface Ufo {
   wobblePhase: number
 }
 
-export interface Egg {
+/**
+ * Something the hen has thrown. Most of them are eggs; the upgrades put a heart,
+ * a black hole and a gramophone in the same array, because they all travel up
+ * the screen under the same rules and differ only in what they do when they get
+ * somewhere.
+ */
+export interface Shot {
   x: number
   y: number
   /** Radians per second; a thrown egg tumbles as it flies. */
@@ -47,8 +70,21 @@ export interface Egg {
   /** Sideways drift. Zero for an ordinary shot, non-zero for the outer eggs of
    *  a multishot fan. */
   vx: number
-  /** A `super` egg ignores everything in its path and bursts at mid-screen. */
-  kind: 'normal' | 'super'
+  /** `normal` and `super` are eggs; the rest are upgrades. Everything except
+   *  `normal` passes through whatever is in its way. */
+  kind: 'normal' | 'super' | 'heart' | 'blackHole' | 'gramophone'
+  /** Seconds of music left before a gramophone finishes the fleet. Unused by
+   *  every other kind. */
+  fuse: number
+}
+
+/** One gravity wave, expanding from wherever the hen was when it was fired. */
+export interface Wave {
+  x: number
+  y: number
+  radius: number
+  /** A wave gets one go at the mothership, on the frame its front reaches it. */
+  hitBoss: boolean
 }
 
 export interface Laser {
@@ -98,6 +134,10 @@ export type Power =
   | { kind: 'superEgg' }
   | { kind: 'beam'; remaining: number }
   | { kind: 'shield'; remaining: number }
+  | { kind: 'heart' }
+  | { kind: 'gravity'; remaining: number }
+  | { kind: 'blackHole' }
+  | { kind: 'gramophone' }
 
 /** The Rambo egg, waiting in a top corner to be shot. */
 export interface Pickup {
@@ -107,12 +147,15 @@ export interface Pickup {
   remaining: number
 }
 
-/** A super egg's shockwave. Purely decorative: the kill happens the instant it
- *  bursts, and this is what the player sees of it. */
+/** An explosion. Purely decorative: the kill happens the instant it goes off,
+ *  and this is what the player sees of it. `radius` is what it grows to, which
+ *  is how one saucer popping is told apart from a super egg. */
 export interface Blast {
   x: number
   y: number
   age: number
+  radius: number
+  duration: number
 }
 
 export type ToyKind = 'cradle' | 'duck' | 'ball' | 'teddy'
@@ -153,7 +196,8 @@ export interface GameState {
   ufos: Ufo[]
   /** Set on boss rounds, when `ufos` is empty instead. */
   boss: Boss | null
-  eggs: Egg[]
+  shots: Shot[]
+  waves: Wave[]
   lasers: Laser[]
   obstacles: Obstacle[]
   power: Power
@@ -161,6 +205,13 @@ export interface GameState {
   /** Seconds until the Rambo egg turns up, or null if this round has none. */
   pickupTimer: number | null
   blasts: Blast[]
+  /** Countdowns to the next saucer losing its nerve; one entry per desertion
+   *  the round still owes. */
+  desertions: number[]
+  /** Seconds left of the mothership's reply to a heart, or null. */
+  bossTaunt: number | null
+  /** Score at which the next free life is awarded. */
+  nextLifeAt: number
   /** Formation march bookkeeping. */
   marchTimer: number
   marchDirection: 1 | -1

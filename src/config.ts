@@ -16,6 +16,9 @@ export const HEN = {
   lives: 3,
   /** Seconds of blinking immunity after taking a hit. */
   hurtInvulnerability: 1.6,
+  /** Points between free lives. Awarded in a loop, so a single screen-clearing
+   *  upgrade that vaults several thresholds at once pays out for all of them. */
+  extraLifeEvery: 2000,
 } as const
 
 export const EGG = {
@@ -36,12 +39,6 @@ export const LASER = {
   baseSpeed: 210,
   /** Added to baseSpeed for every round beyond the first. */
   speedPerRound: 16,
-  /** Chance a saucer's shot is aimed off the vertical rather than straight
-   *  down. Strays are what stop the player parking under a column and
-   *  sidestepping on a metronome. */
-  strayChance: 0.35,
-  /** Widest angle from vertical, in radians, that a stray can take. */
-  strayAngle: 0.6,
 } as const
 
 export const UFO = {
@@ -49,8 +46,8 @@ export const UFO = {
   height: 30,
   columns: 9,
   /** Rows in round 1; grows with the round up to maxRows. */
-  baseRows: 3,
-  maxRows: 6,
+  baseRows: 2,
+  maxRows: 5,
   cellWidth: 62,
   cellHeight: 44,
   /** Pixels the whole formation drops when it touches a side wall. */
@@ -120,6 +117,28 @@ export const BOSS = {
 } as const
 
 /**
+ * Desertions. A tenth of every formation loses its nerve somewhere in the round,
+ * says its piece and flies home. Staggered rather than simultaneous: a whole
+ * rank vanishing at once reads as a bug, one saucer at a time reads as a mood
+ * spreading through the fleet.
+ */
+export const DESERT = {
+  /** Fraction of the formation that will not go through with it. */
+  fraction: 0.1,
+  minDelay: 1.5,
+  maxDelay: 9,
+  bubble: 'make \u2764\ufe0f not war',
+  /** Seconds a deserter hangs there making its point before it leaves. */
+  bubbleDuration: 1.6,
+} as const
+
+/** What the mothership has to say when a heart is set off under it. */
+export const TAUNT = {
+  text: "no xmas truce. This aint 1914. I'm da central command!",
+  duration: 3.4,
+} as const
+
+/**
  * The Rambo egg: a bandana-wearing pickup that turns up in a top corner on
  * random rounds and upgrades the hen's eggs if she can hit it before it leaves.
  */
@@ -157,6 +176,59 @@ export const POWER = {
   beamWidth: 18,
 
   shieldDuration: 10,
+
+  /** Radius of the little burst left where a single saucer goes up. */
+  popRadius: 90,
+  popDuration: 0.45,
+} as const
+
+/** The exploding heart. It talks the fleet out of the war; the mothership is
+ *  not open to persuasion. */
+export const HEART = {
+  width: 42,
+  height: 38,
+  speed: 360,
+  /** Fraction of the view height it bursts at, as the super egg does. */
+  burstY: 0.45,
+} as const
+
+/**
+ * Gravity waves. Each shot sends one ring out from the hen; anything it washes
+ * over loses attitude control, wobbles off at random and detonates against
+ * whatever it blunders into — including, eventually, itself.
+ */
+export const GRAVITY = {
+  duration: 5,
+  /** Seconds between waves, longer than the egg cooldown so the rings stay
+   *  separable rather than merging into one wall. */
+  cooldown: 0.55,
+  /** Pixels per second the ring expands by, and where it gives up. */
+  growth: 150,
+  maxRadius: 640,
+  /** How fast a tumbling saucer drifts, and how often it picks a new heading. */
+  wobbleSpeed: 135,
+  turnInterval: 0.35,
+  /** Hit points a single wave takes off the mothership, which has no attitude
+   *  to lose. Without this the upgrade would do nothing at all on a boss round. */
+  bossDamage: 1,
+} as const
+
+/** The black hole: three times an ordinary egg's radius, swallowing everything
+ *  inside twice that. */
+export const BLACK_HOLE = {
+  radius: (12 / 2) * 3,
+  /** Multiple of the radius it reaches out to. */
+  reach: 2,
+  speed: 150,
+} as const
+
+/** The gramophone. It drifts up playing something the fleet cannot survive. */
+export const GRAMOPHONE = {
+  width: 48,
+  height: 48,
+  speed: 60,
+  /** Seconds of music before the whole fleet goes up. */
+  fuse: 3,
 } as const
 
 export const OBSTACLE = {

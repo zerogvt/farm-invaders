@@ -1,4 +1,4 @@
-import { BOSS, EGG, HEN, LASER, OBSTACLE, POWER, UFO } from './config'
+import { BLACK_HOLE, BOSS, EGG, GRAMOPHONE, HEART, HEN, LASER, OBSTACLE, POWER, UFO } from './config'
 import type { ToyKind } from './types'
 
 /**
@@ -45,6 +45,9 @@ export interface SpriteSet {
    *  hits. Kept separate from the hull so the damage can build up. */
   bossSplat: HTMLCanvasElement
   rambo: HTMLCanvasElement
+  heart: HTMLCanvasElement
+  blackHole: HTMLCanvasElement
+  gramophone: HTMLCanvasElement
   toys: Record<ToyKind, HTMLCanvasElement>
 }
 
@@ -67,6 +70,9 @@ export function buildSprites(): SpriteSet {
     boss: sprite(BOSS.width, BOSS.height, drawBoss),
     bossSplat: sprite(38, 32, drawEggMark),
     rambo: sprite(POWER.width, POWER.height, drawRambo),
+    heart: sprite(HEART.width, HEART.height, drawHeart),
+    blackHole: sprite(BLACK_HOLE.radius * 2, BLACK_HOLE.radius * 2, drawBlackHole),
+    gramophone: sprite(GRAMOPHONE.width, GRAMOPHONE.height, drawGramophone),
     toys: {
       cradle: sprite(OBSTACLE.width, OBSTACLE.height, drawCradle),
       duck: sprite(OBSTACLE.width, OBSTACLE.height, drawDuck),
@@ -593,6 +599,115 @@ function drawRambo(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.beginPath()
   ctx.moveTo(w * 0.42, h * 0.6)
   ctx.lineTo(w * 0.58, h * 0.6)
+  ctx.stroke()
+}
+
+/** The exploding heart. Deliberately the softest thing on the board: it is the
+ *  only shot that asks rather than tells. */
+function drawHeart(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const skin = ctx.createLinearGradient(0, 0, 0, h)
+  skin.addColorStop(0, '#ff7fa4')
+  skin.addColorStop(1, '#d82f57')
+
+  ctx.beginPath()
+  ctx.moveTo(w * 0.5, h * 0.96)
+  ctx.bezierCurveTo(w * -0.08, h * 0.56, w * 0.14, h * 0.02, w * 0.5, h * 0.3)
+  ctx.bezierCurveTo(w * 0.86, h * 0.02, w * 1.08, h * 0.56, w * 0.5, h * 0.96)
+  ctx.closePath()
+  ctx.fillStyle = skin
+  ctx.fill()
+  ctx.strokeStyle = '#ffb3c9'
+  ctx.lineWidth = w * 0.035
+  ctx.stroke()
+
+  ellipse(ctx, w * 0.33, h * 0.32, w * 0.09, h * 0.07, 'rgba(255,255,255,0.75)')
+}
+
+/**
+ * The black hole. Three rings and a hole: a violet lensing halo, a hot
+ * accretion edge, and nothing at all in the middle. The pure black centre is
+ * the point — it is the only thing in the game that is darker than the sky.
+ */
+function drawBlackHole(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const r = Math.min(w, h) / 2
+
+  const halo = ctx.createRadialGradient(r, r, r * 0.55, r, r, r)
+  halo.addColorStop(0, 'rgba(150,90,230,0)')
+  halo.addColorStop(0.7, 'rgba(168,104,255,0.55)')
+  halo.addColorStop(1, 'rgba(120,60,200,0)')
+  ctx.fillStyle = halo
+  ctx.beginPath()
+  ctx.arc(r, r, r, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.strokeStyle = '#ffb14a'
+  ctx.lineWidth = r * 0.2
+  ctx.beginPath()
+  ctx.arc(r, r, r * 0.76, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.strokeStyle = 'rgba(255,240,200,0.9)'
+  ctx.lineWidth = r * 0.07
+  ctx.beginPath()
+  ctx.arc(r, r, r * 0.76, 0, Math.PI * 2)
+  ctx.stroke()
+
+  ctx.fillStyle = '#000000'
+  ctx.beginPath()
+  ctx.arc(r, r, r * 0.66, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+/** The gramophone: horn, record and crank. There is no audio in the game, so
+ *  the notes drifting out of it in the renderer are doing all the work of
+ *  saying that it is playing. */
+function drawGramophone(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  // Horn, opening up and to the right.
+  const brass = ctx.createLinearGradient(w * 0.3, h * 0.5, w * 0.95, h * 0.05)
+  brass.addColorStop(0, '#9c6a22')
+  brass.addColorStop(0.5, '#e8b84e')
+  brass.addColorStop(1, '#ffe9a8')
+
+  ctx.beginPath()
+  ctx.moveTo(w * 0.34, h * 0.56)
+  ctx.quadraticCurveTo(w * 0.5, h * 0.12, w * 0.93, h * 0.06)
+  ctx.quadraticCurveTo(w * 1.0, h * 0.34, w * 0.62, h * 0.52)
+  ctx.quadraticCurveTo(w * 0.48, h * 0.62, w * 0.34, h * 0.56)
+  ctx.closePath()
+  ctx.fillStyle = brass
+  ctx.fill()
+  ctx.strokeStyle = '#8a5a1c'
+  ctx.lineWidth = w * 0.022
+  ctx.stroke()
+
+  // Neck down to the box.
+  ctx.strokeStyle = '#b8862c'
+  ctx.lineWidth = w * 0.07
+  ctx.beginPath()
+  ctx.moveTo(w * 0.36, h * 0.56)
+  ctx.lineTo(w * 0.3, h * 0.72)
+  ctx.stroke()
+
+  // Case.
+  ctx.fillStyle = '#7b4a2a'
+  ctx.beginPath()
+  ctx.roundRect(w * 0.08, h * 0.7, w * 0.72, h * 0.24, w * 0.05)
+  ctx.fill()
+  ctx.fillStyle = '#955c34'
+  ctx.beginPath()
+  ctx.roundRect(w * 0.08, h * 0.7, w * 0.72, h * 0.08, w * 0.04)
+  ctx.fill()
+
+  // Record on the turntable.
+  ellipse(ctx, w * 0.42, h * 0.71, w * 0.26, h * 0.07, '#2b2b33')
+  ellipse(ctx, w * 0.42, h * 0.71, w * 0.05, h * 0.016, '#d8b04a')
+
+  // Crank.
+  ctx.strokeStyle = '#d8b04a'
+  ctx.lineWidth = w * 0.035
+  ctx.beginPath()
+  ctx.moveTo(w * 0.8, h * 0.82)
+  ctx.lineTo(w * 0.92, h * 0.82)
+  ctx.lineTo(w * 0.92, h * 0.92)
   ctx.stroke()
 }
 

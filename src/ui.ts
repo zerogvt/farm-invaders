@@ -43,9 +43,13 @@ export function createUi(root: HTMLElement): Ui {
       ),
       paragraph(
         'Every second round sends one mothership instead of a fleet: it takes as many eggs ' +
-          'as the round number, and answers with that many lasers at a time. Watch the ' +
-          'corners for a Rambo egg — shoot it and your eggs are upgraded to something ' +
-          'you do not get to choose.',
+          'as the round number, answers with that many lasers at a time, and is the only ' +
+          'thing out there that shoots at an angle. A tenth of every fleet loses its nerve ' +
+          'and goes home on its own.',
+      ),
+      paragraph(
+        'Watch the corners for a Rambo egg — shoot it and your eggs are upgraded to one of ' +
+          'eight things you do not get to choose. Every 2000 points is another hen.',
       ),
       scoreBoard(loadScores()),
     )

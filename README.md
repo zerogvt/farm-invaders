@@ -12,8 +12,16 @@ they fall apart.
 
 **Every second round is a mothership** rather than a fleet. It takes one egg per
 round number to see off and answers with a volley of that many lasers at a time,
-and the banner says so before the round starts. Ordinary saucers throw the odd
-shot off the vertical too, so there is no safe column to stand in.
+and the banner says so before the round starts. It is also the only thing out
+there that shoots at an angle — rank-and-file saucers only ever fire straight
+down.
+
+**A tenth of every fleet deserts.** Somewhere in each round, one saucer in ten
+decides it has had enough, says **make ❤️ not war** and flies home. They leave
+unscored: talking somebody out of a fight is not the same as winning it.
+
+**Every 2000 points is another hen**, awarded for each threshold crossed rather
+than one per payout, so a single screen-clearing upgrade can hand back two.
 
 **Watch the corners for a Rambo egg.** On roughly two rounds in five one turns up
 in a top corner, sits there for ten seconds, and upgrades the hen's eggs if she
@@ -25,6 +33,13 @@ can hit it before it leaves. Which upgrade is not up to her:
 | Super egg | One shot. It bursts at mid-screen and clears the sky outright. |
 | Beam | A continuous beam for six seconds. It burns whatever it touches, and needs one second on the mothership per egg the mothership would have cost. |
 | Shield | Ten seconds during which lasers simply do not land. |
+| Exploding heart | One shot. The whole fleet deserts. The mothership declines — *"no xmas truce. This aint 1914. I'm da central command!"* — and the hen gets a super egg for her trouble. |
+| Gravity waves | Five seconds of expanding rings. Anything a ring washes over loses attitude control, tumbles off at random, and detonates against whatever it blunders into, itself included. |
+| Black hole | One shot. Three egg-radii across, swallowing everything inside twice that as it climbs. |
+| Gramophone | One shot. It drifts up playing, and three seconds later the entire fleet goes up with it. |
+
+Every upgrade announces itself over the playfield, because which one you have is
+not something you chose.
 
 ## Running it
 
@@ -94,10 +109,35 @@ thing that strips your cover.
 round break rather than being reset by `startRound`, so a shield picked up in the
 last second of a round is not confiscated for clearing it.
 
-**Difficulty scales on four axes, not one.** Each round adds rows (to six),
+**One state for every way off the board.** `UfoState` has a single `leaving`
+variant with a `reason`, rather than separate `splattered` and `deserting`
+kinds. The two share every movement rule — hang in place, turn for the nearer
+wall, accelerate — and differ only in the sprite, the speech bubble, whether
+they sink, and whether they score. Two variants would have meant two copies of
+the exit code drifting apart.
+
+**Only the mothership shoots at an angle.** Rank-and-file lasers all travel
+straight down. Lasers still carry a velocity rather than a fixed fall, because
+the mothership's fanned volleys need it, but nothing else uses it.
+
+**Deserters and hearts pay nothing.** Score is for saucers the player actually
+drove off. Everything that leaves of its own accord — a scheduled desertion, or
+a whole fleet talked out of it by a heart — leaves unscored, which is the price
+of the heart being the most spectacular thing in the game.
+
+**Three upgrades take the mothership outright** (super egg, black hole,
+gramophone), two grind it down (the beam at one hit point per second, gravity
+waves at one per wave), the heart is refused, and multishot and the shield do
+what they always do. That spread is deliberate: a boss round should sometimes be
+stolen by a lucky pickup, but two of the eight have to be earned and two are no
+help at all.
+
+**Difficulty scales on four axes, not one.** Each round adds rows (to five),
 fires lasers more often and faster, allows more of them on screen at once, and
 starts the formation lower. On top of that the formation accelerates as its
-ranks thin within a round, so the last saucer is the frightening one.
+ranks thin within a round, so the last saucer is the frightening one. The ranks
+start one row shallower than they once did, which is the single biggest lever on
+how hard the early rounds feel.
 
 **Toys are destructible on purpose.** They absorb four shots and then break. An
 indestructible shield would turn every round after the third into camping behind

@@ -35,6 +35,14 @@ function main(): void {
     onPowerGained: (power) => {
       notice = { text: noticeFor(power), remaining: NOTICE_DURATION }
     },
+    onExtraLife: () => {
+      notice = { text: 'Extra life', remaining: NOTICE_DURATION }
+    },
+    // The mothership's refusal is worth a line of its own: it is also the
+    // moment the hen is handed a super egg instead.
+    onBossTaunt: () => {
+      notice = { text: 'Super egg — one shot', remaining: NOTICE_DURATION }
+    },
     onGameOver: (score, round) => {
       screen = 'over'
       notice = null
@@ -94,6 +102,8 @@ function bannerFor(game: GameState): string | null {
   }
 }
 
+/** Every upgrade announces itself: which of the eight a Rambo egg turns into is
+ *  random, so the player has no way of knowing what they are holding otherwise. */
 function noticeFor(power: Power): string {
   switch (power.kind) {
     case 'multishot':
@@ -104,6 +114,14 @@ function noticeFor(power: Power): string {
       return 'Beam online'
     case 'shield':
       return 'Shield up'
+    case 'heart':
+      return 'Exploding heart — one shot'
+    case 'gravity':
+      return 'Gravity waves'
+    case 'blackHole':
+      return 'Black hole — one shot'
+    case 'gramophone':
+      return 'Gramophone — one shot'
     case 'none':
       return ''
   }
