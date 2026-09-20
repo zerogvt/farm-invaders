@@ -1,17 +1,20 @@
-import { BABY, BOTTLE, DIAPER, MOM, OBSTACLE, ROUND, VIEW } from './config'
+import { EGG, HEN, LASER, OBSTACLE, ROUND, SPLAT, UFO, VIEW } from './config'
 import type { InputState } from './input'
 import { placeObstacles } from './obstacles'
-import type { Baby, Diaper, GameState, Rect } from './types'
+import type { GameState, Laser as LaserShot, Rect, Ufo } from './types'
 
-/** Y coordinate of the top of mom's head; the line the babies are racing for. */
-export const MOM_TOP = VIEW.height - MOM.bottomMargin - MOM.height
+/** Y coordinate of the top of the hen's helmet; the line the saucers race for. */
+export const HEN_TOP = VIEW.height - HEN.bottomMargin - HEN.height
 
 /** Things the simulation wants to announce but does not want to own: sounds,
  *  score submission, screen shake. Everything is optional so update() stays
  *  testable without a UI attached. */
 export interface GameEvents {
-  onBabyFed?: (baby: Baby, points: number) => void
-  onMomHurt?: () => void
+  /** An egg has just burst on a windscreen. The saucer is still on screen. */
+  onUfoSplattered?: (ufo: Ufo) => void
+  /** A splattered saucer has finally cleared the view, and scores. */
+  onUfoDowned?: (ufo: Ufo, points: number) => void
+  onHenHurt?: () => void
   onRoundCleared?: (round: number) => void
   onGameOver?: (score: number, round: number) => void
 }
@@ -21,14 +24,14 @@ export function createGame(): GameState {
     phase: { kind: 'intro', remaining: ROUND.introDuration },
     round: 1,
     score: 0,
-    mom: { x: VIEW.width / 2 - MOM.width / 2, lives: MOM.lives, invulnerable: 0 },
-    babies: [],
-    bottles: [],
-    diapers: [],
+    hen: { x: VIEW.width / 2 - HEN.width / 2, lives: HEN.lives, invulnerable: 0 },
+    ufos: [],
+    eggs: [],
+    lasers: [],
     obstacles: [],
     marchTimer: 0,
     marchDirection: 1,
-    roundBabyCount: 0,
+    roundUfoCount: 0,
     fireTimer: 0,
     shotCooldown: 0,
   }
@@ -37,47 +40,48 @@ export function createGame(): GameState {
 }
 
 /** Resets the board for a round: a new formation, a fresh scatter of toys, and
- *  no leftover projectiles. Score, lives and mom's position carry over. */
+ *  no leftover projectiles. Score, lives and the hen's position carry over. */
 export function startRound(state: GameState, round: number): void {
   state.round = round
-  state.babies = buildFormation(round)
-  state.roundBabyCount = state.babies.length
+  state.ufos = buildFormation(round)
+  state.roundUfoCount = state.ufos.length
   state.obstacles = placeObstacles()
-  state.bottles = []
-  state.diapers = []
+  state.eggs = []
+  state.lasers = []
   state.marchDirection = 1
   state.marchTimer = stepInterval(state)
   state.fireTimer = fireInterval(round)
   state.shotCooldown = 0
-  state.mom.invulnerable = MOM.hurtInvulnerability
+  state.hen.invulnerable = HEN.hurtInvulnerability
   state.phase = { kind: 'intro', remaining: ROUND.introDuration }
 }
 
 export function restart(state: GameState): void {
   state.score = 0
-  state.mom.lives = MOM.lives
-  state.mom.x = VIEW.width / 2 - MOM.width / 2
+  state.hen.lives = HEN.lives
+  state.hen.x = VIEW.width / 2 - HEN.width / 2
   startRound(state, 1)
 }
 
 /**
  * Advances the whole simulation by `dt` seconds. `dt` is clamped by the caller,
  * so a backgrounded tab cannot resume with a single enormous step that
- * teleports diapers straight through mom.
+ * teleports lasers straight through the hen.
  */
 export function update(state: GameState, dt: number, input: InputState, events: GameEvents = {}): void {
   switch (state.phase.kind) {
     case 'intro':
       state.phase.remaining -= dt
-      // Mom can already line up her shot during the banner; only the babies wait.
-      moveMom(state, dt, input)
+      // The hen can already line up her shot during the banner; only the
+      // saucers wait.
+      moveHen(state, dt, input)
       tickTimers(state, dt)
       if (state.phase.remaining <= 0) state.phase = { kind: 'playing' }
       return
 
     case 'cleared':
       state.phase.remaining -= dt
-      moveMom(state, dt, input)
+      moveHen(state, dt, input)
       advanceProjectiles(state, dt)
       tickTimers(state, dt)
       if (state.phase.remaining <= 0) startRound(state, state.round + 1)
@@ -90,25 +94,27 @@ export function update(state: GameState, dt: number, input: InputState, events: 
       break
   }
 
-  moveMom(state, dt, input)
+  moveHen(state, dt, input)
   tickTimers(state, dt)
   tryShoot(state, input)
   advanceProjectiles(state, dt)
   marchFormation(state, dt, events)
-  tickFeeding(state, dt, events)
-  throwDiapers(state, dt)
+  tickRetreat(state, dt, events)
+  fireLasers(state, dt)
   resolveCollisions(state, events)
 
-  if (state.babies.length === 0) {
+  if (state.ufos.length === 0) {
     events.onRoundCleared?.(state.round)
     state.phase = { kind: 'cleared', remaining: 1.4 }
     return
   }
 
-  // A baby that reaches mom's line ends the run outright, however many lives
-  // are left — same rule as the original invasion.
-  for (const baby of state.babies) {
-    if (baby.y + BABY.height >= MOM_TOP) {
+  // A saucer that reaches the hen's line ends the run outright, however many
+  // lives are left — same rule as the original invasion. A splattered one is
+  // running away and sinking as it goes, so it is not an invader any more.
+  for (const ufo of state.ufos) {
+    if (ufo.state.kind !== 'flying') continue
+    if (ufo.y + UFO.height >= HEN_TOP) {
       endGame(state, events)
       return
     }
@@ -117,72 +123,81 @@ export function update(state: GameState, dt: number, input: InputState, events: 
 
 function tickTimers(state: GameState, dt: number): void {
   if (state.shotCooldown > 0) state.shotCooldown = Math.max(0, state.shotCooldown - dt)
-  if (state.mom.invulnerable > 0) state.mom.invulnerable = Math.max(0, state.mom.invulnerable - dt)
+  if (state.hen.invulnerable > 0) state.hen.invulnerable = Math.max(0, state.hen.invulnerable - dt)
 }
 
-function moveMom(state: GameState, dt: number, input: InputState): void {
+function moveHen(state: GameState, dt: number, input: InputState): void {
   const direction = (input.right ? 1 : 0) - (input.left ? 1 : 0)
   if (direction === 0) return
-  const next = state.mom.x + direction * MOM.speed * dt
-  state.mom.x = clamp(next, 0, VIEW.width - MOM.width)
+  const next = state.hen.x + direction * HEN.speed * dt
+  state.hen.x = clamp(next, 0, VIEW.width - HEN.width)
 }
 
 function tryShoot(state: GameState, input: InputState): void {
   if (!input.fire) return
   if (state.shotCooldown > 0) return
-  if (state.bottles.length >= BOTTLE.maxInFlight) return
-  state.bottles.push({
-    x: state.mom.x + MOM.width / 2 - BOTTLE.width / 2,
-    y: MOM_TOP - BOTTLE.height,
+  if (state.eggs.length >= EGG.maxInFlight) return
+  state.eggs.push({
+    x: state.hen.x + HEN.width / 2 - EGG.width / 2,
+    y: HEN_TOP - EGG.height,
+    spin: (Math.random() < 0.5 ? -1 : 1) * (3 + Math.random() * 3),
+    rotation: Math.random() * Math.PI * 2,
   })
-  state.shotCooldown = BOTTLE.cooldown
+  state.shotCooldown = EGG.cooldown
 }
 
 function advanceProjectiles(state: GameState, dt: number): void {
-  const diaperSpeed = DIAPER.baseSpeed + (state.round - 1) * DIAPER.speedPerRound
+  const laserSpeed = LASER.baseSpeed + (state.round - 1) * LASER.speedPerRound
 
-  const flyingBottles = []
-  for (const bottle of state.bottles) {
-    bottle.y -= BOTTLE.speed * dt
-    if (bottle.y + BOTTLE.height > 0) flyingBottles.push(bottle)
+  const flyingEggs = []
+  for (const egg of state.eggs) {
+    egg.y -= EGG.speed * dt
+    egg.rotation += egg.spin * dt
+    if (egg.y + EGG.height > 0) flyingEggs.push(egg)
   }
-  state.bottles = flyingBottles
+  state.eggs = flyingEggs
 
-  const fallingDiapers = []
-  for (const diaper of state.diapers) {
-    diaper.y += diaperSpeed * dt
-    diaper.rotation += diaper.spin * dt
-    if (diaper.y < VIEW.height) fallingDiapers.push(diaper)
+  const fallingLasers = []
+  for (const laser of state.lasers) {
+    laser.y += laserSpeed * dt
+    if (laser.y < VIEW.height) fallingLasers.push(laser)
   }
-  state.diapers = fallingDiapers
+  state.lasers = fallingLasers
 }
 
 /**
  * The formation moves in discrete steps rather than continuously, which is what
  * gives Space Invaders its march. Each step tries to move sideways; if that
  * would push the block past a wall it drops and reverses instead.
+ *
+ * Splattered saucers are invisible to all of this. They have left the formation
+ * and are steering themselves, so letting one widen the block's bounds on its
+ * way out would bounce the formation off a wall that is not there.
  */
 function marchFormation(state: GameState, dt: number, events: GameEvents): void {
   state.marchTimer -= dt
   if (state.marchTimer > 0) return
   state.marchTimer += stepInterval(state)
 
+  const marching = state.ufos.filter((ufo) => ufo.state.kind === 'flying')
+  if (marching.length === 0) return
+
   let leftmost = Infinity
   let rightmost = -Infinity
-  for (const baby of state.babies) {
-    leftmost = Math.min(leftmost, baby.x)
-    rightmost = Math.max(rightmost, baby.x + BABY.width)
+  for (const ufo of marching) {
+    leftmost = Math.min(leftmost, ufo.x)
+    rightmost = Math.max(rightmost, ufo.x + UFO.width)
   }
 
-  const dx = BABY.marchStep * state.marchDirection
+  const dx = UFO.marchStep * state.marchDirection
   const wouldLeaveView = leftmost + dx < 0 || rightmost + dx > VIEW.width
   if (wouldLeaveView) {
     state.marchDirection = state.marchDirection === 1 ? -1 : 1
-    for (const baby of state.babies) baby.y += BABY.descendStep
-    // Dropping can be what carries the front rank onto mom, so re-check here
-    // rather than waiting for the next frame.
-    for (const baby of state.babies) {
-      if (baby.y + BABY.height >= MOM_TOP) {
+    for (const ufo of marching) ufo.y += UFO.descendStep
+    // Dropping can be what carries the front rank onto the hen, so re-check
+    // here rather than waiting for the next frame.
+    for (const ufo of marching) {
+      if (ufo.y + UFO.height >= HEN_TOP) {
         endGame(state, events)
         return
       }
@@ -190,90 +205,105 @@ function marchFormation(state: GameState, dt: number, events: GameEvents): void 
     return
   }
 
-  for (const baby of state.babies) baby.x += dx
+  for (const ufo of marching) ufo.x += dx
 }
 
-/** Feeding babies count down and then vanish, scoring by the row they started
- *  in — the back rows are worth more, as in the original. */
-function tickFeeding(state: GameState, dt: number, events: GameEvents): void {
-  const survivors: Baby[] = []
-  for (const baby of state.babies) {
-    if (baby.state.kind !== 'feeding') {
-      survivors.push(baby)
+/**
+ * Splattered saucers reel in place for a moment, then accelerate towards the
+ * nearer wall and sink as they go. They score once they are fully out of the
+ * view, scoring by the row they started in — the back rows are worth more, as
+ * in the original.
+ */
+function tickRetreat(state: GameState, dt: number, events: GameEvents): void {
+  const survivors: Ufo[] = []
+  for (const ufo of state.ufos) {
+    const retreat = ufo.state
+    if (retreat.kind !== 'splattered') {
+      survivors.push(ufo)
       continue
     }
-    baby.state.remaining -= dt
-    if (baby.state.remaining > 0) {
-      survivors.push(baby)
+
+    if (retreat.reeling > 0) {
+      retreat.reeling -= dt
+      survivors.push(ufo)
       continue
     }
-    const points = BABY.rowScores[baby.row] ?? BABY.rowScores[BABY.rowScores.length - 1] ?? 10
+
+    retreat.speed = Math.min(SPLAT.fleeMaxSpeed, retreat.speed + SPLAT.fleeAcceleration * dt)
+    ufo.x += retreat.direction * retreat.speed * dt
+    ufo.y += SPLAT.sinkSpeed * dt
+
+    const gone = ufo.x + UFO.width < 0 || ufo.x > VIEW.width
+    if (!gone) {
+      survivors.push(ufo)
+      continue
+    }
+
+    const points = UFO.rowScores[ufo.row] ?? UFO.rowScores[UFO.rowScores.length - 1] ?? 10
     state.score += points
-    events.onBabyFed?.(baby, points)
+    events.onUfoDowned?.(ufo, points)
   }
-  state.babies = survivors
+  state.ufos = survivors
 }
 
-/** Only the front baby of a column can throw, so diapers always come from the
+/** Only the front saucer of a column can fire, so lasers always come from the
  *  rank the player can actually see and shoot back at. */
-function throwDiapers(state: GameState, dt: number): void {
-  const limit = ROUND.baseMaxDiapers + Math.floor((state.round - 1) / 2)
+function fireLasers(state: GameState, dt: number): void {
+  const limit = ROUND.baseMaxLasers + Math.floor((state.round - 1) / 2)
   state.fireTimer -= dt
   if (state.fireTimer > 0) return
   state.fireTimer += fireInterval(state.round)
-  if (state.diapers.length >= limit) return
+  if (state.lasers.length >= limit) return
 
-  const throwers = frontLineBabies(state)
-  if (throwers.length === 0) return
-  const thrower = throwers[Math.floor(Math.random() * throwers.length)]
-  if (thrower === undefined) return
+  const shooters = frontLineUfos(state)
+  if (shooters.length === 0) return
+  const shooter = shooters[Math.floor(Math.random() * shooters.length)]
+  if (shooter === undefined) return
 
-  const diaper: Diaper = {
-    x: thrower.x + BABY.width / 2 - DIAPER.width / 2,
-    y: thrower.y + BABY.height,
-    spin: (Math.random() < 0.5 ? -1 : 1) * (2 + Math.random() * 3),
-    rotation: Math.random() * Math.PI * 2,
+  const laser: LaserShot = {
+    x: shooter.x + UFO.width / 2 - LASER.width / 2,
+    y: shooter.y + UFO.height,
   }
-  state.diapers.push(diaper)
+  state.lasers.push(laser)
 }
 
-/** The lowest still-marching baby in each occupied column. Feeding babies are
- *  excluded: a baby with a bottle in its mouth has better things to do. */
-function frontLineBabies(state: GameState): Baby[] {
-  const lowestByColumn = new Map<number, Baby>()
-  for (const baby of state.babies) {
-    if (baby.state.kind !== 'marching') continue
-    const current = lowestByColumn.get(baby.column)
-    if (current === undefined || baby.y > current.y) lowestByColumn.set(baby.column, baby)
+/** The lowest still-flying saucer in each occupied column. Splattered ones are
+ *  excluded: a pilot who cannot see out of the windscreen cannot aim. */
+function frontLineUfos(state: GameState): Ufo[] {
+  const lowestByColumn = new Map<number, Ufo>()
+  for (const ufo of state.ufos) {
+    if (ufo.state.kind !== 'flying') continue
+    const current = lowestByColumn.get(ufo.column)
+    if (current === undefined || ufo.y > current.y) lowestByColumn.set(ufo.column, ufo)
   }
   return [...lowestByColumn.values()]
 }
 
 function resolveCollisions(state: GameState, events: GameEvents): void {
-  const survivingBottles = []
-  for (const bottle of state.bottles) {
-    const bottleRect: Rect = { x: bottle.x, y: bottle.y, width: BOTTLE.width, height: BOTTLE.height }
-    if (damagesObstacle(state, bottleRect)) continue
-    if (feedsBaby(state, bottleRect)) continue
-    survivingBottles.push(bottle)
+  const survivingEggs = []
+  for (const egg of state.eggs) {
+    const eggRect: Rect = { x: egg.x, y: egg.y, width: EGG.width, height: EGG.height }
+    if (damagesObstacle(state, eggRect)) continue
+    if (splattersUfo(state, eggRect, events)) continue
+    survivingEggs.push(egg)
   }
-  state.bottles = survivingBottles
+  state.eggs = survivingEggs
 
-  const momRect: Rect = { x: state.mom.x, y: MOM_TOP, width: MOM.width, height: MOM.height }
-  const survivingDiapers = []
-  for (const diaper of state.diapers) {
-    const diaperRect: Rect = { x: diaper.x, y: diaper.y, width: DIAPER.width, height: DIAPER.height }
-    if (damagesObstacle(state, diaperRect)) continue
-    if (state.mom.invulnerable <= 0 && overlaps(diaperRect, momRect)) {
-      hurtMom(state, events)
+  const henRect: Rect = { x: state.hen.x, y: HEN_TOP, width: HEN.width, height: HEN.height }
+  const survivingLasers = []
+  for (const laser of state.lasers) {
+    const laserRect: Rect = { x: laser.x, y: laser.y, width: LASER.width, height: LASER.height }
+    if (damagesObstacle(state, laserRect)) continue
+    if (state.hen.invulnerable <= 0 && overlaps(laserRect, henRect)) {
+      hurtHen(state, events)
       return
     }
-    survivingDiapers.push(diaper)
+    survivingLasers.push(laser)
   }
-  state.diapers = survivingDiapers
+  state.lasers = survivingLasers
 }
 
-/** Returns true when the projectile was absorbed. Toys soak bottles and diapers
+/** Returns true when the projectile was absorbed. Toys soak eggs and lasers
  *  alike, and lose a hit point either way. */
 function damagesObstacle(state: GameState, projectile: Rect): boolean {
   for (let i = 0; i < state.obstacles.length; i++) {
@@ -289,28 +319,43 @@ function damagesObstacle(state: GameState, projectile: Rect): boolean {
 }
 
 /**
- * Returns true when the bottle was caught. A bottle that reaches an
- * already-feeding baby is absorbed and wasted: the baby has a bottle, and the
- * player has spent one of three in flight on a kill that was already coming.
- * That is the whole cost the feeding delay imposes, so it is deliberate.
+ * Returns true when the egg burst on a hull. An egg that reaches an
+ * already-splattered saucer is wasted: the windscreen is as dirty as it is
+ * going to get, and the player has spent one of three in flight on a saucer
+ * that was already leaving. That is the whole cost the retreat imposes, so it
+ * is deliberate.
  */
-function feedsBaby(state: GameState, bottle: Rect): boolean {
-  for (const baby of state.babies) {
-    const rect: Rect = { x: baby.x, y: baby.y, width: BABY.width, height: BABY.height }
-    if (!overlaps(bottle, rect)) continue
-    if (baby.state.kind === 'marching') baby.state = { kind: 'feeding', remaining: BABY.feedDuration }
+function splattersUfo(state: GameState, egg: Rect, events: GameEvents): boolean {
+  for (const ufo of state.ufos) {
+    const rect: Rect = { x: ufo.x, y: ufo.y, width: UFO.width, height: UFO.height }
+    if (!overlaps(egg, rect)) continue
+    if (ufo.state.kind === 'flying') {
+      ufo.state = {
+        kind: 'splattered',
+        direction: nearestEdge(ufo),
+        reeling: SPLAT.reelDuration,
+        speed: SPLAT.fleeSpeed,
+      }
+      events.onUfoSplattered?.(ufo)
+    }
     return true
   }
   return false
 }
 
-function hurtMom(state: GameState, events: GameEvents): void {
-  state.mom.lives -= 1
-  state.mom.invulnerable = MOM.hurtInvulnerability
-  // Clear the air so she does not respawn into a diaper she cannot dodge.
-  state.diapers = []
-  events.onMomHurt?.()
-  if (state.mom.lives <= 0) endGame(state, events)
+/** Which wall a blinded saucer runs for: whichever one it is already nearer,
+ *  so the retreat is the shortest way out of the fight. */
+function nearestEdge(ufo: Ufo): -1 | 1 {
+  return ufo.x + UFO.width / 2 < VIEW.width / 2 ? -1 : 1
+}
+
+function hurtHen(state: GameState, events: GameEvents): void {
+  state.hen.lives -= 1
+  state.hen.invulnerable = HEN.hurtInvulnerability
+  // Clear the air so she does not respawn into a laser she cannot dodge.
+  state.lasers = []
+  events.onHenHurt?.()
+  if (state.hen.lives <= 0) endGame(state, events)
 }
 
 function endGame(state: GameState, events: GameEvents): void {
@@ -319,36 +364,37 @@ function endGame(state: GameState, events: GameEvents): void {
   events.onGameOver?.(state.score, state.round)
 }
 
-function buildFormation(round: number): Baby[] {
-  const rows = Math.min(BABY.maxRows, BABY.baseRows + Math.floor((round - 1) / 2))
-  const formationWidth = BABY.columns * BABY.cellWidth
-  const left = (VIEW.width - formationWidth) / 2 + (BABY.cellWidth - BABY.width) / 2
-  const top = Math.min(BABY.maxStartY, BABY.startY + (round - 1) * BABY.startYPerRound)
+function buildFormation(round: number): Ufo[] {
+  const rows = Math.min(UFO.maxRows, UFO.baseRows + Math.floor((round - 1) / 2))
+  const formationWidth = UFO.columns * UFO.cellWidth
+  const left = (VIEW.width - formationWidth) / 2 + (UFO.cellWidth - UFO.width) / 2
+  const top = Math.min(UFO.maxStartY, UFO.startY + (round - 1) * UFO.startYPerRound)
 
-  // Row 0 is the front rank (nearest mom) so it can index rowScores directly.
-  const babies: Baby[] = []
+  // Row 0 is the front rank (nearest the hen) so it can index rowScores directly.
+  const ufos: Ufo[] = []
   for (let row = 0; row < rows; row++) {
-    for (let column = 0; column < BABY.columns; column++) {
-      babies.push({
+    for (let column = 0; column < UFO.columns; column++) {
+      ufos.push({
         column,
         row,
-        x: left + column * BABY.cellWidth,
-        y: top + (rows - 1 - row) * BABY.cellHeight,
-        state: { kind: 'marching' },
+        x: left + column * UFO.cellWidth,
+        y: top + (rows - 1 - row) * UFO.cellHeight,
+        state: { kind: 'flying' },
         wobblePhase: Math.random() * Math.PI * 2,
       })
     }
   }
-  return babies
+  return ufos
 }
 
 /** Seconds between march steps. The formation accelerates as its ranks thin and
- *  starts each round a little faster than the last. */
+ *  starts each round a little faster than the last. Saucers on their way out
+ *  have already left the formation, so they no longer slow it down. */
 function stepInterval(state: GameState): number {
-  const remaining = state.babies.length
-  const total = Math.max(1, state.roundBabyCount)
+  const remaining = state.ufos.reduce((count, ufo) => count + (ufo.state.kind === 'flying' ? 1 : 0), 0)
+  const total = Math.max(1, state.roundUfoCount)
   const thinning = remaining <= 1 ? 0 : (remaining - 1) / Math.max(1, total - 1)
-  const base = BABY.fastestStepInterval + (BABY.slowestStepInterval - BABY.fastestStepInterval) * thinning
+  const base = UFO.fastestStepInterval + (UFO.slowestStepInterval - UFO.fastestStepInterval) * thinning
   const roundScale = Math.max(0.6, 1 - (state.round - 1) * 0.04)
   return base * roundScale
 }

@@ -8,38 +8,47 @@ export interface Rect {
 }
 
 /**
- * A baby's life cycle. `marching` babies throw diapers; `feeding` ones have
- * caught a bottle, have gone quiet, and are counting down to vanishing. There
- * is deliberately no `dead` state — a baby that has finished feeding is removed
- * from the array outright.
+ * A saucer's life cycle. `flying` saucers march with the formation and fire
+ * lasers; `splattered` ones have taken an egg to the windscreen, can no longer
+ * see out, and have left the formation to limp off the side of the screen.
+ * There is deliberately no `dead` state — a saucer is removed from the array
+ * outright once it has cleared the view.
  */
-export type BabyState =
-  | { kind: 'marching' }
-  | { kind: 'feeding'; remaining: number }
+export type UfoState =
+  | { kind: 'flying' }
+  | {
+      kind: 'splattered'
+      /** -1 to run for the left wall, 1 for the right. Fixed when hit. */
+      direction: -1 | 1
+      /** Seconds of reeling in place left before the retreat begins. */
+      reeling: number
+      /** Current horizontal escape speed, ramping up while it runs. */
+      speed: number
+    }
 
-export interface Baby {
-  /** Column and row within the formation, fixed for the baby's whole life. */
+export interface Ufo {
+  /** Column and row within the formation, fixed for the saucer's whole life. */
   column: number
   row: number
   /** Top-left of the sprite, updated by the formation as a block. */
   x: number
   y: number
-  state: BabyState
-  /** Per-baby phase so the whole nursery does not wobble in lockstep. */
+  state: UfoState
+  /** Per-saucer phase so the whole fleet does not hover in lockstep. */
   wobblePhase: number
 }
 
-export interface Bottle {
+export interface Egg {
   x: number
   y: number
-}
-
-export interface Diaper {
-  x: number
-  y: number
-  /** Radians per second; dirty diapers tumble as they fall. */
+  /** Radians per second; a thrown egg tumbles as it flies. */
   spin: number
   rotation: number
+}
+
+export interface Laser {
+  x: number
+  y: number
 }
 
 export type ToyKind = 'cradle' | 'duck' | 'ball' | 'teddy'
@@ -54,7 +63,7 @@ export interface Obstacle {
   scuffs: Array<{ x: number; y: number; r: number }>
 }
 
-export interface Mom {
+export interface Hen {
   x: number
   lives: number
   /** Seconds of post-hit immunity remaining; she blinks while this is > 0. */
@@ -76,16 +85,16 @@ export interface GameState {
   phase: Phase
   round: number
   score: number
-  mom: Mom
-  babies: Baby[]
-  bottles: Bottle[]
-  diapers: Diaper[]
+  hen: Hen
+  ufos: Ufo[]
+  eggs: Egg[]
+  lasers: Laser[]
   obstacles: Obstacle[]
   /** Formation march bookkeeping. */
   marchTimer: number
   marchDirection: 1 | -1
-  /** Babies alive when the round began, used to scale the march speed. */
-  roundBabyCount: number
+  /** Saucers alive when the round began, used to scale the march speed. */
+  roundUfoCount: number
   fireTimer: number
   shotCooldown: number
 }

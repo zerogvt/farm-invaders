@@ -1,12 +1,12 @@
-import { BABY, BOTTLE, DIAPER, MOM, OBSTACLE } from './config'
+import { EGG, HEN, LASER, OBSTACLE, UFO } from './config'
 import type { ToyKind } from './types'
 
 /**
  * Every sprite in the game is drawn here with canvas paths — there are no image
  * files and nothing to load. The trade-off is deliberate: the art is cruder
  * than hand-drawn sprites would be, but it renders identically on every
- * platform, needs no licensing, and lets a baby's crying and feeding faces
- * share one body.
+ * platform, needs no licensing, and lets a saucer's clean and egg-covered
+ * windscreens share one hull.
  *
  * Sprites are rendered once into offscreen canvases at SUPERSAMPLE resolution
  * and then blitted each frame, so the per-frame cost is a drawImage rather than
@@ -21,40 +21,42 @@ import type { ToyKind } from './types'
  *  when the canvas is scaled up on a large display. */
 const SUPERSAMPLE = 3
 
-const SKIN = '#ffd9b3'
-const SKIN_SHADE = '#f0bf92'
-const BLUSH = '#ff9d9d'
-const TEAR = '#7ec8f2'
-const MOUTH = '#8c3b4a'
+const FEATHER = '#fdf4e3'
+const FEATHER_SHADE = '#e6d7bd'
+const FEATHER_HURT = '#ffd0d6'
+const FEATHER_HURT_SHADE = '#eaaab4'
+const COMB = '#e8455f'
+const BEAK = '#f2a03c'
+const DARK = '#22283c'
 
-/** One onesie colour per formation row, so the ranks read apart at a glance. */
-const ONESIE = ['#7fd4c1', '#8fb8f0', '#c6a6e8', '#f2b6d4', '#f5cf87', '#a8dd90']
+/** One hull colour per formation row, so the ranks read apart at a glance. */
+const HULL = ['#8fb8f0', '#7fd4c1', '#c6a6e8', '#f2b6d4', '#f5cf87', '#a8dd90']
 
 export interface SpriteSet {
-  babyCrying: HTMLCanvasElement[]
-  babyFeeding: HTMLCanvasElement[]
-  mom: HTMLCanvasElement
-  momHurt: HTMLCanvasElement
-  bottle: HTMLCanvasElement
-  diaper: HTMLCanvasElement
+  ufo: HTMLCanvasElement[]
+  ufoSplattered: HTMLCanvasElement[]
+  hen: HTMLCanvasElement
+  henHurt: HTMLCanvasElement
+  egg: HTMLCanvasElement
+  laser: HTMLCanvasElement
   toys: Record<ToyKind, HTMLCanvasElement>
 }
 
 export function buildSprites(): SpriteSet {
-  const crying: HTMLCanvasElement[] = []
-  const feeding: HTMLCanvasElement[] = []
-  for (const colour of ONESIE) {
-    crying.push(sprite(BABY.width, BABY.height, (ctx, w, h) => drawBaby(ctx, w, h, colour, false)))
-    feeding.push(sprite(BABY.width, BABY.height, (ctx, w, h) => drawBaby(ctx, w, h, colour, true)))
+  const clean: HTMLCanvasElement[] = []
+  const splattered: HTMLCanvasElement[] = []
+  for (const colour of HULL) {
+    clean.push(sprite(UFO.width, UFO.height, (ctx, w, h) => drawUfo(ctx, w, h, colour, false)))
+    splattered.push(sprite(UFO.width, UFO.height, (ctx, w, h) => drawUfo(ctx, w, h, colour, true)))
   }
 
   return {
-    babyCrying: crying,
-    babyFeeding: feeding,
-    mom: sprite(MOM.width, MOM.height, (ctx, w, h) => drawMom(ctx, w, h, false)),
-    momHurt: sprite(MOM.width, MOM.height, (ctx, w, h) => drawMom(ctx, w, h, true)),
-    bottle: sprite(BOTTLE.width, BOTTLE.height, drawBottle),
-    diaper: sprite(DIAPER.width, DIAPER.height, drawDiaper),
+    ufo: clean,
+    ufoSplattered: splattered,
+    hen: sprite(HEN.width, HEN.height, (ctx, w, h) => drawHen(ctx, w, h, false)),
+    henHurt: sprite(HEN.width, HEN.height, (ctx, w, h) => drawHen(ctx, w, h, true)),
+    egg: sprite(EGG.width, EGG.height, drawEgg),
+    laser: sprite(LASER.width, LASER.height, drawLaser),
     toys: {
       cradle: sprite(OBSTACLE.width, OBSTACLE.height, drawCradle),
       duck: sprite(OBSTACLE.width, OBSTACLE.height, drawDuck),
@@ -64,10 +66,10 @@ export function buildSprites(): SpriteSet {
   }
 }
 
-/** Picks the onesie colour for a formation row, wrapping if there are ever more
+/** Picks the hull colour for a formation row, wrapping if there are ever more
  *  rows than colours. */
 export function rowVariant(row: number): number {
-  return row % ONESIE.length
+  return row % HULL.length
 }
 
 // --- drawing helpers -------------------------------------------------------
@@ -94,222 +96,292 @@ function ellipse(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number
   ctx.fill()
 }
 
-// --- babies ----------------------------------------------------------------
-
 /**
- * A baby is a big head on a small swaddled body. Crying and feeding share every
- * shape except the face, which is the whole point of drawing rather than
- * loading: the player reads "I already hit that one" from the eyes and the
- * missing tears, not from a colour swap.
+ * Nudges a hex colour towards black or white. The hull table holds one colour
+ * per row and the shading is derived from it, so adding a seventh row means
+ * adding one colour rather than three.
  */
-function drawBaby(ctx: CanvasRenderingContext2D, w: number, h: number, onesie: string, feeding: boolean): void {
-  const headR = w * 0.31
-  const headY = h * 0.38
-
-  // Body: a rounded onesie peeking out under the head.
-  ellipse(ctx, w / 2, h * 0.78, w * 0.27, h * 0.22, onesie)
-  ellipse(ctx, w * 0.22, h * 0.74, w * 0.09, h * 0.09, onesie)
-  ellipse(ctx, w * 0.78, h * 0.74, w * 0.09, h * 0.09, onesie)
-
-  // Head.
-  ellipse(ctx, w / 2, headY, headR, headR * 0.94, SKIN)
-  ellipse(ctx, w / 2, headY + headR * 0.55, headR * 0.72, headR * 0.34, SKIN_SHADE)
-  ellipse(ctx, w / 2, headY, headR * 0.98, headR * 0.92, SKIN)
-
-  // A single curl of hair, because a bald baby reads as an egg.
-  ctx.beginPath()
-  ctx.moveTo(w / 2, headY - headR * 0.92)
-  ctx.quadraticCurveTo(w / 2 + w * 0.09, headY - headR * 1.5, w / 2 - w * 0.04, headY - headR * 1.45)
-  ctx.strokeStyle = '#a9722f'
-  ctx.lineWidth = w * 0.045
-  ctx.stroke()
-
-  ellipse(ctx, w / 2 - headR * 0.62, headY + headR * 0.18, w * 0.055, h * 0.04, BLUSH)
-  ellipse(ctx, w / 2 + headR * 0.62, headY + headR * 0.18, w * 0.055, h * 0.04, BLUSH)
-
-  const eyeY = headY - headR * 0.18
-  const eyeDx = headR * 0.42
-
-  if (feeding) {
-    // Contented: closed arcs, a small smile, and a bottle tucked in.
-    ctx.strokeStyle = '#4a3328'
-    ctx.lineWidth = w * 0.04
-    for (const dx of [-eyeDx, eyeDx]) {
-      ctx.beginPath()
-      ctx.arc(w / 2 + dx, eyeY + h * 0.012, headR * 0.2, Math.PI * 1.15, Math.PI * 1.85)
-      ctx.stroke()
-    }
-    ellipse(ctx, w / 2, headY + headR * 0.42, w * 0.06, h * 0.035, MOUTH)
-
-    // A bottle tipped into the mouth: pink teat first, then the white body, so
-    // "this one is already fed" is legible without comparing faces.
-    ctx.save()
-    ctx.translate(w / 2, headY + headR * 0.42)
-    ctx.rotate(-0.45)
-    ctx.fillStyle = '#ffb3c7'
-    ctx.beginPath()
-    ctx.roundRect(-w * 0.05, -h * 0.02, w * 0.1, h * 0.09, w * 0.03)
-    ctx.fill()
-    ctx.fillStyle = '#fdfbf6'
-    ctx.beginPath()
-    ctx.roundRect(-w * 0.075, h * 0.06, w * 0.15, h * 0.26, w * 0.05)
-    ctx.fill()
-    ctx.fillStyle = '#fff1cf'
-    ctx.beginPath()
-    ctx.roundRect(-w * 0.05, h * 0.12, w * 0.1, h * 0.17, w * 0.04)
-    ctx.fill()
-    ctx.restore()
-    return
+function shade(hex: string, amount: number): string {
+  const value = parseInt(hex.slice(1), 16)
+  const target = amount < 0 ? 0 : 255
+  const weight = Math.abs(amount)
+  const channel = (shift: number): number => {
+    const base = (value >> shift) & 0xff
+    return Math.round(base + (target - base) * weight)
   }
-
-  // Crying: screwed-shut eyes, a wide open mouth, and tears in flight.
-  ctx.strokeStyle = '#4a3328'
-  ctx.lineWidth = w * 0.04
-  for (const dx of [-eyeDx, eyeDx]) {
-    ctx.beginPath()
-    ctx.arc(w / 2 + dx, eyeY + headR * 0.22, headR * 0.24, Math.PI * 1.1, Math.PI * 1.9, true)
-    ctx.stroke()
-  }
-  ellipse(ctx, w / 2, headY + headR * 0.46, w * 0.09, h * 0.07, MOUTH)
-  ellipse(ctx, w / 2, headY + headR * 0.62, w * 0.045, h * 0.025, '#e2717f')
-
-  for (const dx of [-eyeDx, eyeDx]) {
-    ellipse(ctx, w / 2 + dx, eyeY + headR * 0.72, w * 0.035, h * 0.05, TEAR)
-    ellipse(ctx, w / 2 + dx * 1.12, eyeY + headR * 1.35, w * 0.026, h * 0.038, TEAR)
-  }
+  return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`
 }
 
-// --- mom -------------------------------------------------------------------
+// --- saucers ---------------------------------------------------------------
 
 /**
- * Mom has to read as an adult next to a formation of babies, which means the
- * opposite proportions: a small head on a tall body, long hair, and a dress
- * with a visible waist. An earlier version reused the babies' head-to-body
- * ratio and was indistinguishable from her own children.
+ * A flying saucer is mostly windscreen: a big glass dome on a thin hull, so
+ * there is something large and obviously breakable for an egg to land on. The
+ * clean and splattered versions share every shape except what is on the glass,
+ * which is the whole point of drawing rather than loading — the player reads "I
+ * already hit that one" from the yolk running down the canopy, not from a
+ * colour swap.
  */
-function drawMom(ctx: CanvasRenderingContext2D, w: number, h: number, hurt: boolean): void {
-  const dress = hurt ? '#e8798c' : '#5f7fd4'
-  const dressDark = hurt ? '#c75c72' : '#4a66b4'
-  const headR = w * 0.16
-  const headY = h * 0.17
+function drawUfo(ctx: CanvasRenderingContext2D, w: number, h: number, hull: string, splattered: boolean): void {
+  const hullDark = shade(hull, -0.42)
+  const hullLight = shade(hull, 0.35)
 
-  // Skirt: a wide flare from the waist down.
+  const domeX = w * 0.5
+  const domeY = h * 0.63
+  const domeRx = w * 0.4
+  const domeRy = h * 0.5
+
+  // Hull: a flattened underside with a slightly brighter deck on top of it.
+  ellipse(ctx, w * 0.5, h * 0.7, w * 0.49, h * 0.18, hullDark)
+  ellipse(ctx, w * 0.5, h * 0.63, w * 0.49, h * 0.15, hull)
+
+  // Canopy glass.
+  const glass = ctx.createLinearGradient(0, domeY - domeRy, 0, domeY)
+  glass.addColorStop(0, 'rgba(206,244,255,0.85)')
+  glass.addColorStop(0.55, 'rgba(126,200,242,0.55)')
+  glass.addColorStop(1, 'rgba(70,132,190,0.55)')
   ctx.beginPath()
-  ctx.moveTo(w * 0.36, h * 0.52)
-  ctx.lineTo(w * 0.64, h * 0.52)
-  ctx.quadraticCurveTo(w * 0.94, h * 0.9, w * 0.9, h)
-  ctx.lineTo(w * 0.1, h)
-  ctx.quadraticCurveTo(w * 0.06, h * 0.9, w * 0.36, h * 0.52)
-  ctx.closePath()
-  ctx.fillStyle = dress
+  ctx.ellipse(domeX, domeY, domeRx, domeRy, 0, Math.PI, 0)
+  ctx.fillStyle = glass
   ctx.fill()
 
-  // Bodice, narrower than the skirt so there is a waist to see.
-  ctx.fillStyle = dressDark
-  ctx.beginPath()
-  ctx.roundRect(w * 0.34, h * 0.29, w * 0.32, h * 0.25, w * 0.06)
-  ctx.fill()
-
-  // Arms: one down, one raised mid-throw. They start below the hairline so the
-  // side locks cannot cut them off at the shoulder and leave them floating.
-  ctx.strokeStyle = SKIN
-  ctx.lineWidth = w * 0.075
-  ctx.beginPath()
-  ctx.moveTo(w * 0.38, h * 0.44)
-  ctx.lineTo(w * 0.17, h * 0.56)
-  ctx.moveTo(w * 0.62, h * 0.44)
-  ctx.lineTo(w * 0.85, h * 0.3)
-  ctx.stroke()
-
-  // Hair as two side locks plus a crown, never a single mass under the chin:
-  // a centred ellipse behind the head reads unmistakably as a beard.
-  const hair = '#4a2f22'
-  ellipse(ctx, w / 2 - headR * 0.92, headY + headR * 1.1, headR * 0.46, headR * 1.7, hair)
-  ellipse(ctx, w / 2 + headR * 0.92, headY + headR * 1.1, headR * 0.46, headR * 1.7, hair)
-  ellipse(ctx, w / 2, headY - headR * 0.12, headR * 1.24, headR * 1.16, hair)
-
-  // Face over the hair, so chin and cheeks stay clear.
-  ellipse(ctx, w / 2, headY + headR * 0.16, headR, headR * 1.04, SKIN)
-
-  // Fringe across the forehead only.
   ctx.save()
   ctx.beginPath()
-  ctx.ellipse(w / 2, headY + headR * 0.16, headR, headR * 1.04, 0, 0, Math.PI * 2)
+  ctx.ellipse(domeX, domeY, domeRx, domeRy, 0, Math.PI, 0)
   ctx.clip()
-  ctx.fillStyle = hair
+
+  if (splattered) {
+    drawSplat(ctx, w, h, domeX, domeY, domeRy)
+  } else {
+    // A pilot, so there is somebody in there to be blinded.
+    ellipse(ctx, domeX, domeY - domeRy * 0.42, w * 0.13, h * 0.17, '#9ae6a0')
+    ellipse(ctx, domeX - w * 0.05, domeY - domeRy * 0.48, w * 0.028, h * 0.05, DARK)
+    ellipse(ctx, domeX + w * 0.05, domeY - domeRy * 0.48, w * 0.028, h * 0.05, DARK)
+  }
+
+  // Glass highlight, last so it sits over both the pilot and the yolk.
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)'
+  ctx.lineWidth = w * 0.035
   ctx.beginPath()
-  ctx.ellipse(w / 2, headY - headR * 0.42, headR * 1.1, headR * 0.8, 0, 0, Math.PI * 2)
-  ctx.fill()
+  ctx.ellipse(domeX, domeY, domeRx * 0.68, domeRy * 0.72, 0, Math.PI * 1.08, Math.PI * 1.45)
+  ctx.stroke()
   ctx.restore()
 
-  ctx.fillStyle = '#3a2a20'
-  ctx.beginPath()
-  ctx.arc(w / 2 - headR * 0.38, headY + headR * 0.26, w * 0.018, 0, Math.PI * 2)
-  ctx.arc(w / 2 + headR * 0.38, headY + headR * 0.26, w * 0.018, 0, Math.PI * 2)
-  ctx.fill()
+  // Canopy rim, which also seals the bottom edge of the dome to the deck.
+  ellipse(ctx, domeX, domeY, w * 0.45, h * 0.08, hullLight)
 
-  ctx.strokeStyle = MOUTH
-  ctx.lineWidth = w * 0.02
+  // Running lights. They go out when the pilot cannot see anyway.
+  const lights = splattered ? ['#6b3a46', '#6b3a46', '#6b3a46', '#6b3a46'] : ['#fff3b0', '#ff9ec4', '#a8f0ff', '#fff3b0']
+  for (let i = 0; i < 4; i++) {
+    const x = w * (0.18 + i * 0.213)
+    ellipse(ctx, x, h * 0.74, w * 0.035, h * 0.05, lights[i] ?? '#fff3b0')
+  }
+
+  ellipse(ctx, w * 0.5, h * 0.86, w * 0.16, h * 0.06, splattered ? 'rgba(255,170,90,0.35)' : 'rgba(168,240,255,0.5)')
+}
+
+/** The egg, mid-slide down the inside of the canopy. Drawn as a few overlapping
+ *  blobs rather than one shape so the edge stays irregular at any size. */
+function drawSplat(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  domeX: number,
+  domeY: number,
+  domeRy: number,
+): void {
+  const white = 'rgba(250,248,238,0.95)'
+  const centreY = domeY - domeRy * 0.36
+
+  ellipse(ctx, domeX - w * 0.04, centreY, w * 0.22, h * 0.24, white)
+  ellipse(ctx, domeX + w * 0.11, centreY + h * 0.06, w * 0.13, h * 0.15, white)
+  ellipse(ctx, domeX - w * 0.15, centreY + h * 0.1, w * 0.1, h * 0.12, white)
+  ellipse(ctx, domeX + w * 0.02, centreY - h * 0.13, w * 0.11, h * 0.1, white)
+
+  // Runs, which are what make it read as sliding rather than painted on.
+  ctx.strokeStyle = white
+  ctx.lineWidth = w * 0.045
   ctx.beginPath()
-  if (hurt) {
-    // A frown, so a lost life is legible without reading the HUD.
-    ctx.arc(w / 2, headY + headR * 1.0, headR * 0.3, Math.PI * 1.2, Math.PI * 1.8)
-  } else {
-    ctx.arc(w / 2, headY + headR * 0.58, headR * 0.3, Math.PI * 0.2, Math.PI * 0.8)
+  ctx.moveTo(domeX - w * 0.1, centreY + h * 0.14)
+  ctx.lineTo(domeX - w * 0.12, domeY)
+  ctx.moveTo(domeX + w * 0.09, centreY + h * 0.16)
+  ctx.lineTo(domeX + w * 0.12, domeY)
+  ctx.stroke()
+
+  ellipse(ctx, domeX - w * 0.02, centreY + h * 0.02, w * 0.1, h * 0.13, '#ffbe2e')
+  ellipse(ctx, domeX - w * 0.04, centreY - h * 0.02, w * 0.045, h * 0.05, '#ffe08a')
+}
+
+// --- the hen ---------------------------------------------------------------
+
+/**
+ * The defender is a chicken in a fishbowl space helmet. She has to read as one
+ * silhouette at 50 pixels tall, so the helmet is drawn as a single bright ring
+ * around a compact head rather than a realistic visor: at this size anything
+ * subtler just looked like a smudge above the beak.
+ */
+function drawHen(ctx: CanvasRenderingContext2D, w: number, h: number, hurt: boolean): void {
+  const body = hurt ? FEATHER_HURT : FEATHER
+  const bodyShade = hurt ? FEATHER_HURT_SHADE : FEATHER_SHADE
+  const headX = w * 0.5
+  const headY = h * 0.3
+  const headR = w * 0.15
+
+  // Legs first, so the body sits over their tops.
+  ctx.strokeStyle = BEAK
+  ctx.lineWidth = w * 0.045
+  ctx.beginPath()
+  ctx.moveTo(w * 0.42, h * 0.84)
+  ctx.lineTo(w * 0.4, h * 0.96)
+  ctx.moveTo(w * 0.58, h * 0.84)
+  ctx.lineTo(w * 0.6, h * 0.96)
+  // Three toes each, splayed forward.
+  for (const footX of [w * 0.4, w * 0.6]) {
+    ctx.moveTo(footX - w * 0.07, h * 0.99)
+    ctx.lineTo(footX, h * 0.96)
+    ctx.lineTo(footX + w * 0.07, h * 0.99)
+    ctx.moveTo(footX, h * 0.96)
+    ctx.lineTo(footX, h)
   }
   ctx.stroke()
 
-  ellipse(ctx, w / 2 - headR * 0.7, headY + headR * 0.5, w * 0.024, h * 0.012, BLUSH)
-  ellipse(ctx, w / 2 + headR * 0.7, headY + headR * 0.5, w * 0.024, h * 0.012, BLUSH)
+  // Tail feathers, sweeping up and back on her left. They leave from low on the
+  // rump: struck off the shoulder instead, they read as a waving arm.
+  ctx.strokeStyle = bodyShade
+  ctx.lineWidth = w * 0.07
+  ctx.beginPath()
+  ctx.moveTo(w * 0.3, h * 0.7)
+  ctx.quadraticCurveTo(w * 0.12, h * 0.68, w * 0.08, h * 0.51)
+  ctx.moveTo(w * 0.3, h * 0.77)
+  ctx.quadraticCurveTo(w * 0.1, h * 0.79, w * 0.03, h * 0.64)
+  ctx.stroke()
+
+  // Body.
+  ellipse(ctx, w * 0.5, h * 0.68, w * 0.32, h * 0.23, body)
+  ellipse(ctx, w * 0.5, h * 0.76, w * 0.26, h * 0.13, bodyShade)
+  ellipse(ctx, w * 0.5, h * 0.66, w * 0.3, h * 0.2, body)
+
+  // Wing, with two feather lines so it is not just a paler blob.
+  ellipse(ctx, w * 0.66, h * 0.68, w * 0.15, h * 0.11, bodyShade)
+  ctx.strokeStyle = hurt ? '#d68f9a' : '#cbb794'
+  ctx.lineWidth = w * 0.018
+  ctx.beginPath()
+  ctx.moveTo(w * 0.57, h * 0.7)
+  ctx.lineTo(w * 0.76, h * 0.7)
+  ctx.moveTo(w * 0.59, h * 0.74)
+  ctx.lineTo(w * 0.74, h * 0.74)
+  ctx.stroke()
+
+  // Comb, three bumps, tucked under the helmet glass.
+  for (const [dx, dy, r] of [
+    [-0.06, -0.05, 0.045],
+    [0, -0.075, 0.05],
+    [0.06, -0.05, 0.045],
+  ] as const) {
+    ellipse(ctx, headX + w * dx, headY + h * dy - headR * 0.72, w * r, h * (r * 0.95), COMB)
+  }
+
+  // Head and face.
+  ellipse(ctx, headX, headY, headR, headR * 1.02, body)
+
+  ctx.fillStyle = BEAK
+  ctx.beginPath()
+  if (hurt) {
+    // An open beak: a squawk is a cheaper way to show a lost life than a
+    // separate hurt pose for the whole bird.
+    ctx.ellipse(headX, headY + headR * 0.52, w * 0.05, h * 0.035, 0, 0, Math.PI * 2)
+  } else {
+    ctx.moveTo(headX - w * 0.05, headY + headR * 0.35)
+    ctx.lineTo(headX + w * 0.05, headY + headR * 0.35)
+    ctx.lineTo(headX, headY + headR * 0.92)
+    ctx.closePath()
+  }
+  ctx.fill()
+
+  // Wattle, under the beak.
+  ellipse(ctx, headX, headY + headR * 1.0, w * 0.035, h * 0.03, COMB)
+
+  ctx.fillStyle = DARK
+  ctx.beginPath()
+  const eyeR = hurt ? w * 0.028 : w * 0.022
+  ctx.arc(headX - headR * 0.44, headY + headR * 0.02, eyeR, 0, Math.PI * 2)
+  ctx.arc(headX + headR * 0.44, headY + headR * 0.02, eyeR, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Helmet: a glass bubble over the whole head, plus the collar that holds it.
+  const helmetR = headR * 1.62
+  const bubble = ctx.createLinearGradient(0, headY - helmetR, 0, headY + helmetR)
+  bubble.addColorStop(0, 'rgba(214,248,255,0.4)')
+  bubble.addColorStop(1, 'rgba(120,190,235,0.16)')
+  ctx.beginPath()
+  ctx.arc(headX, headY, helmetR, 0, Math.PI * 2)
+  ctx.fillStyle = bubble
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(196,240,255,0.95)'
+  ctx.lineWidth = w * 0.028
+  ctx.stroke()
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)'
+  ctx.lineWidth = w * 0.03
+  ctx.beginPath()
+  ctx.arc(headX, headY, helmetR * 0.74, Math.PI * 1.1, Math.PI * 1.45)
+  ctx.stroke()
+
+  if (hurt) {
+    // A crack across the glass, so the hit registers even on the frames where
+    // the blink has her on screen.
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+    ctx.lineWidth = w * 0.022
+    ctx.beginPath()
+    ctx.moveTo(headX + helmetR * 0.1, headY - helmetR)
+    ctx.lineTo(headX + helmetR * 0.34, headY - helmetR * 0.4)
+    ctx.lineTo(headX + helmetR * 0.1, headY - helmetR * 0.1)
+    ctx.lineTo(headX + helmetR * 0.42, headY + helmetR * 0.45)
+    ctx.stroke()
+  }
+
+  // Collar seal.
+  ctx.fillStyle = '#c9d6ec'
+  ctx.beginPath()
+  ctx.roundRect(headX - helmetR * 0.7, headY + helmetR * 0.82, helmetR * 1.4, h * 0.06, w * 0.02)
+  ctx.fill()
+
+  // Antenna, purely for fun, which is the only justification it needs.
+  ctx.strokeStyle = '#c9d6ec'
+  ctx.lineWidth = w * 0.022
+  ctx.beginPath()
+  ctx.moveTo(headX + helmetR * 0.62, headY - helmetR * 0.66)
+  ctx.lineTo(headX + helmetR * 0.92, headY - helmetR * 1.05)
+  ctx.stroke()
+  ellipse(ctx, headX + helmetR * 0.96, headY - helmetR * 1.12, w * 0.035, h * 0.03, '#ffd76a')
 }
 
 // --- projectiles -----------------------------------------------------------
 
-function drawBottle(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  // Teat first so the body overlaps its base.
-  ellipse(ctx, w / 2, h * 0.12, w * 0.24, h * 0.1, '#ffc6d6')
-  ctx.fillStyle = '#ffb3c7'
-  ctx.fillRect(w * 0.18, h * 0.14, w * 0.64, h * 0.12)
+function drawEgg(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  // Two overlapping ellipses: a fat base and a narrower top. One ellipse alone
+  // read as a pill, and a full bezier egg is invisible at 12 pixels wide.
+  ctx.fillStyle = '#fdf6e4'
+  ellipse(ctx, w * 0.5, h * 0.62, w * 0.46, h * 0.36, '#fdf6e4')
+  ellipse(ctx, w * 0.5, h * 0.36, w * 0.37, h * 0.33, '#fdf6e4')
 
-  ctx.fillStyle = '#fdfbf6'
-  ctx.beginPath()
-  ctx.roundRect(w * 0.08, h * 0.24, w * 0.84, h * 0.74, w * 0.3)
-  ctx.fill()
-
-  // Milk line, shy of the top so the bottle reads as full-but-not-brimming.
-  ctx.fillStyle = '#fff4d9'
-  ctx.beginPath()
-  ctx.roundRect(w * 0.18, h * 0.4, w * 0.64, h * 0.52, w * 0.22)
-  ctx.fill()
-
-  ctx.fillStyle = 'rgba(255,255,255,0.75)'
-  ctx.fillRect(w * 0.24, h * 0.34, w * 0.1, h * 0.5)
+  ellipse(ctx, w * 0.5, h * 0.72, w * 0.34, h * 0.2, '#efe2c6')
+  ellipse(ctx, w * 0.38, h * 0.36, w * 0.14, h * 0.14, 'rgba(255,255,255,0.9)')
 }
 
-function drawDiaper(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  // Wide waistband tapering to a rounded pouch. An earlier version came to a
-  // point and read as an ice-cream cone once it was spinning.
-  ctx.beginPath()
-  ctx.moveTo(w * 0.03, h * 0.16)
-  ctx.lineTo(w * 0.97, h * 0.16)
-  ctx.quadraticCurveTo(w * 0.9, h * 0.72, w * 0.62, h * 0.92)
-  ctx.quadraticCurveTo(w * 0.5, h * 0.99, w * 0.38, h * 0.92)
-  ctx.quadraticCurveTo(w * 0.1, h * 0.72, w * 0.03, h * 0.16)
-  ctx.closePath()
-  ctx.fillStyle = '#f6f3ea'
-  ctx.fill()
-  ctx.strokeStyle = '#c9c2ad'
-  ctx.lineWidth = w * 0.05
-  ctx.stroke()
-
-  // Waistband.
-  ctx.fillStyle = '#ddd6c2'
-  ctx.fillRect(w * 0.03, h * 0.12, w * 0.94, h * 0.18)
-
-  // The reason it is a hazard, big enough to survive being spun at speed.
-  ellipse(ctx, w * 0.5, h * 0.58, w * 0.27, h * 0.22, '#7d5a2c')
-  ellipse(ctx, w * 0.68, h * 0.48, w * 0.12, h * 0.12, '#936c36')
-  ellipse(ctx, w * 0.34, h * 0.68, w * 0.11, h * 0.1, '#6b4d24')
+function drawLaser(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  // Three stacked capsules: a wide soft glow, a saturated body, and a white
+  // core. Painting the glow into the sprite keeps the render loop free of
+  // shadowBlur, which is the expensive way to get the same look.
+  const capsule = (inset: number, colour: string): void => {
+    ctx.fillStyle = colour
+    ctx.beginPath()
+    ctx.roundRect(inset, inset * 0.6, w - inset * 2, h - inset * 1.2, w)
+    ctx.fill()
+  }
+  capsule(0, 'rgba(255,74,122,0.28)')
+  capsule(w * 0.18, '#ff4d7d')
+  capsule(w * 0.34, '#ffe6ec')
 }
 
 // --- toys ------------------------------------------------------------------

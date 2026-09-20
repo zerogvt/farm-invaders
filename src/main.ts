@@ -45,7 +45,7 @@ function main(): void {
   let previous = performance.now()
   const frame = (now: number): void => {
     // A backgrounded tab resumes with an enormous gap. Clamping it means the
-    // game pauses while hidden instead of teleporting every diaper past mom.
+    // game pauses while hidden instead of teleporting every laser past the hen.
     const dt = Math.min(0.05, (now - previous) / 1000)
     previous = now
 
@@ -65,7 +65,7 @@ function bannerFor(phase: ReturnType<typeof createGame>['phase']): string | null
     case 'intro':
       return 'Here they come'
     case 'cleared':
-      return 'Nursery cleared'
+      return 'Sector cleared'
     case 'playing':
     case 'over':
       return null

@@ -33,12 +33,13 @@ export function createUi(root: HTMLElement): Ui {
     panel.innerHTML = ''
     panel.append(
       heading('LOL Invaders'),
-      paragraph('The nursery is revolting. Mom has bottles. Good luck.'),
+      paragraph('The saucers are back. You are a chicken in a space helmet. Good luck.'),
       controlsList(),
       paragraph(
-        'A bottle does not stop a baby outright — it starts feeding, goes quiet, ' +
-          'and vanishes a moment later. Toys on the floor soak up anything that hits them, ' +
-          'from either side, until they fall apart.',
+        'An egg does not shoot a saucer down — it bursts on the windscreen. The pilot ' +
+          'reels, drops out of the formation, and limps off the nearest edge of the screen. ' +
+          'Toys on the floor soak up anything that hits them, from either side, until they ' +
+          'fall apart.',
       ),
       scoreBoard(loadScores()),
     )
@@ -54,13 +55,13 @@ export function createUi(root: HTMLElement): Ui {
     panel.hidden = false
     panel.innerHTML = ''
     panel.append(
-      heading('Nap time'),
+      heading('Scrambled'),
       paragraph(`You scored ${score} and made it to round ${round}.`),
     )
 
     const finish = (board: HighScore[]): void => {
       panel.innerHTML = ''
-      panel.append(heading('Nap time'), paragraph(`You scored ${score} on round ${round}.`), scoreBoard(board))
+      panel.append(heading('Scrambled'), paragraph(`You scored ${score} on round ${round}.`), scoreBoard(board))
       const again = button('Play again', () => {
         panel.hidden = true
         onRestart()
@@ -140,7 +141,7 @@ function button(text: string, onClick: () => void): HTMLButtonElement {
 function controlsList(): HTMLElement {
   const list = document.createElement('ul')
   list.className = 'controls'
-  for (const line of ['← → or A / D to move', 'Space to throw a bottle']) {
+  for (const line of ['← → or A / D to move', 'Space to throw an egg']) {
     const item = document.createElement('li')
     item.textContent = line
     list.append(item)
@@ -153,7 +154,7 @@ function scoreBoard(scores: HighScore[]): HTMLElement {
   wrapper.className = 'scores'
 
   const title = document.createElement('h2')
-  title.textContent = 'Best nights'
+  title.textContent = 'Top hens'
   wrapper.append(title)
 
   if (scores.length === 0) {
