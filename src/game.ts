@@ -1,4 +1,5 @@
 import {
+  ABDUCTION,
   BLACK_HOLE,
   BOSS,
   DESERT,
@@ -10,6 +11,7 @@ import {
   HEN,
   LASER,
   OBSTACLE,
+  PARLEY,
   POWER,
   ROUND,
   SPLAT,
@@ -151,7 +153,12 @@ export function startRound(state: GameState, round: number): void {
   state.fireTimer = boss ? bossFireInterval(round) : fireInterval(round)
   state.shotCooldown = 0
   state.hen.invulnerable = HEN.hurtInvulnerability
-  state.phase = { kind: 'intro', remaining: boss ? ROUND.bossIntroDuration : ROUND.introDuration }
+  // A run opens with the argument rather than a banner; every round after that
+  // has nothing left to say.
+  state.phase =
+    round === 1
+      ? { kind: 'parley', line: 0, remaining: PARLEY.demandDuration }
+      : { kind: 'intro', remaining: boss ? ROUND.bossIntroDuration : ROUND.introDuration }
 }
 
 export function restart(state: GameState): void {
@@ -170,6 +177,32 @@ export function restart(state: GameState): void {
  */
 export function update(state: GameState, dt: number, input: InputState, events: GameEvents = {}): void {
   switch (state.phase.kind) {
+    case 'parley': {
+      // Both sides say their piece before anybody moves. The hen can walk about
+      // while it happens; nothing else on the board can.
+      const parley = state.phase
+      parley.remaining -= dt
+      moveHen(state, dt, input)
+      tickTimers(state, dt)
+      if (parley.remaining > 0) return
+      state.phase =
+        parley.line === 0
+          ? { kind: 'parley', line: 1, remaining: PARLEY.refusalDuration }
+          : { kind: 'playing' }
+      return
+    }
+
+    case 'abduction':
+      // The board is held exactly as it was; only the scene advances. The
+      // game-over panel waits for it, which is why onGameOver fires here rather
+      // than when the last hen fell.
+      state.phase.age += dt
+      if (state.phase.age >= ABDUCTION.duration) {
+        state.phase = { kind: 'over', scoreSubmitted: false }
+        events.onGameOver?.(state.score, state.round)
+      }
+      return
+
     case 'intro':
       state.phase.remaining -= dt
       // The hen can already line up her shot during the banner; only the
@@ -207,7 +240,7 @@ export function update(state: GameState, dt: number, input: InputState, events: 
 
   if (!frozen) {
     advanceLasers(state, dt)
-    marchFormation(state, dt, events)
+    marchFormation(state, dt)
     tickLeaving(state, dt, events)
     tickWobble(state, dt, events)
     tickObstacles(state, dt, events)
@@ -233,12 +266,12 @@ export function update(state: GameState, dt: number, input: InputState, events: 
   for (const ufo of state.ufos) {
     if (ufo.state.kind !== 'flying') continue
     if (ufo.y + UFO.height >= HEN_TOP) {
-      endGame(state, events)
+      endGame(state)
       return
     }
   }
   if (state.boss !== null && state.boss.state.kind === 'flying' && state.boss.y + BOSS.height >= HEN_TOP) {
-    endGame(state, events)
+    endGame(state)
   }
 }
 
@@ -653,7 +686,7 @@ function tickDesertions(state: GameState, dt: number, events: GameEvents): void 
  * steering itself, so letting one widen the block's bounds on its way out would
  * bounce the formation off a wall that is not there.
  */
-function marchFormation(state: GameState, dt: number, events: GameEvents): void {
+function marchFormation(state: GameState, dt: number): void {
   state.marchTimer -= dt
   if (state.marchTimer > 0) return
   state.marchTimer += stepInterval(state)
@@ -677,7 +710,7 @@ function marchFormation(state: GameState, dt: number, events: GameEvents): void 
     // here rather than waiting for the next frame.
     for (const ufo of marching) {
       if (ufo.y + UFO.height >= HEN_TOP) {
-        endGame(state, events)
+        endGame(state)
         return
       }
     }
@@ -1173,13 +1206,15 @@ function hurtHen(state: GameState, events: GameEvents): void {
   // Clear the air so she does not respawn into a laser she cannot dodge.
   state.lasers = []
   events.onHenHurt?.()
-  if (state.hen.lives <= 0) endGame(state, events)
+  if (state.hen.lives <= 0) endGame(state)
 }
 
-function endGame(state: GameState, events: GameEvents): void {
-  if (state.phase.kind === 'over') return
-  state.phase = { kind: 'over', scoreSubmitted: false }
-  events.onGameOver?.(state.score, state.round)
+/** The last hen has fallen. The run is not over until the mothership has been
+ *  down for the cow, so this starts the scene rather than ending the game — the
+ *  game-over event fires when the scene finishes. */
+function endGame(state: GameState): void {
+  if (state.phase.kind === 'over' || state.phase.kind === 'abduction') return
+  state.phase = { kind: 'abduction', age: 0 }
 }
 
 function buildFormation(round: number): Ufo[] {

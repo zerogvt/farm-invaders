@@ -228,6 +228,42 @@ export const BLACK_HOLE = {
 } as const
 
 /**
+ * The cow. It does nothing, collides with nothing and cannot be hurt — it is
+ * simply what the whole argument is about, standing on the ground behind the
+ * hen so that the opening demand and the closing abduction both have something
+ * to point at.
+ */
+export const COW = {
+  width: 70,
+  height: 46,
+  /** Fixed spot on the ground, well clear of where the hen starts. */
+  x: 92,
+  bottomMargin: 18,
+  line: 'Damm1t',
+} as const
+
+/** The exchange that opens a run, before the first shot is fired. */
+export const PARLEY = {
+  demand: 'give us the cow now!',
+  demandDuration: 2.4,
+  refusal: 'never!',
+  refusalDuration: 1.6,
+} as const
+
+/** What happens after the last hen falls: a mothership comes down for the cow. */
+export const ABDUCTION = {
+  /** Seconds the whole scene runs before the game-over panel appears. */
+  duration: 4.2,
+  /** Where the ship stops to work. */
+  hoverY: 84,
+  /** Beats within the scene, in seconds from the start. */
+  beamOn: 1.0,
+  liftFrom: 1.4,
+  liftTo: 3.0,
+  leaveFrom: 3.2,
+} as const
+
+/**
  * Einstein. He turns up on about one round in three, says his piece, and stops
  * time for everything except the hen and what she has thrown.
  */

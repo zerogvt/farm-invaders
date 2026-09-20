@@ -3,6 +3,12 @@
 Space Invaders, except the invaders are flying saucers with enormous windscreens
 and the defender is a chicken in a space helmet, armed with eggs.
 
+A run opens with the saucers demanding **"give us the cow now!"**, the hen
+answering **"never!"**, and the shooting starting. The cow stands on the ground
+behind her the whole time. If she runs out of lives, a mothership comes down,
+puts a tractor beam on the cow and takes it, and the cow has just enough time to
+say **"Damm1t"** on the way up.
+
 An egg does not shoot a saucer down. One that connects bursts across the canopy
 and blinds the pilot: the saucer drops out of the formation, hangs there reeling
 for a moment, then banks over and limps off whichever side of the screen is
@@ -135,6 +141,17 @@ where time stops with one already sitting on her.
 
 **Stopped time is not a free mothership.** Eggs still take it one hit point at a
 time. It cannot shoot back for five seconds, which is reward enough.
+
+**The cow is scenery, and that is the point.** It has no state, no collision box
+and no hit points — it is drawn at a fixed spot and nothing in the simulation
+knows about it. All it has to do is be there, so that the opening demand has
+something to refer to and the closing scene has something to take.
+
+**The run is not over when the last hen falls.** `endGame` moves the game into
+an `abduction` phase and `onGameOver` fires when that phase ends, which is what
+keeps the game-over panel from covering the scene. The board is left exactly as
+it stopped and dimmed behind it; the whole thing is driven off one age counter,
+so the simulation counts and the renderer decides what that looks like.
 
 **One state for every way off the board.** `UfoState` has a single `leaving`
 variant with a `reason`, rather than separate `splattered` and `deserting`

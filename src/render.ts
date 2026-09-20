@@ -1,6 +1,8 @@
 import {
+  ABDUCTION,
   BLACK_HOLE,
   BOSS,
+  COW,
   DESERT,
   FREEZE,
   GRAMOPHONE,
@@ -9,6 +11,7 @@ import {
   LASER,
   OBSTACLE,
   PALETTE,
+  PARLEY,
   POWER,
   SPLAT,
   TAUNT,
@@ -23,6 +26,7 @@ import type { GameState } from './types'
  *  idle animation, so nothing here mutates game state. */
 export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
   drawSpace(ctx, time)
+  drawCow(ctx, state, sprites)
   drawObstacles(ctx, state, sprites)
   drawUfos(ctx, state, sprites, time)
   drawBoss(ctx, state, sprites, time)
@@ -37,7 +41,142 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawHen(ctx, state, sprites, time)
   drawShield(ctx, state, time)
   drawBlasts(ctx, state)
+  drawParley(ctx, state)
+  drawAbduction(ctx, state, sprites, time)
   drawHud(ctx, state, sprites)
+}
+
+/** Ground level: what the hen and the cow both stand on. */
+const GROUND = HEN_TOP + HEN.height
+
+/** Bottom of the HUD's second row, which speech bubbles keep clear of. */
+const HUD_BOTTOM = 54
+
+/** The cow, standing where it always stands. It is gone from the moment the
+ *  mothership finishes lifting it, which is why the abduction draws its own. */
+function drawCow(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
+  if (state.phase.kind === 'abduction' || state.phase.kind === 'over') return
+  ctx.drawImage(sprites.cow, COW.x, GROUND - COW.height, COW.width, COW.height)
+}
+
+/** The opening exchange. The fleet speaks from above its own back rank, so the
+ *  bubble never covers the saucers it belongs to. */
+function drawParley(ctx: CanvasRenderingContext2D, state: GameState): void {
+  if (state.phase.kind !== 'parley') return
+
+  if (state.phase.line === 1) {
+    drawBubble(ctx, state.hen.x + HEN.width / 2, HEN_TOP - 2, PARLEY.refusal, 160)
+    return
+  }
+
+  let left = Infinity
+  let right = -Infinity
+  let top = Infinity
+  for (const ufo of state.ufos) {
+    left = Math.min(left, ufo.x)
+    right = Math.max(right, ufo.x + UFO.width)
+    top = Math.min(top, ufo.y)
+  }
+  if (left === Infinity) return
+  drawBubble(ctx, (left + right) / 2, top - 2, PARLEY.demand, 220)
+}
+
+/**
+ * The closing scene: a mothership comes down over the cow, switches on a beam,
+ * lifts it, and leaves. Everything is driven off the phase's age, so the
+ * simulation counts and the renderer decides what that looks like.
+ */
+function drawAbduction(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  if (state.phase.kind !== 'abduction') return
+  const age = state.phase.age
+
+  // Everything that was on the board is still exactly where it stopped, so it
+  // is pushed back to let the scene read.
+  ctx.fillStyle = 'rgba(4,7,16,0.62)'
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height)
+
+  const centreX = COW.x + COW.width / 2
+  const arriving = ease(clamp01(age / ABDUCTION.beamOn))
+  const leaving = ease(clamp01((age - ABDUCTION.leaveFrom) / (ABDUCTION.duration - ABDUCTION.leaveFrom)))
+  const shipY = -BOSS.height + (ABDUCTION.hoverY + BOSS.height) * arriving - (ABDUCTION.hoverY + BOSS.height) * leaving
+
+  const beamTop = shipY + BOSS.height * 0.78
+  const lift = clamp01((age - ABDUCTION.liftFrom) / (ABDUCTION.liftTo - ABDUCTION.liftFrom))
+  const cowY = GROUND - COW.height - (GROUND - COW.height - beamTop) * ease(lift)
+  const cowScale = 1 - lift * 0.55
+
+  if (age > ABDUCTION.beamOn && age < ABDUCTION.leaveFrom + 0.4) {
+    const strength = Math.min(1, (age - ABDUCTION.beamOn) / 0.35) * (1 - leaving)
+    drawTractorBeam(ctx, centreX, beamTop, strength, time)
+  }
+
+  if (lift < 1) {
+    ctx.save()
+    ctx.translate(centreX, cowY + COW.height / 2)
+    ctx.scale(cowScale, cowScale)
+    // A slow list to one side, so it reads as being carried rather than rising.
+    ctx.rotate(Math.sin(time * 3.4) * 0.12 * lift)
+    ctx.drawImage(sprites.cow, -COW.width / 2, -COW.height / 2, COW.width, COW.height)
+    ctx.restore()
+
+    if (age > ABDUCTION.beamOn + 0.2) {
+      drawBubble(ctx, centreX, cowY - 2, COW.line, 120)
+    }
+  }
+
+  ctx.drawImage(sprites.boss, centreX - BOSS.width / 2, shipY, BOSS.width, BOSS.height)
+}
+
+/** The beam itself: a widening cone with bands running down it. */
+function drawTractorBeam(
+  ctx: CanvasRenderingContext2D,
+  centreX: number,
+  top: number,
+  strength: number,
+  time: number,
+): void {
+  const bottom = GROUND
+  const topHalf = BOSS.width * 0.1
+  const bottomHalf = COW.width * 0.85
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.globalAlpha = strength
+
+  ctx.beginPath()
+  ctx.moveTo(centreX - topHalf, top)
+  ctx.lineTo(centreX + topHalf, top)
+  ctx.lineTo(centreX + bottomHalf, bottom)
+  ctx.lineTo(centreX - bottomHalf, bottom)
+  ctx.closePath()
+
+  const cone = ctx.createLinearGradient(0, top, 0, bottom)
+  cone.addColorStop(0, 'rgba(190,240,255,0.55)')
+  cone.addColorStop(1, 'rgba(120,200,255,0.06)')
+  ctx.fillStyle = cone
+  ctx.fill()
+
+  // Bands sliding up the cone, which is what says it is pulling rather than
+  // just shining.
+  ctx.save()
+  ctx.clip()
+  ctx.fillStyle = 'rgba(220,250,255,0.16)'
+  for (let i = 0; i < 5; i++) {
+    const slide = ((time * 0.6 + i * 0.2) % 1)
+    const y = bottom - (bottom - top) * slide
+    ctx.fillRect(centreX - bottomHalf, y, bottomHalf * 2, 7)
+  }
+  ctx.restore()
+  ctx.restore()
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value))
+}
+
+/** Smoothstep, so the ship settles rather than snapping to a stop. */
+function ease(t: number): number {
+  return t * t * (3 - 2 * t)
 }
 
 interface Star {
@@ -245,7 +384,9 @@ function drawBubble(ctx: CanvasRenderingContext2D, centreX: number, bottomY: num
   const boxWidth = widest + padX * 2
   const boxHeight = lines.length * lineHeight + padY * 2
   const left = Math.min(Math.max(centreX - boxWidth / 2, 6), VIEW.width - boxWidth - 6)
-  const top = Math.max(4, bottomY - 11 - boxHeight)
+  // Never above the HUD's two rows: a bubble that collides with the score is
+  // worse than one that sits a little low over whoever is speaking.
+  const top = Math.max(HUD_BOTTOM, bottomY - 11 - boxHeight)
   const tailX = Math.min(Math.max(centreX, left + 14), left + boxWidth - 14)
 
   ctx.fillStyle = 'rgba(250,250,255,0.95)'

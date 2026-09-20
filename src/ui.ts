@@ -33,7 +33,7 @@ export function createUi(root: HTMLElement): Ui {
     panel.innerHTML = ''
     panel.append(
       heading('LOL Invaders'),
-      paragraph('The saucers are back. You are a chicken in a space helmet. Good luck.'),
+      paragraph('The saucers want the cow. You are a chicken in a space helmet. Good luck.'),
       controlsList(),
       paragraph(
         'An egg does not shoot a saucer down — it bursts on the windscreen. The pilot ' +

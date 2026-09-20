@@ -1,4 +1,4 @@
-import { BLACK_HOLE, BOSS, EGG, FREEZE, GRAMOPHONE, HEART, HEN, LASER, OBSTACLE, POWER, UFO } from './config'
+import { BLACK_HOLE, BOSS, COW, EGG, FREEZE, GRAMOPHONE, HEART, HEN, LASER, OBSTACLE, POWER, UFO } from './config'
 import type { ToyKind } from './types'
 
 /**
@@ -49,6 +49,7 @@ export interface SpriteSet {
   blackHole: HTMLCanvasElement
   gramophone: HTMLCanvasElement
   einstein: HTMLCanvasElement
+  cow: HTMLCanvasElement
   toys: Record<ToyKind, HTMLCanvasElement>
 }
 
@@ -75,6 +76,7 @@ export function buildSprites(): SpriteSet {
     blackHole: sprite(BLACK_HOLE.radius * 2, BLACK_HOLE.radius * 2, drawBlackHole),
     gramophone: sprite(GRAMOPHONE.width, GRAMOPHONE.height, drawGramophone),
     einstein: sprite(FREEZE.width, FREEZE.height, drawEinstein),
+    cow: sprite(COW.width, COW.height, drawCow),
     toys: {
       cradle: sprite(OBSTACLE.width, OBSTACLE.height, drawCradle),
       duck: sprite(OBSTACLE.width, OBSTACLE.height, drawDuck),
@@ -779,6 +781,77 @@ function drawEinstein(ctx: CanvasRenderingContext2D, w: number, h: number): void
 
   // Chin below the moustache, so the face does not stop at it.
   ellipse(ctx, w * 0.5, h * 0.85, w * 0.14, h * 0.06, skin)
+}
+
+/**
+ * The cow. Side on, facing left, because the whole sprite exists to be pointed
+ * at: the saucers open by demanding it and close by taking it, and a
+ * three-quarter view of a cow at seventy pixels is a brown smudge.
+ */
+function drawCow(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const hide = '#fbf7ef'
+  const patch = '#33323c'
+  const muzzle = '#f0a9b4'
+
+  // Legs first, so the body covers their tops.
+  ctx.strokeStyle = hide
+  ctx.lineWidth = w * 0.065
+  ctx.beginPath()
+  for (const x of [0.3, 0.42, 0.66, 0.78]) {
+    ctx.moveTo(w * x, h * 0.72)
+    ctx.lineTo(w * x, h * 0.96)
+  }
+  ctx.stroke()
+  ctx.strokeStyle = patch
+  ctx.lineWidth = w * 0.065
+  ctx.beginPath()
+  for (const x of [0.3, 0.42, 0.66, 0.78]) {
+    ctx.moveTo(w * x, h * 0.9)
+    ctx.lineTo(w * x, h * 0.99)
+  }
+  ctx.stroke()
+
+  // Tail, off the back.
+  ctx.strokeStyle = hide
+  ctx.lineWidth = w * 0.03
+  ctx.beginPath()
+  ctx.moveTo(w * 0.86, h * 0.44)
+  ctx.quadraticCurveTo(w * 0.97, h * 0.52, w * 0.94, h * 0.74)
+  ctx.stroke()
+  ellipse(ctx, w * 0.94, h * 0.78, w * 0.03, h * 0.07, patch)
+
+  // Barrel.
+  ellipse(ctx, w * 0.56, h * 0.52, w * 0.32, h * 0.26, hide)
+
+  // Patches, clipped to the barrel so they never float off it.
+  ctx.save()
+  ctx.beginPath()
+  ctx.ellipse(w * 0.56, h * 0.52, w * 0.32, h * 0.26, 0, 0, Math.PI * 2)
+  ctx.clip()
+  ellipse(ctx, w * 0.46, h * 0.4, w * 0.11, h * 0.14, patch)
+  ellipse(ctx, w * 0.72, h * 0.58, w * 0.13, h * 0.15, patch)
+  ellipse(ctx, w * 0.84, h * 0.36, w * 0.08, h * 0.09, patch)
+  ctx.restore()
+
+  // Udder, because otherwise it is a bull and the joke is about milk.
+  ellipse(ctx, w * 0.6, h * 0.74, w * 0.08, h * 0.06, muzzle)
+
+  // Head, snout and ear.
+  ellipse(ctx, w * 0.22, h * 0.48, w * 0.15, h * 0.18, hide)
+  ellipse(ctx, w * 0.12, h * 0.58, w * 0.1, h * 0.1, muzzle)
+  ellipse(ctx, w * 0.09, h * 0.56, w * 0.02, h * 0.02, '#c9808d')
+  ellipse(ctx, w * 0.15, h * 0.61, w * 0.02, h * 0.02, '#c9808d')
+  ellipse(ctx, w * 0.31, h * 0.38, w * 0.06, h * 0.05, hide)
+  ellipse(ctx, w * 0.2, h * 0.3, w * 0.05, h * 0.05, patch)
+
+  // Horn nub and eye.
+  ctx.strokeStyle = '#d9cdb2'
+  ctx.lineWidth = w * 0.025
+  ctx.beginPath()
+  ctx.moveTo(w * 0.24, h * 0.32)
+  ctx.lineTo(w * 0.27, h * 0.25)
+  ctx.stroke()
+  ellipse(ctx, w * 0.19, h * 0.46, w * 0.022, h * 0.03, DARK)
 }
 
 // --- toys ------------------------------------------------------------------

@@ -88,6 +88,11 @@ function main(): void {
 
 function bannerFor(game: GameState): string | null {
   switch (game.phase.kind) {
+    // The opening argument and the closing abduction both speak for themselves
+    // on the canvas, in bubbles, so the banner stays out of their way.
+    case 'parley':
+    case 'abduction':
+      return null
     case 'intro':
       // The boss round says what it is going to cost before it starts, because
       // the answer changes every time it comes round.

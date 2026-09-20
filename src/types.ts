@@ -192,14 +192,17 @@ export interface Hen {
 }
 
 /**
- * Top-level phase. `intro` shows the round banner, `playing` runs the
- * simulation, `cleared` pauses briefly between rounds, `over` waits for the
- * player to start again.
+ * Top-level phase. `parley` is the opening exchange, which only round 1 gets;
+ * `intro` shows the round banner; `playing` runs the simulation; `cleared`
+ * pauses briefly between rounds; `abduction` is the closing scene after the
+ * last hen falls; and `over` waits for the player to start again.
  */
 export type Phase =
+  | { kind: 'parley'; line: 0 | 1; remaining: number }
   | { kind: 'intro'; remaining: number }
   | { kind: 'playing' }
   | { kind: 'cleared'; remaining: number }
+  | { kind: 'abduction'; age: number }
   | { kind: 'over'; scoreSubmitted: boolean }
 
 export interface GameState {
