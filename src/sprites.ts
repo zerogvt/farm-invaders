@@ -78,7 +78,7 @@ export function buildSprites(): SpriteSet {
     einstein: sprite(FREEZE.width, FREEZE.height, drawEinstein),
     cow: sprite(COW.width, COW.height, drawCow),
     toys: {
-      cradle: sprite(OBSTACLE.width, OBSTACLE.height, drawCradle),
+      horse: sprite(OBSTACLE.width, OBSTACLE.height, drawHorse),
       duck: sprite(OBSTACLE.width, OBSTACLE.height, drawDuck),
       ball: sprite(OBSTACLE.width, OBSTACLE.height, drawBall),
       teddy: sprite(OBSTACLE.width, OBSTACLE.height, drawTeddy),
@@ -856,32 +856,86 @@ function drawCow(ctx: CanvasRenderingContext2D, w: number, h: number): void {
 
 // --- toys ------------------------------------------------------------------
 
-function drawCradle(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+/**
+ * A wooden rocking horse, side on and facing left. The rocker is the shape that
+ * carries it: at fifty-six pixels the horse itself is barely a silhouette, and
+ * without the curved runner underneath it reads as a dog.
+ */
+function drawHorse(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const wood = '#b5793f'
+  const woodDark = '#82552a'
+  const woodLight = '#d9a463'
+  const paint = '#d4574e'
+
   // Rocker.
-  ctx.strokeStyle = '#8b5e3c'
-  ctx.lineWidth = h * 0.09
+  ctx.strokeStyle = woodDark
+  ctx.lineWidth = h * 0.11
   ctx.beginPath()
-  ctx.arc(w / 2, h * 0.42, w * 0.44, Math.PI * 0.12, Math.PI * 0.88)
+  ctx.moveTo(w * 0.05, h * 0.72)
+  ctx.quadraticCurveTo(w * 0.5, h * 1.12, w * 0.95, h * 0.72)
   ctx.stroke()
 
-  // Basket.
-  ctx.fillStyle = '#c08a58'
+  // Legs down to it.
+  ctx.strokeStyle = wood
+  ctx.lineWidth = w * 0.06
   ctx.beginPath()
-  ctx.moveTo(w * 0.14, h * 0.4)
-  ctx.lineTo(w * 0.86, h * 0.4)
-  ctx.lineTo(w * 0.74, h * 0.78)
-  ctx.lineTo(w * 0.26, h * 0.78)
+  ctx.moveTo(w * 0.36, h * 0.62)
+  ctx.lineTo(w * 0.27, h * 0.88)
+  ctx.moveTo(w * 0.62, h * 0.62)
+  ctx.lineTo(w * 0.72, h * 0.88)
+  ctx.stroke()
+
+  // Tail, before the body so it tucks behind the rump.
+  ctx.strokeStyle = woodDark
+  ctx.lineWidth = w * 0.045
+  ctx.beginPath()
+  ctx.moveTo(w * 0.7, h * 0.44)
+  ctx.quadraticCurveTo(w * 0.88, h * 0.46, w * 0.9, h * 0.66)
+  ctx.stroke()
+
+  // Body, neck and head.
+  ellipse(ctx, w * 0.5, h * 0.52, w * 0.24, h * 0.16, wood)
+  ctx.strokeStyle = wood
+  ctx.lineWidth = w * 0.13
+  ctx.beginPath()
+  ctx.moveTo(w * 0.37, h * 0.5)
+  ctx.lineTo(w * 0.24, h * 0.28)
+  ctx.stroke()
+  ellipse(ctx, w * 0.2, h * 0.25, w * 0.12, h * 0.1, wood)
+  ellipse(ctx, w * 0.09, h * 0.31, w * 0.06, h * 0.055, woodLight)
+
+  // Ear.
+  ctx.fillStyle = wood
+  ctx.beginPath()
+  ctx.moveTo(w * 0.24, h * 0.17)
+  ctx.lineTo(w * 0.27, h * 0.05)
+  ctx.lineTo(w * 0.31, h * 0.2)
   ctx.closePath()
   ctx.fill()
 
-  ctx.fillStyle = '#f2b6d4'
-  ctx.fillRect(w * 0.2, h * 0.38, w * 0.6, h * 0.12)
+  // A grain highlight along the barrel, so it reads as turned wood.
+  ellipse(ctx, w * 0.52, h * 0.46, w * 0.17, h * 0.04, woodLight)
 
-  // Hood.
-  ctx.fillStyle = '#a8dd90'
+  // Painted mane and saddle.
+  ctx.strokeStyle = paint
+  ctx.lineWidth = w * 0.035
   ctx.beginPath()
-  ctx.arc(w * 0.32, h * 0.4, w * 0.2, Math.PI, 0)
+  for (const [x, y] of [
+    [0.3, 0.16],
+    [0.34, 0.23],
+    [0.38, 0.3],
+  ] as const) {
+    ctx.moveTo(w * x, h * y)
+    ctx.lineTo(w * (x + 0.06), h * (y + 0.09))
+  }
+  ctx.stroke()
+
+  ctx.fillStyle = paint
+  ctx.beginPath()
+  ctx.roundRect(w * 0.46, h * 0.38, w * 0.18, h * 0.11, w * 0.03)
   ctx.fill()
+
+  ellipse(ctx, w * 0.17, h * 0.23, w * 0.022, h * 0.028, '#3a2a20')
 }
 
 function drawDuck(ctx: CanvasRenderingContext2D, w: number, h: number): void {

@@ -1,7 +1,7 @@
 import { OBSTACLE, VIEW } from './config'
 import type { Obstacle, ToyKind } from './types'
 
-const TOY_KINDS: ToyKind[] = ['cradle', 'duck', 'ball', 'teddy']
+const TOY_KINDS: ToyKind[] = ['horse', 'duck', 'ball', 'teddy']
 
 /**
  * Scatters a fresh set of toys for a round.

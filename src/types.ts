@@ -174,7 +174,7 @@ export interface Blast {
   duration: number
 }
 
-export type ToyKind = 'cradle' | 'duck' | 'ball' | 'teddy'
+export type ToyKind = 'horse' | 'duck' | 'ball' | 'teddy'
 
 export interface Obstacle {
   kind: ToyKind

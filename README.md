@@ -245,8 +245,8 @@ canopies can share one hull. Swapping to emoji or PNGs means rewriting
   cannot be influenced. That is deliberate — being able to plan around it would
   spoil the joke — but it does mean a run can be decided by a coin flip.
 - **The obstacles are still nursery toys.** They are carried over from the
-  previous theme, so a cradle and a teddy bear are what shields the hen from
-  orbital laser fire — and, now, what she fires back. Replacing them is confined
+  previous theme, so a rocking horse and a teddy bear are what shields the hen
+  from orbital laser fire — and, now, what she fires back. Replacing them is confined
   to the four toy painters in `src/sprites.ts` and the `ToyKind` union.
 
 ## Deploying to GitHub Pages
