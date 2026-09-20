@@ -21,7 +21,7 @@ import {
 } from './config'
 import type { InputState } from './input'
 import { placeObstacles } from './obstacles'
-import type { Boss, GameState, Laser as LaserShot, Power, Rect, Shot, Splat, Ufo, UfoState } from './types'
+import type { Boss, GameState, Laser as LaserShot, Power, Rect, Shot, Splat, Timed, Ufo, UfoState } from './types'
 
 /** Y coordinate of the top of the hen's helmet; the line the saucers race for. */
 export const HEN_TOP = VIEW.height - HEN.bottomMargin - HEN.height
@@ -291,9 +291,8 @@ function tickTimers(state: GameState, dt: number): void {
     if (state.freeze.remaining <= 0) state.freeze = null
   }
 
-  // The one-shot upgrades have no clock: they are spent by firing them.
   const power = state.power
-  if ('remaining' in power) {
+  if (power.kind !== 'none') {
     power.remaining -= dt
     if (power.remaining <= 0) state.power = { kind: 'none' }
   }
@@ -362,19 +361,16 @@ function tryShoot(state: GameState, input: InputState): void {
     return
   }
 
-  if (power.kind === 'superEgg' || power.kind === 'heart' || power.kind === 'blackHole' || power.kind === 'gramophone') {
-    const kind = power.kind === 'superEgg' ? 'super' : power.kind
-    const { width, height } = shotSize(kind)
-    state.shots.push({
-      x: muzzleX - width / 2,
-      y: HEN_TOP - height,
-      spin: kind === 'blackHole' ? 4.5 : kind === 'gramophone' ? 0 : 1.4,
-      rotation: 0,
-      vx: 0,
-      kind,
-      fuse: GRAMOPHONE.fuse,
-    })
-    // Spent on firing, so there is exactly one of these per pickup.
+  // The black hole keeps firing for as long as it is held; the rest of the
+  // heavy ordnance is one shot and gone.
+  if (power.kind === 'blackHole') {
+    state.shots.push(heavyShot('blackHole', muzzleX))
+    state.shotCooldown = BLACK_HOLE.cooldown
+    return
+  }
+
+  if (power.kind === 'superEgg' || power.kind === 'heart' || power.kind === 'gramophone') {
+    state.shots.push(heavyShot(power.kind === 'superEgg' ? 'super' : power.kind, muzzleX))
     state.power = { kind: 'none' }
     state.shotCooldown = EGG.cooldown
     return
@@ -398,6 +394,19 @@ function tryShoot(state: GameState, input: InputState): void {
   if (state.shots.length >= EGG.maxInFlight) return
   state.shots.push(egg(muzzleX))
   state.shotCooldown = EGG.cooldown
+}
+
+function heavyShot(kind: Exclude<Shot['kind'], 'normal'>, muzzleX: number): Shot {
+  const { width, height } = shotSize(kind)
+  return {
+    x: muzzleX - width / 2,
+    y: HEN_TOP - height,
+    spin: kind === 'blackHole' ? 4.5 : kind === 'gramophone' ? 0 : 1.4,
+    rotation: 0,
+    vx: 0,
+    kind,
+    fuse: GRAMOPHONE.fuse,
+  }
 }
 
 function egg(muzzleX: number): Shot {
@@ -490,7 +499,7 @@ function heartBurst(state: GameState, x: number, y: number, events: GameEvents):
   const boss = state.boss
   if (boss === null || boss.state.kind !== 'flying') return
   state.bossTaunt = TAUNT.duration
-  state.power = { kind: 'superEgg' }
+  state.power = { kind: 'superEgg', ...clock(POWER.holdDuration) }
   events.onBossTaunt?.()
 }
 
@@ -864,9 +873,9 @@ function fireVolley(state: GameState, dt: number): void {
   if (state.fireTimer > 0) return
   state.fireTimer += bossFireInterval(state.round)
 
-  // Two directions fewer than the round number, which is what keeps a round-4
-  // mothership from putting out a wall rather than a volley.
-  const shots = Math.max(1, state.round - BOSS.volleyReduction)
+  // Two directions fewer than the round number and then halved, which is what
+  // keeps a mothership from putting out a wall rather than a volley.
+  const shots = Math.max(1, Math.floor((state.round - BOSS.volleyReduction) / BOSS.volleyDivisor))
   for (let i = 0; i < shots; i++) {
     const across = shots === 1 ? 0.5 : i / (shots - 1)
     const angle = (across - 0.5) * BOSS.volleySpread + (Math.random() - 0.5) * BOSS.volleyJitter
@@ -937,24 +946,28 @@ function rollPower(): Power {
       return {
         kind: 'multishot',
         eggs: POWER.multishotMin + Math.floor(Math.random() * (spread + 1)),
-        remaining: POWER.multishotDuration,
+        ...clock(POWER.multishotDuration),
       }
     }
     case 1:
-      return { kind: 'superEgg' }
+      return { kind: 'superEgg', ...clock(POWER.holdDuration) }
     case 2:
-      return { kind: 'beam', remaining: POWER.beamDuration }
+      return { kind: 'beam', ...clock(POWER.beamDuration) }
     case 3:
-      return { kind: 'shield', remaining: POWER.shieldDuration }
+      return { kind: 'shield', ...clock(POWER.shieldDuration) }
     case 4:
-      return { kind: 'heart' }
+      return { kind: 'heart', ...clock(POWER.holdDuration) }
     case 5:
-      return { kind: 'gravity', remaining: GRAVITY.duration }
+      return { kind: 'gravity', ...clock(GRAVITY.duration) }
     case 6:
-      return { kind: 'blackHole' }
+      return { kind: 'blackHole', ...clock(BLACK_HOLE.duration) }
     default:
-      return { kind: 'gramophone' }
+      return { kind: 'gramophone', ...clock(POWER.holdDuration) }
   }
+}
+
+function clock(duration: number): Timed {
+  return { remaining: duration, duration }
 }
 
 /**

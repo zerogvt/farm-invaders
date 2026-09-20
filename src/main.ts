@@ -124,7 +124,7 @@ function noticeFor(power: Power): string {
     case 'gravity':
       return 'Gravity waves'
     case 'blackHole':
-      return 'Black hole — one shot'
+      return 'Black hole'
     case 'gramophone':
       return 'Gramophone — one shot'
     case 'none':

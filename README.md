@@ -24,9 +24,10 @@ toy pushed downwards is cover turning into a hazard the hen cannot dodge.
 
 **Every second round is a mothership** rather than a fleet. It takes one egg per
 round number to see off, and the banner says so before the round starts. It
-answers with a volley of two directions fewer than the round number, fired at
-half the rate it once was — it is also the only thing out there that shoots at
-an angle, since rank-and-file saucers only ever fire straight down.
+answers with a volley of two directions fewer than the round number and then
+halved, fired at a quarter of the rate it started at — it is also the only thing
+out there that shoots at an angle, since rank-and-file saucers only ever fire
+straight down.
 
 **A tenth of every fleet deserts.** Somewhere in each round, one saucer in ten
 decides it has had enough, says **make ❤️ not war** and flies home. They leave
@@ -54,11 +55,14 @@ can hit it before it leaves. Which upgrade is not up to her:
 | Shield | Ten seconds during which lasers simply do not land. |
 | Exploding heart | One shot. The whole fleet deserts. The mothership declines — *"no xmas truce. This aint 1914. I'm da central command!"* — and the hen gets a super egg for her trouble. |
 | Gravity waves | Five seconds of expanding rings. Anything a ring washes over loses attitude control, tumbles off at random, and detonates against whatever it blunders into, itself included. |
-| Black hole | One shot. Three egg-radii across, swallowing everything inside twice that as it climbs. |
+| Black hole | Six seconds of them. Three egg-radii across, swallowing everything inside twice that as each one climbs. |
 | Gramophone | One shot. It drifts up playing, and three seconds later the entire fleet goes up with it. |
 
 Every upgrade announces itself over the playfield, because which one you have is
-not something you chose.
+not something you chose — and every one of them carries a clock, shown in the
+HUD as a name, the seconds left and a bar that drains, turning red over the last
+three seconds. The single-shot upgrades are spent by firing them; their clock is
+how long they can be carried unfired.
 
 ## Running it
 
@@ -141,6 +145,18 @@ where time stops with one already sitting on her.
 
 **Stopped time is not a free mothership.** Eggs still take it one hit point at a
 time. It cannot shoot back for five seconds, which is reward enough.
+
+**Every upgrade has a clock, including the ones that are a single shot.** A
+countdown the player can read is worth more than the words "one shot", which say
+nothing about how long there is to line the shot up. The hold on a single-shot
+upgrade is deliberately generous: it exists so the HUD has something to show and
+so nothing can be carried indefinitely, not to punish anyone for taking aim.
+
+**The black hole is the exception among the heavy ordnance.** The super egg, the
+heart and the gramophone each do their whole job once and are gone. The black
+hole does its job continuously as it climbs, so firing exactly one of them was
+always the odd rule out; it now keeps firing for as long as it is held, on a
+cooldown long enough that the holes stay separate rather than stacking.
 
 **The cow is scenery, and that is the point.** It has no state, no collision box
 and no hit points — it is drawn at a fixed spot and nothing in the simulation

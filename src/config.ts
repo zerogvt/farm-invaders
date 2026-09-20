@@ -103,20 +103,22 @@ export const BOSS = {
   sinkSpeed: 3.4,
   startY: 58,
   /** Seconds between volleys in round 2... */
-  baseFireInterval: 3.2,
-  /** ...shortened by this much per round, down to minFireInterval. Every one of
-   *  these three is double what it was: the mothership was ramping into
-   *  unplayable long before the rounds it was meant to. */
-  fireIntervalPerRound: 0.12,
-  minFireInterval: 1.3,
+  baseFireInterval: 6.4,
+  /** ...shortened by this much per round, down to minFireInterval. All three
+   *  have been doubled twice now: the mothership was ramping into unplayable
+   *  long before the rounds it was meant to. */
+  fireIntervalPerRound: 0.24,
+  minFireInterval: 2.6,
   /** Total spread of a volley, in radians. Wide enough that standing still is
    *  never the answer, narrow enough to leave gaps to run through. */
   volleySpread: 1.5,
   /** Random wobble added to each shot in a volley. */
   volleyJitter: 0.18,
-  /** Directions in a volley: the round number, less this. Never below one —
-   *  a mothership that cannot shoot at all is not a boss round. */
+  /** Directions in a volley: the round number, less this, then divided by
+   *  volleyDivisor. Never below one — a mothership that cannot shoot at all is
+   *  not a boss round. */
   volleyReduction: 2,
+  volleyDivisor: 2,
   /** Points for seeing one off, multiplied by the round. */
   scorePerRound: 100,
 } as const
@@ -160,6 +162,11 @@ export const POWER = {
   /** Distance from the side wall and the top of the view. */
   sideMargin: 26,
   top: 34,
+
+  /** How long a one-shot upgrade can be carried before it goes off the boil.
+   *  Generous on purpose: it exists so every upgrade has a clock to show, not
+   *  to punish anyone for lining up a shot. */
+  holdDuration: 12,
 
   /** Eggs per volley once multishot lands, picked at random in this range. */
   multishotMin: 5,
@@ -225,6 +232,12 @@ export const BLACK_HOLE = {
   /** Multiple of the radius it reaches out to. */
   reach: 2,
   speed: 150,
+  /** Unlike the other heavy ordnance this one is not a single shot: while it is
+   *  held, every trigger pull sends another up the screen. */
+  duration: 6,
+  /** Long next to the egg cooldown, because they climb slowly and linger — a
+   *  faster one would just stack them on top of each other. */
+  cooldown: 0.8,
 } as const
 
 /**

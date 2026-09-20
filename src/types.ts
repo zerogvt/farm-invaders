@@ -124,20 +124,29 @@ export interface Boss {
   splats: Splat[]
 }
 
+/** Every upgrade runs on a clock, so every upgrade has a countdown to show.
+ *  `duration` is what it started with, which is what the HUD bar measures
+ *  against. */
+export interface Timed {
+  remaining: number
+  duration: number
+}
+
 /**
- * What the hen's eggs have been upgraded to. Everything but the super egg runs
- * on a timer; the super egg is a single shot and is spent when it is fired.
+ * What the hen's eggs have been upgraded to. The timed ones run until their
+ * clock is out; the single-shot ones are spent the moment they are fired, and
+ * their clock is only how long they can be carried unfired.
  */
 export type Power =
   | { kind: 'none' }
-  | { kind: 'multishot'; eggs: number; remaining: number }
-  | { kind: 'superEgg' }
-  | { kind: 'beam'; remaining: number }
-  | { kind: 'shield'; remaining: number }
-  | { kind: 'heart' }
-  | { kind: 'gravity'; remaining: number }
-  | { kind: 'blackHole' }
-  | { kind: 'gramophone' }
+  | ({ kind: 'multishot'; eggs: number } & Timed)
+  | ({ kind: 'superEgg' } & Timed)
+  | ({ kind: 'beam' } & Timed)
+  | ({ kind: 'shield' } & Timed)
+  | ({ kind: 'heart' } & Timed)
+  | ({ kind: 'gravity' } & Timed)
+  | ({ kind: 'blackHole' } & Timed)
+  | ({ kind: 'gramophone' } & Timed)
 
 /** Einstein, mid-sentence, with the board stopped behind him. */
 export interface Freeze {

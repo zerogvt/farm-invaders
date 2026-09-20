@@ -50,7 +50,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
 const GROUND = HEN_TOP + HEN.height
 
 /** Bottom of the HUD's second row, which speech bubbles keep clear of. */
-const HUD_BOTTOM = 54
+const HUD_BOTTOM = 62
 
 /** The cow, standing where it always stands. It is gone from the moment the
  *  mothership finishes lifting it, which is why the abduction draws its own. */
@@ -803,29 +803,66 @@ function drawBlasts(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
 }
 
-/** The HUD label for whatever upgrade is active, or null on ordinary eggs. */
-function powerLabel(state: GameState): string | null {
-  const power = state.power
+/** The HUD name for whatever upgrade is active, or null on ordinary eggs. */
+function powerName(power: GameState['power']): string | null {
   switch (power.kind) {
     case 'none':
       return null
-    case 'superEgg':
-      return 'SUPER EGG — ONE SHOT'
     case 'multishot':
-      return `MULTISHOT ×${power.eggs}   ${power.remaining.toFixed(1)}s`
+      return `MULTISHOT ×${power.eggs}`
+    case 'superEgg':
+      return 'SUPER EGG'
     case 'beam':
-      return `BEAM   ${power.remaining.toFixed(1)}s`
+      return 'BEAM'
     case 'shield':
-      return `SHIELD   ${power.remaining.toFixed(1)}s`
+      return 'SHIELD'
     case 'heart':
-      return 'EXPLODING HEART — ONE SHOT'
+      return 'EXPLODING HEART'
     case 'gravity':
-      return `GRAVITY WAVES   ${power.remaining.toFixed(1)}s`
+      return 'GRAVITY WAVES'
     case 'blackHole':
-      return 'BLACK HOLE — ONE SHOT'
+      return 'BLACK HOLE'
     case 'gramophone':
-      return 'GRAMOPHONE — ONE SHOT'
+      return 'GRAMOPHONE'
   }
+}
+
+/**
+ * The upgrade panel: name, seconds left, and a bar draining towards zero. Every
+ * upgrade carries a clock, so every upgrade gets the same three things — a
+ * one-shot that reads "ONE SHOT" tells the player nothing about how long they
+ * have to line it up.
+ */
+function drawPowerPanel(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const power = state.power
+  const name = powerName(power)
+  if (power.kind === 'none' || name === null) return
+
+  const left = 16
+  const width = 168
+  const fraction = Math.max(0, Math.min(1, power.remaining / power.duration))
+
+  ctx.font = '600 13px system-ui, sans-serif'
+  ctx.textAlign = 'left'
+  ctx.fillStyle = PALETTE.accent
+  ctx.fillText(name, left, 38)
+
+  ctx.textAlign = 'right'
+  // The last three seconds count in red, since that is when it matters.
+  ctx.fillStyle = power.remaining <= 3 ? '#ff7a96' : PALETTE.hudDim
+  ctx.fillText(`${power.remaining.toFixed(1)}s`, left + width, 38)
+
+  ctx.fillStyle = 'rgba(255,255,255,0.14)'
+  ctx.beginPath()
+  ctx.roundRect(left, 54, width, 5, 2.5)
+  ctx.fill()
+
+  ctx.fillStyle = power.remaining <= 3 ? '#ff7a96' : PALETTE.accent
+  ctx.beginPath()
+  ctx.roundRect(left, 54, Math.max(2, width * fraction), 5, 2.5)
+  ctx.fill()
+
+  ctx.textAlign = 'left'
 }
 
 function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
@@ -836,12 +873,7 @@ function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
   ctx.textAlign = 'left'
   ctx.fillText(`SCORE ${state.score}`, 16, 14)
 
-  const label = powerLabel(state)
-  if (label !== null) {
-    ctx.font = '600 13px system-ui, sans-serif'
-    ctx.fillStyle = PALETTE.accent
-    ctx.fillText(label, 16, 38)
-  }
+  drawPowerPanel(ctx, state)
 
   ctx.font = '600 18px system-ui, sans-serif'
   ctx.textAlign = 'center'

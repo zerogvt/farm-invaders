@@ -270,10 +270,10 @@ const gv = newGame()
 enterRound(gv, 6)
 step(gv, 2.6, idle)
 gv.lasers = []
-step(gv, 1.5, idle)
+step(gv, 2.9, idle)
 check('the old volley interval is no longer enough', gv.lasers.length === 0, `${gv.lasers.length} early`)
-step(gv, 1.4, idle)
-check('a round-6 volley is four lasers', gv.lasers.length === 4, `${gv.lasers.length}`)
+step(gv, 3.2, idle)
+check('a round-6 volley is two lasers', gv.lasers.length === 2, `${gv.lasers.length}`)
 check('volley shots are fanned, not parallel', new Set(gv.lasers.map((l) => l.vx)).size === gv.lasers.length)
 check('and every one of them is angled', gv.lasers.every((l) => l.vx !== 0))
 
@@ -282,7 +282,7 @@ const gv2 = newGame()
 enterRound(gv2, 2)
 step(gv2, 2.6, idle)
 gv2.lasers = []
-step(gv2, 3.3, idle)
+step(gv2, 6.5, idle)
 check('a round-2 mothership still fires one', gv2.lasers.length === 1, `${gv2.lasers.length}`)
 
 // 13. Rank-and-file saucers, by contrast, only ever fire straight down.
@@ -326,7 +326,7 @@ check('and the pickup is consumed', gu.pickup === null && gu.shots.length === 0)
 // 15. Multishot fires a fan.
 const gm = newGame()
 intoPlay(gm)
-grant(gm, { kind: 'multishot', eggs: 9, remaining: 5 })
+grant(gm, { kind: 'multishot', eggs: 9, remaining: 5, duration: 5 })
 gm.shots = []
 gm.shotCooldown = 0
 update(gm, DT, firing)
@@ -339,7 +339,7 @@ check(
 // 16. The super egg is one shot that clears the sky at mid-screen.
 const gse = newGame()
 intoPlay(gse)
-grant(gse, { kind: 'superEgg' })
+grant(gse, { kind: 'superEgg', remaining: 12, duration: 12 })
 gse.shotCooldown = 0
 update(gse, DT, firing)
 check('the super egg is a single shot', gse.shots.length === 1 && gse.shots[0]!.kind === 'super')
@@ -361,7 +361,7 @@ intoPlay(gbm)
 // Six columns leaves a gap at the centre of the view, so the hen is parked
 // under a known saucer rather than wherever she happens to start.
 gbm.hen.x = gbm.ufos[0]!.x + UFO.width / 2 - HEN.width / 2
-grant(gbm, { kind: 'beam', remaining: 5 })
+grant(gbm, { kind: 'beam', remaining: 5, duration: 5 })
 gbm.lasers = [{ x: gbm.hen.x + 20, y: 200, vx: 0, vy: 200 }]
 update(gbm, DT, idle)
 check(
@@ -375,7 +375,7 @@ check('and burns incoming lasers out of the air', gbm.lasers.length === 0, `${gb
 const gbb = newGame()
 enterRound(gbb, 2)
 step(gbb, 3, idle)
-grant(gbb, { kind: 'beam', remaining: 99 })
+grant(gbb, { kind: 'beam', remaining: 99, duration: 99 })
 const pinned = gbb.boss!
 const burn = (seconds: number) => {
   for (let i = 0; i < Math.round(seconds / DT); i++) {
@@ -392,7 +392,7 @@ check('two seconds of it is', pinned.state.kind === 'leaving', pinned.state.kind
 const gsh = newGame()
 intoPlay(gsh)
 gsh.hen.invulnerable = 0
-grant(gsh, { kind: 'shield', remaining: 5 })
+grant(gsh, { kind: 'shield', remaining: 5, duration: 5 })
 gsh.lasers = [{ x: gsh.hen.x + 10, y: HEN_TOP - 4, vx: 0, vy: 210 }]
 update(gsh, 0.05, idle)
 check('the shield eats a laser', gsh.hen.lives === 3, `lives ${gsh.hen.lives}`)
@@ -469,7 +469,7 @@ check('one award can pay out several thresholds', gx2.hen.lives === 3, `lives ${
 // 23. The exploding heart talks the fleet out of the war.
 const gh = newGame()
 intoPlay(gh)
-grant(gh, { kind: 'heart' })
+grant(gh, { kind: 'heart', remaining: 12, duration: 12 })
 gh.shotCooldown = 0
 update(gh, DT, firing)
 check('the heart is a single shot', gh.shots.length === 1 && gh.shots[0]!.kind === 'heart')
@@ -486,7 +486,7 @@ check('and nobody is scored for it', gh.score === 0, `score ${gh.score}`)
 const ghb = newGame()
 enterRound(ghb, 4)
 step(ghb, 3, idle)
-grant(ghb, { kind: 'heart' })
+grant(ghb, { kind: 'heart', remaining: 12, duration: 12 })
 ghb.shotCooldown = 0
 update(ghb, DT, firing)
 let taunts = 0
@@ -499,7 +499,7 @@ check('and the hen is handed a super egg instead', ghb.power.kind === 'superEgg'
 const gg = newGame()
 gg.hen.lives = 99
 intoPlay(gg)
-grant(gg, { kind: 'gravity', remaining: 5 })
+grant(gg, { kind: 'gravity', remaining: 5, duration: 5 })
 gg.shotCooldown = 0
 update(gg, DT, firing)
 check('firing gravity sends a ring out, not a projectile', gg.waves.length === 1 && gg.shots.length === 0)
@@ -517,10 +517,18 @@ check('and swallows at twice its radius', BLACK_HOLE.reach === 2)
 const gbh = newGame()
 gbh.hen.lives = 99
 intoPlay(gbh)
-grant(gbh, { kind: 'blackHole' })
+grant(gbh, { kind: 'blackHole', remaining: 6, duration: 6 })
 gbh.shotCooldown = 0
 update(gbh, DT, firing)
-check('the black hole is a single shot', gbh.shots.length === 1 && gbh.shots[0]!.kind === 'blackHole')
+check('firing sends a black hole up', gbh.shots.length === 1 && gbh.shots[0]!.kind === 'blackHole')
+check('and the upgrade is not spent on it', gbh.power.kind === 'blackHole', gbh.power.kind)
+gbh.shotCooldown = 0
+update(gbh, DT, firing)
+check(
+  'so it can be fired again',
+  gbh.shots.filter((shot) => shot.kind === 'blackHole').length === 2,
+  `${gbh.shots.filter((shot) => shot.kind === 'blackHole').length} in flight`,
+)
 const beforeHole = gbh.ufos.length
 step(gbh, 3.5, idle)
 check('it swallows what it passes', gbh.ufos.length < beforeHole, `${beforeHole} -> ${gbh.ufos.length}`)
@@ -530,7 +538,7 @@ check('and what it swallows is scored', gbh.score > 0, `score ${gbh.score}`)
 const gmo = newGame()
 gmo.hen.lives = 99
 intoPlay(gmo)
-grant(gmo, { kind: 'gramophone' })
+grant(gmo, { kind: 'gramophone', remaining: 12, duration: 12 })
 gmo.shotCooldown = 0
 update(gmo, DT, firing)
 check('the gramophone is a single shot', gmo.shots.length === 1 && gmo.shots[0]!.kind === 'gramophone')
@@ -545,7 +553,7 @@ const gmb = newGame()
 gmb.hen.lives = 99
 enterRound(gmb, 4)
 step(gmb, 3, idle)
-grant(gmb, { kind: 'gramophone' })
+grant(gmb, { kind: 'gramophone', remaining: 12, duration: 12 })
 gmb.shotCooldown = 0
 update(gmb, DT, firing)
 step(gmb, 3.2, idle)
@@ -682,6 +690,29 @@ const hullHp = stoppedHull.hitPoints
 gzb.shots = [egg(stoppedHull.x + 40, stoppedHull.y + BOSS.height / 2)]
 update(gzb, DT, idle)
 check('stopped time does not make the mothership a one-egg kill', stoppedHull.hitPoints === hullHp - 1, `${stoppedHull.hitPoints} left`)
+
+// --- every upgrade carries a clock ------------------------------------------
+
+// 35. Including the single-shot ones, which is what the HUD countdown reads.
+const gc = newGame()
+intoPlay(gc)
+gc.pickupTimer = 0.05
+step(gc, 0.2, idle)
+const prize = gc.pickup!
+gc.shots = [egg(prize.x + POWER.width / 2 - 6, prize.y + POWER.height / 2)]
+update(gc, DT, idle)
+check('an upgrade arrives with a clock on it', gc.power.kind !== 'none' && gc.power.remaining > 0, gc.power.kind)
+check(
+  'and knows what it started with, so a bar can measure it',
+  gc.power.kind !== 'none' && gc.power.duration >= gc.power.remaining,
+)
+
+// A one-shot left unfired runs out rather than being carried for ever.
+const gc2 = newGame()
+intoPlay(gc2)
+grant(gc2, { kind: 'gramophone', remaining: 0.4, duration: 12 })
+step(gc2, 0.6, idle)
+check('a one-shot that is never fired goes off the boil', gc2.power.kind === 'none', gc2.power.kind)
 
 // Throwing rather than calling process.exit keeps this runnable without pulling
 // in @types/node just for one line; an uncaught error is a non-zero exit too.
