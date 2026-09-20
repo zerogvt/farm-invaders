@@ -1,6 +1,6 @@
 import { bossHitPoints, createGame, isBossRound, startRound, update, HEN_TOP } from '../src/game.ts'
 import type { InputState } from '../src/input.ts'
-import { BLACK_HOLE, BOSS, DESERT, EGG, HEN, OBSTACLE, POWER, UFO, VIEW } from '../src/config.ts'
+import { BLACK_HOLE, BOSS, DESERT, EGG, FREEZE, HEN, OBSTACLE, POWER, UFO, VIEW } from '../src/config.ts'
 import type { GameState, Laser, Power, Shot, Ufo } from '../src/types.ts'
 
 const DT = 1 / 60
@@ -10,6 +10,24 @@ const firing: InputState = { left: false, right: false, fire: true }
 function step(game: GameState, seconds: number, input: InputState, events = {}) {
   const frames = Math.round(seconds / DT)
   for (let i = 0; i < frames; i++) update(game, DT, input, events)
+}
+
+/**
+ * A game with Einstein's visit switched off. Almost every check below measures
+ * how far the board gets in a given number of seconds, and a random five-second
+ * stop in the middle of one measures nothing at all. The freeze has tests of its
+ * own, which turn it on deliberately.
+ */
+function newGame(): GameState {
+  const game = createGame()
+  game.freezeTimer = null
+  return game
+}
+
+/** startRound re-rolls the visit, so jumping to a round needs the same guard. */
+function enterRound(game: GameState, round: number): void {
+  startRound(game, round)
+  game.freezeTimer = null
 }
 
 function egg(x: number, y: number): Shot {
@@ -40,7 +58,7 @@ function throwEggAt(game: GameState, ufo: Ufo) {
  *  Sampling across whole games is what keeps the stray-shot check clear of
  *  chance: one game does not fire enough shots to be sure of seeing one. */
 function lasersFiredOver(seconds: number): Laser[] {
-  const game = createGame()
+  const game = newGame()
   const seen = new Set<Laser>()
   const frames = Math.round(seconds / DT)
   for (let i = 0; i < frames; i++) {
@@ -58,7 +76,7 @@ function check(name: string, ok: boolean, detail = '') {
 }
 
 // 1. Intro gates the march, then play begins.
-const g = createGame()
+const g = newGame()
 const startUfos = g.ufos.length
 const startY = g.ufos[0]!.y
 step(g, 1.0, idle)
@@ -79,7 +97,7 @@ check('eggs in flight respect the cap', g.shots.length <= 3, `${g.shots.length}`
 
 // 4. An egg on the windscreen sends the saucer to the nearer wall, and it scores
 //    only once it is fully out of the view.
-const gl = createGame()
+const gl = newGame()
 step(gl, 2, idle)
 const leftward = gl.ufos[0]!
 gl.ufos = [leftward]
@@ -98,7 +116,7 @@ check('the splattered saucer leaves the view', gl.ufos.length === 0, `${gl.ufos.
 check('leaving the view is what scores', gl.score > 0, `score ${gl.score}`)
 
 // ...and one on the right half runs the other way.
-const gr = createGame()
+const gr = newGame()
 step(gr, 2, idle)
 const rightward = gr.ufos[0]!
 gr.ufos = [rightward]
@@ -111,7 +129,7 @@ check(
 
 // 5. A splattered saucer is out of the fight: it cannot shoot, cannot be hit
 //    again to any effect, and cannot invade.
-const gs = createGame()
+const gs = newGame()
 step(gs, 2, idle)
 for (const ufo of gs.ufos) ufo.state = { kind: 'leaving', reason: 'splattered', direction: -1, reeling: 999, speed: 0 }
 gs.lasers = []
@@ -124,7 +142,7 @@ check('splattered saucers fire no lasers', gs.lasers.length === 0, `${gs.lasers.
 const fired = lasersFiredOver(8)
 check('flying saucers do fire lasers', fired.length > 0, `${fired.length} fired`)
 
-const gw = createGame()
+const gw = newGame()
 step(gw, 2, idle)
 const alreadyHit = gw.ufos[0]!
 alreadyHit.state = { kind: 'leaving', reason: 'splattered', direction: -1, reeling: 999, speed: 0 }
@@ -132,7 +150,7 @@ const roundBefore = gw.round
 throwEggAt(gw, alreadyHit)
 check('a second egg into a splattered saucer is wasted', gw.shots.length === 0 && gw.round === roundBefore)
 
-const gi = createGame()
+const gi = newGame()
 step(gi, 2, idle)
 const runner = gi.ufos[0]!
 runner.state = { kind: 'leaving', reason: 'splattered', direction: -1, reeling: 999, speed: 0 }
@@ -144,7 +162,7 @@ check('a fleeing saucer past the line is not an invasion', gi.phase.kind === 'pl
 //    touching. This is the whole reason the march ignores splattered saucers.
 //    The scout is held reeling so it is still sitting out past the wall when the
 //    next march step lands.
-const gb = createGame()
+const gb = newGame()
 step(gb, 2, idle)
 const scout = gb.ufos[0]!
 const neighbour = gb.ufos[1]!
@@ -155,7 +173,7 @@ step(gb, 0.7, idle)
 check('a fleeing saucer does not bounce the formation off a wall', neighbour.y === rowY, `y ${neighbour.y}`)
 
 // 7. Obstacles absorb shots and are destroyed, never resurrected.
-const g2 = createGame()
+const g2 = newGame()
 step(g2, 2, idle)
 const toys = g2.obstacles.length
 let overlapping = false
@@ -169,7 +187,7 @@ check('toys never overlap', !overlapping, `${toys} toys placed`)
 check('toys stay inside the view', g2.obstacles.every((o) => o.x >= 0 && o.x + 56 <= 800))
 
 // 8. Invasion ends the game even with lives remaining.
-const g3 = createGame()
+const g3 = newGame()
 step(g3, 2, idle)
 for (const ufo of g3.ufos) ufo.y = HEN_TOP - UFO.height
 let overCalled = 0
@@ -179,14 +197,14 @@ check('lives were still remaining at invasion', g3.hen.lives === 3, `lives ${g3.
 check('onGameOver fires exactly once', overCalled === 1, `${overCalled}`)
 
 // A saucer one pixel short of the line is not an invasion.
-const g3b = createGame()
+const g3b = newGame()
 step(g3b, 2, idle)
 for (const ufo of g3b.ufos) ufo.y = HEN_TOP - UFO.height - 1
 update(g3b, DT, idle)
 check('one pixel short is not an invasion', g3b.phase.kind === 'playing', g3b.phase.kind)
 
 // 9. Round advances after a clear.
-const g4 = createGame()
+const g4 = newGame()
 step(g4, 2, idle)
 g4.ufos = []
 step(g4, 2, idle)
@@ -199,16 +217,16 @@ check('round 1 is a formation round', !isBossRound(1))
 check('round 2 is a boss round', isBossRound(2))
 check('round 3 is a formation round', !isBossRound(3))
 
-const gp = createGame()
+const gp = newGame()
 check('a formation round has no mothership', gp.boss === null && gp.ufos.length > 0)
-startRound(gp, 2)
+enterRound(gp, 2)
 check('a boss round has a mothership and no formation', gp.boss !== null && gp.ufos.length === 0)
-startRound(gp, 3)
+enterRound(gp, 3)
 check('and the round after is a formation again', gp.boss === null && gp.ufos.length > 0)
 
 // 11. It takes one egg per round number, and nothing happens before that.
-const gboss = createGame()
-startRound(gboss, 4)
+const gboss = newGame()
+enterRound(gboss, 4)
 step(gboss, 3, idle)
 check('the announced number matches the mothership', bossHitPoints(4) === 4)
 check('a round-4 mothership starts on four hits', gboss.boss?.maxHitPoints === 4, `${gboss.boss?.maxHitPoints}`)
@@ -227,16 +245,26 @@ step(gboss, 2.5, idle)
 check('the mothership leaves the view', gboss.boss === null)
 check('and scores on the way out', gboss.score > scoreBefore, `score ${gboss.score}`)
 
-// 12. A volley carries as many lasers as the round number.
-const gv = createGame()
-startRound(gv, 6)
+// 12. A volley is two directions short of the round number, and arrives at half
+//     the rate it used to.
+const gv = newGame()
+enterRound(gv, 6)
 step(gv, 2.6, idle)
 gv.lasers = []
+step(gv, 1.5, idle)
+check('the old volley interval is no longer enough', gv.lasers.length === 0, `${gv.lasers.length} early`)
 step(gv, 1.4, idle)
-check('a round-6 volley is six lasers', gv.lasers.length === 6, `${gv.lasers.length}`)
+check('a round-6 volley is four lasers', gv.lasers.length === 4, `${gv.lasers.length}`)
 check('volley shots are fanned, not parallel', new Set(gv.lasers.map((l) => l.vx)).size === gv.lasers.length)
-
 check('and every one of them is angled', gv.lasers.every((l) => l.vx !== 0))
+
+// Even the first mothership keeps one direction rather than none.
+const gv2 = newGame()
+enterRound(gv2, 2)
+step(gv2, 2.6, idle)
+gv2.lasers = []
+step(gv2, 3.3, idle)
+check('a round-2 mothership still fires one', gv2.lasers.length === 1, `${gv2.lasers.length}`)
 
 // 13. Rank-and-file saucers, by contrast, only ever fire straight down.
 const sampled = [...lasersFiredOver(25), ...lasersFiredOver(25), ...lasersFiredOver(25)]
@@ -246,7 +274,7 @@ check('angling a shot is the mothership trick alone', angled === 0, `${angled} o
 // --- the Rambo egg and its upgrades ----------------------------------------
 
 // 14. It turns up in a top corner and leaves on its own if it is not shot.
-const gr2 = createGame()
+const gr2 = newGame()
 step(gr2, 2, idle)
 gr2.pickupTimer = 0.05
 step(gr2, 0.2, idle)
@@ -264,7 +292,7 @@ step(gr2, 10.5, idle)
 check('and leaves if it is not shot', gr2.pickup === null)
 
 // ...and shooting it upgrades the eggs.
-const gu = createGame()
+const gu = newGame()
 step(gu, 2, idle)
 gu.pickupTimer = 0.05
 step(gu, 0.2, idle)
@@ -277,7 +305,7 @@ check('the upgrade is announced once', gained === 1, `${gained}`)
 check('and the pickup is consumed', gu.pickup === null && gu.shots.length === 0)
 
 // 15. Multishot fires a fan.
-const gm = createGame()
+const gm = newGame()
 step(gm, 2, idle)
 grant(gm, { kind: 'multishot', eggs: 9, remaining: 5 })
 gm.shots = []
@@ -290,7 +318,7 @@ check(
 )
 
 // 16. The super egg is one shot that clears the sky at mid-screen.
-const gse = createGame()
+const gse = newGame()
 step(gse, 2, idle)
 grant(gse, { kind: 'superEgg' })
 gse.shotCooldown = 0
@@ -309,7 +337,7 @@ check('it leaves a shockwave behind', gse.blasts.length > 0)
 check('and spares the toys', gse.obstacles.length === toyCount, `${gse.obstacles.length} toys`)
 
 // 17. The beam burns whatever is above the hen, and clears incoming fire.
-const gbm = createGame()
+const gbm = newGame()
 step(gbm, 2, idle)
 // Six columns leaves a gap at the centre of the view, so the hen is parked
 // under a known saucer rather than wherever she happens to start.
@@ -325,8 +353,8 @@ check('and burns incoming lasers out of the air', gbm.lasers.length === 0, `${gb
 
 // ...and takes the mothership one second per egg it would have cost. The boss is
 // pinned under the beam here, since it would otherwise patrol out of it.
-const gbb = createGame()
-startRound(gbb, 2)
+const gbb = newGame()
+enterRound(gbb, 2)
 step(gbb, 3, idle)
 grant(gbb, { kind: 'beam', remaining: 99 })
 const pinned = gbb.boss!
@@ -342,7 +370,7 @@ burn(1.2)
 check('two seconds of it is', pinned.state.kind === 'leaving', pinned.state.kind)
 
 // 18. The shield eats lasers that would otherwise cost a life.
-const gsh = createGame()
+const gsh = newGame()
 step(gsh, 2, idle)
 gsh.hen.invulnerable = 0
 grant(gsh, { kind: 'shield', remaining: 5 })
@@ -352,7 +380,7 @@ check('the shield eats a laser', gsh.hen.lives === 3, `lives ${gsh.hen.lives}`)
 check('and the laser is gone', gsh.lasers.length === 0)
 
 // 19. Large dt cannot tunnel a laser through an unshielded hen.
-const g5 = createGame()
+const g5 = newGame()
 step(g5, 2, idle)
 g5.hen.invulnerable = 0
 g5.lasers = [{ x: g5.hen.x + 10, y: HEN_TOP - 4, vx: 0, vy: 210 }]
@@ -362,17 +390,17 @@ check('a laser on the hen costs a life', g5.hen.lives === 2, `lives ${g5.hen.liv
 // --- a lighter formation, and desertions ------------------------------------
 
 // 20. A shallower, narrower formation than the game started with.
-const shape = createGame().ufos
+const shape = newGame().ufos
 check('the round-1 formation is two ranks deep', new Set(shape.map((u) => u.row)).size === 2)
 check('and six columns wide', new Set(shape.map((u) => u.column)).size === 6)
 
 // 21. A tenth of every formation loses its nerve, and goes home unscored.
-const gd = createGame()
+const gd = newGame()
 const expectedDesertions = Math.round(gd.ufos.length * DESERT.fraction)
 check('a tenth of the formation is down to desert', gd.desertions.length === expectedDesertions, `${gd.desertions.length}`)
-check('a boss round has nobody to desert', (startRound(gd, 2), gd.desertions.length === 0))
+check('a boss round has nobody to desert', (enterRound(gd, 2), gd.desertions.length === 0))
 
-const gd2 = createGame()
+const gd2 = newGame()
 gd2.hen.lives = 99
 let deserted = 0
 let firstDeserter: Ufo | null = null
@@ -389,7 +417,7 @@ check('talking one out of it scores nothing', gd2.score === 0, `score ${gd2.scor
 // --- free lives -------------------------------------------------------------
 
 // 22. Every two thousand points is another hen.
-const gx = createGame()
+const gx = newGame()
 step(gx, 2, idle)
 check('the first free life is two thousand away', gx.nextLifeAt === 2000, `${gx.nextLifeAt}`)
 
@@ -405,7 +433,7 @@ check('and it is announced once', extraLives === 1, `${extraLives}`)
 check('the next one is two thousand further on', gx.nextLifeAt === 4000, `${gx.nextLifeAt}`)
 
 // A single award that vaults more than one threshold pays out for each.
-const gx2 = createGame()
+const gx2 = newGame()
 step(gx2, 2, idle)
 gx2.score = 5900
 gx2.nextLifeAt = 2000
@@ -420,7 +448,7 @@ check('one award can pay out several thresholds', gx2.hen.lives === 3, `lives ${
 // --- the four new upgrades --------------------------------------------------
 
 // 23. The exploding heart talks the fleet out of the war.
-const gh = createGame()
+const gh = newGame()
 step(gh, 2, idle)
 grant(gh, { kind: 'heart' })
 gh.shotCooldown = 0
@@ -436,8 +464,8 @@ check(
 check('and nobody is scored for it', gh.score === 0, `score ${gh.score}`)
 
 // ...but the mothership is not open to persuasion.
-const ghb = createGame()
-startRound(ghb, 4)
+const ghb = newGame()
+enterRound(ghb, 4)
 step(ghb, 3, idle)
 grant(ghb, { kind: 'heart' })
 ghb.shotCooldown = 0
@@ -449,7 +477,7 @@ check('it has something to say about it', ghb.bossTaunt !== null && taunts === 1
 check('and the hen is handed a super egg instead', ghb.power.kind === 'superEgg', ghb.power.kind)
 
 // 24. Gravity waves set saucers tumbling, and tumbling saucers come off the board.
-const gg = createGame()
+const gg = newGame()
 gg.hen.lives = 99
 step(gg, 2, idle)
 grant(gg, { kind: 'gravity', remaining: 5 })
@@ -467,7 +495,7 @@ check('which scores', gg.score > 0, `score ${gg.score}`)
 check('the black hole is three egg radii', BLACK_HOLE.radius === (EGG.width / 2) * 3, `${BLACK_HOLE.radius}`)
 check('and swallows at twice its radius', BLACK_HOLE.reach === 2)
 
-const gbh = createGame()
+const gbh = newGame()
 gbh.hen.lives = 99
 step(gbh, 2, idle)
 grant(gbh, { kind: 'blackHole' })
@@ -480,7 +508,7 @@ check('it swallows what it passes', gbh.ufos.length < beforeHole, `${beforeHole}
 check('and what it swallows is scored', gbh.score > 0, `score ${gbh.score}`)
 
 // 26. The gramophone finishes the fleet three seconds in, mothership included.
-const gmo = createGame()
+const gmo = newGame()
 gmo.hen.lives = 99
 step(gmo, 2, idle)
 grant(gmo, { kind: 'gramophone' })
@@ -494,9 +522,9 @@ step(gmo, 0.8, idle)
 check('and gone when the record ends', gmo.ufos.length === 0, `${gmo.ufos.length} left`)
 check('with the whole fleet scored', gmo.score > 0, `score ${gmo.score}`)
 
-const gmb = createGame()
+const gmb = newGame()
 gmb.hen.lives = 99
-startRound(gmb, 4)
+enterRound(gmb, 4)
 step(gmb, 3, idle)
 grant(gmb, { kind: 'gramophone' })
 gmb.shotCooldown = 0
@@ -507,7 +535,7 @@ check('the record takes the mothership too', gmb.boss === null)
 // --- toys that have been knocked loose --------------------------------------
 
 // 27. An egg punts a toy off its spot; a laser only damages it.
-const gt = createGame()
+const gt = newGame()
 step(gt, 2, idle)
 const toy = gt.obstacles[0]!
 gt.shots = [egg(toy.x + OBSTACLE.width / 2 - 6, toy.y + OBSTACLE.height / 2)]
@@ -516,7 +544,7 @@ check('an egg knocks a toy loose', toy.vy < 0, `vy ${toy.vy.toFixed(0)}`)
 check('and still costs it a hit point', toy.health === OBSTACLE.hitPoints - 1, `${toy.health} left`)
 check('a knocked toy tumbles', toy.spin !== 0)
 
-const gt2 = createGame()
+const gt2 = newGame()
 step(gt2, 2, idle)
 const toy2 = gt2.obstacles[0]!
 gt2.lasers = [{ x: toy2.x + 20, y: toy2.y + 8, vx: 0, vy: 210 }]
@@ -524,7 +552,7 @@ update(gt2, DT, idle)
 check('a laser damages a toy without moving it', toy2.health === OBSTACLE.hitPoints - 1 && toy2.vy === 0)
 
 // 28. A loose toy wrecks what it ploughs into, and pays a hit point for each.
-const gt3 = createGame()
+const gt3 = newGame()
 gt3.hen.lives = 99
 step(gt3, 2, idle)
 const target3 = gt3.ufos[0]!
@@ -544,7 +572,7 @@ check(
 )
 
 // 29. One that reaches the edge of the view is simply gone.
-const gt4 = createGame()
+const gt4 = newGame()
 gt4.hen.lives = 99
 step(gt4, 2, idle)
 const toy4 = gt4.obstacles[0]!
@@ -556,9 +584,9 @@ step(gt4, 0.8, idle)
 check('a loose toy that leaves the view is gone', gt4.obstacles.length === toyCount4 - 1, `${gt4.obstacles.length} left`)
 
 // 30. The mothership is too big to be taken out by a teddy bear.
-const gt5 = createGame()
+const gt5 = newGame()
 gt5.hen.lives = 99
-startRound(gt5, 6)
+enterRound(gt5, 6)
 step(gt5, 3, idle)
 const hull = gt5.boss!
 const toy5 = gt5.obstacles[0]!
@@ -569,6 +597,71 @@ const hullBefore = hull.hitPoints
 step(gt5, 0.5, idle)
 check('a loose toy costs the mothership one hit point', hull.hitPoints === hullBefore - 1, `${hull.hitPoints} left`)
 check('and breaks up against the hull', !gt5.obstacles.includes(toy5))
+
+// --- Einstein, and stopped time ---------------------------------------------
+
+// 31. He turns up, and the board stops. These are the only checks that want the
+//     visit switched on, so they use createGame directly.
+const gz = createGame()
+gz.hen.lives = 99
+gz.desertions = []
+step(gz, 2, idle)
+gz.freezeTimer = 0.05
+step(gz, 0.2, idle)
+const visit = gz.freeze
+check('Einstein turns up', visit !== null)
+check(
+  'at one side of the view',
+  visit !== null && (visit.x < 200 || visit.x > VIEW.width - 200),
+  visit === null ? '' : `x ${visit.x}`,
+)
+check('with the whole freeze still to run', visit !== null && visit.remaining > FREEZE.duration - 0.5)
+
+const marchX = gz.ufos[0]!.x
+const marchY = gz.ufos[0]!.y
+gz.lasers = [{ x: 100, y: 100, vx: 0, vy: 210 }]
+const henX = gz.hen.x
+step(gz, 2, { left: false, right: true, fire: false })
+check('the fleet does not march', gz.ufos[0]!.x === marchX && gz.ufos[0]!.y === marchY)
+check('lasers hang in the air', gz.lasers.length === 1 && gz.lasers[0]!.y === 100, `y ${gz.lasers[0]?.y}`)
+check('but the hen still moves', gz.hen.x > henX, `${henX} -> ${gz.hen.x}`)
+
+// 32. Eggs still fly, and what they hit goes up on the spot.
+const gz2 = createGame()
+gz2.hen.lives = 99
+gz2.desertions = []
+step(gz2, 2, idle)
+gz2.freezeTimer = 0.05
+step(gz2, 0.2, idle)
+check('the board is stopped', gz2.freeze !== null)
+
+const stopped = gz2.ufos[0]!
+const fleetZ = gz2.ufos.length
+gz2.shots = [egg(stopped.x + UFO.width / 2 - 6, stopped.y + UFO.height / 2)]
+update(gz2, DT, idle)
+check('an egg with time stopped explodes what it hits', gz2.ufos.length === fleetZ - 1, `${gz2.ufos.length} left`)
+check('there is no retreat to wait for, so it scores at once', gz2.score > 0, `score ${gz2.score}`)
+check('and it leaves a burst behind', gz2.blasts.length > 0)
+
+// 33. Time starts again on its own, and the board picks up where it left off.
+const restX = gz2.ufos[0]!.x
+step(gz2, FREEZE.duration, idle)
+check('time starts again by itself', gz2.freeze === null)
+step(gz2, 1.2, idle)
+check('and the fleet marches again', gz2.ufos[0]!.x !== restX, `${restX} -> ${gz2.ufos[0]!.x}`)
+
+// 34. The mothership is still worth one egg a time, stopped or not.
+const gzb = createGame()
+gzb.hen.lives = 99
+startRound(gzb, 6)
+step(gzb, 3, idle)
+gzb.freezeTimer = 0.05
+step(gzb, 0.2, idle)
+const stoppedHull = gzb.boss!
+const hullHp = stoppedHull.hitPoints
+gzb.shots = [egg(stoppedHull.x + 40, stoppedHull.y + BOSS.height / 2)]
+update(gzb, DT, idle)
+check('stopped time does not make the mothership a one-egg kill', stoppedHull.hitPoints === hullHp - 1, `${stoppedHull.hitPoints} left`)
 
 // Throwing rather than calling process.exit keeps this runnable without pulling
 // in @types/node just for one line; an uncaught error is a non-zero exit too.

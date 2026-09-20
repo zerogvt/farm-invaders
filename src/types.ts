@@ -139,6 +139,13 @@ export type Power =
   | { kind: 'blackHole' }
   | { kind: 'gramophone' }
 
+/** Einstein, mid-sentence, with the board stopped behind him. */
+export interface Freeze {
+  x: number
+  /** Seconds of stopped time left. */
+  remaining: number
+}
+
 /** The Rambo egg, waiting in a top corner to be shot. */
 export interface Pickup {
   x: number
@@ -217,6 +224,11 @@ export interface GameState {
   desertions: number[]
   /** Seconds left of the mothership's reply to a heart, or null. */
   bossTaunt: number | null
+  /** Set while time is stopped. The hen and everything she has thrown carry on;
+   *  nothing else does. */
+  freeze: Freeze | null
+  /** Seconds until Einstein turns up, or null if this round has no visit. */
+  freezeTimer: number | null
   /** Score at which the next free life is awarded. */
   nextLifeAt: number
   /** Formation march bookkeeping. */

@@ -17,10 +17,10 @@ saucers and no more. Lasers only damage a toy; they never move one, because a
 toy pushed downwards is cover turning into a hazard the hen cannot dodge.
 
 **Every second round is a mothership** rather than a fleet. It takes one egg per
-round number to see off and answers with a volley of that many lasers at a time,
-and the banner says so before the round starts. It is also the only thing out
-there that shoots at an angle — rank-and-file saucers only ever fire straight
-down.
+round number to see off, and the banner says so before the round starts. It
+answers with a volley of two directions fewer than the round number, fired at
+half the rate it once was — it is also the only thing out there that shoots at
+an angle, since rank-and-file saucers only ever fire straight down.
 
 **A tenth of every fleet deserts.** Somewhere in each round, one saucer in ten
 decides it has had enough, says **make ❤️ not war** and flies home. They leave
@@ -28,6 +28,13 @@ unscored: talking somebody out of a fight is not the same as winning it.
 
 **Every 2000 points is another hen**, awarded for each threshold crossed rather
 than one per payout, so a single screen-clearing upgrade can hand back two.
+
+**On about one round in three, Einstein turns up**, says **time freeze mate**,
+and stops the board. The hen and everything she has already thrown carry on;
+saucers, the mothership, lasers, loose toys and the clock on a Rambo egg all
+stop where they are for five seconds. An egg that lands while time is stopped
+does not start a retreat — there is nothing to retreat — so whatever it hits
+simply goes up and scores on the spot.
 
 **Watch the corners for a Rambo egg.** On roughly two rounds in five one turns up
 in a top corner, sits there for ten seconds, and upgrades the hen's eggs if she
@@ -115,6 +122,20 @@ thing that strips your cover.
 round break rather than being reset by `startRound`, so a shield picked up in the
 last second of a round is not confiscated for clearing it.
 
+**The freeze exempts the hen, not the player.** `update` runs the hen, her
+shots, her waves and her beam every frame and skips the rest of the board's
+ticks while `state.freeze` is set. Advancing lasers had to be split out of
+advancing her shots for that, which is the only structural cost of the whole
+feature.
+
+**A stopped laser cannot hurt anybody.** Collisions between lasers and the hen
+are skipped for the duration. A frozen laser is a stationary object, and walking
+into one costing a life would make a gift into a hazard — including the case
+where time stops with one already sitting on her.
+
+**Stopped time is not a free mothership.** Eggs still take it one hit point at a
+time. It cannot shoot back for five seconds, which is reward enough.
+
 **One state for every way off the board.** `UfoState` has a single `leaving`
 variant with a `reason`, rather than separate `splattered` and `deserting`
 kinds. The two share every movement rule — hang in place, turn for the nearer
@@ -178,6 +199,9 @@ canopies can share one hull. Swapping to emoji or PNGs means rewriting
 - **No sound.**
 - **High scores are per-browser.** They live in `localStorage`, are not shared
   between players or devices, and vanish when site data is cleared.
+- **Einstein cannot be missed, or sought.** The visit is on a timer, not a
+  pickup: there is nothing to shoot and nothing to steer towards, so a round
+  either gets one or does not.
 - **Upgrades are not chosen.** Which of the four a Rambo egg grants is random and
   cannot be influenced. That is deliberate — being able to plan around it would
   spoil the joke — but it does mean a run can be decided by a coin flip.

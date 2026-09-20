@@ -103,15 +103,20 @@ export const BOSS = {
   sinkSpeed: 3.4,
   startY: 58,
   /** Seconds between volleys in round 2... */
-  baseFireInterval: 1.6,
-  /** ...shortened by this much per round, down to minFireInterval. */
-  fireIntervalPerRound: 0.06,
-  minFireInterval: 0.65,
+  baseFireInterval: 3.2,
+  /** ...shortened by this much per round, down to minFireInterval. Every one of
+   *  these three is double what it was: the mothership was ramping into
+   *  unplayable long before the rounds it was meant to. */
+  fireIntervalPerRound: 0.12,
+  minFireInterval: 1.3,
   /** Total spread of a volley, in radians. Wide enough that standing still is
    *  never the answer, narrow enough to leave gaps to run through. */
   volleySpread: 1.5,
   /** Random wobble added to each shot in a volley. */
   volleyJitter: 0.18,
+  /** Directions in a volley: the round number, less this. Never below one —
+   *  a mothership that cannot shoot at all is not a boss round. */
+  volleyReduction: 2,
   /** Points for seeing one off, multiplied by the round. */
   scorePerRound: 100,
 } as const
@@ -220,6 +225,26 @@ export const BLACK_HOLE = {
   /** Multiple of the radius it reaches out to. */
   reach: 2,
   speed: 150,
+} as const
+
+/**
+ * Einstein. He turns up on about one round in three, says his piece, and stops
+ * time for everything except the hen and what she has thrown.
+ */
+export const FREEZE = {
+  /** Rounds that get one, on average. */
+  chance: 1 / 3,
+  minDelay: 2,
+  maxDelay: 10,
+  /** Seconds the board stays stopped. */
+  duration: 5,
+  greeting: 'time freeze mate',
+  width: 56,
+  height: 62,
+  /** He stands at one side, clear of both the fleet and the top corners the
+   *  Rambo egg uses. */
+  sideMargin: 22,
+  y: 244,
 } as const
 
 /** The gramophone. It drifts up playing something the fleet cannot survive. */

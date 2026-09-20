@@ -1,4 +1,4 @@
-import { BLACK_HOLE, BOSS, EGG, GRAMOPHONE, HEART, HEN, LASER, OBSTACLE, POWER, UFO } from './config'
+import { BLACK_HOLE, BOSS, EGG, FREEZE, GRAMOPHONE, HEART, HEN, LASER, OBSTACLE, POWER, UFO } from './config'
 import type { ToyKind } from './types'
 
 /**
@@ -48,6 +48,7 @@ export interface SpriteSet {
   heart: HTMLCanvasElement
   blackHole: HTMLCanvasElement
   gramophone: HTMLCanvasElement
+  einstein: HTMLCanvasElement
   toys: Record<ToyKind, HTMLCanvasElement>
 }
 
@@ -73,6 +74,7 @@ export function buildSprites(): SpriteSet {
     heart: sprite(HEART.width, HEART.height, drawHeart),
     blackHole: sprite(BLACK_HOLE.radius * 2, BLACK_HOLE.radius * 2, drawBlackHole),
     gramophone: sprite(GRAMOPHONE.width, GRAMOPHONE.height, drawGramophone),
+    einstein: sprite(FREEZE.width, FREEZE.height, drawEinstein),
     toys: {
       cradle: sprite(OBSTACLE.width, OBSTACLE.height, drawCradle),
       duck: sprite(OBSTACLE.width, OBSTACLE.height, drawDuck),
@@ -709,6 +711,74 @@ function drawGramophone(ctx: CanvasRenderingContext2D, w: number, h: number): vo
   ctx.lineTo(w * 0.92, h * 0.82)
   ctx.lineTo(w * 0.92, h * 0.92)
   ctx.stroke()
+}
+
+/**
+ * Einstein. Three white shapes carry the recognition — the hair, the eyebrows
+ * and the moustache — but the face has to stay bigger than all of them or the
+ * whole thing reads as a sheep. An earlier version buried a small face in a
+ * bank of puffs and did exactly that.
+ */
+function drawEinstein(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const hair = '#f1f3f9'
+  const hairShade = '#cdd3e2'
+  const skin = '#f0c59b'
+
+  // Hair, in two layers: a shaded mass behind and brighter puffs in front of
+  // it. A single flat colour merged into one cloud, and a shaded band across
+  // the forehead instead of this read as the brim of a hat.
+  for (const [dx, dy, rx, ry] of [
+    [0.5, 0.18, 0.37, 0.19],
+    [0.14, 0.29, 0.19, 0.16],
+    [0.86, 0.29, 0.19, 0.16],
+    [0.1, 0.48, 0.13, 0.13],
+    [0.9, 0.48, 0.13, 0.13],
+  ] as const) {
+    ellipse(ctx, w * dx, h * dy, w * rx, h * ry, hairShade)
+  }
+  for (const [dx, dy, rx, ry] of [
+    [0.5, 0.2, 0.32, 0.16],
+    [0.18, 0.31, 0.15, 0.13],
+    [0.82, 0.31, 0.15, 0.13],
+    [0.13, 0.48, 0.1, 0.1],
+    [0.87, 0.48, 0.1, 0.1],
+    [0.31, 0.13, 0.14, 0.09],
+    [0.69, 0.13, 0.14, 0.09],
+  ] as const) {
+    ellipse(ctx, w * dx, h * dy, w * rx, h * ry, hair)
+  }
+
+  // Face, large enough to hold a readable expression.
+  ellipse(ctx, w * 0.5, h * 0.57, w * 0.28, h * 0.29, skin)
+  ellipse(ctx, w * 0.5, h * 0.44, w * 0.27, h * 0.12, '#f6d4b1')
+
+  // Bushy brows, then the eyes beneath them.
+  ctx.strokeStyle = hair
+  ctx.lineWidth = w * 0.085
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(w * 0.29, h * 0.47)
+  ctx.lineTo(w * 0.44, h * 0.5)
+  ctx.moveTo(w * 0.71, h * 0.47)
+  ctx.lineTo(w * 0.56, h * 0.5)
+  ctx.stroke()
+
+  ctx.fillStyle = DARK
+  ctx.beginPath()
+  ctx.arc(w * 0.385, h * 0.58, w * 0.038, 0, Math.PI * 2)
+  ctx.arc(w * 0.615, h * 0.58, w * 0.038, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Nose, and the moustache under it. The moustache is shaded rather than pure
+  // white so it separates from the hair instead of merging into it.
+  ellipse(ctx, w * 0.5, h * 0.67, w * 0.06, h * 0.045, '#dda87e')
+  ellipse(ctx, w * 0.39, h * 0.76, w * 0.15, h * 0.075, hairShade)
+  ellipse(ctx, w * 0.61, h * 0.76, w * 0.15, h * 0.075, hairShade)
+  ellipse(ctx, w * 0.39, h * 0.745, w * 0.14, h * 0.06, hair)
+  ellipse(ctx, w * 0.61, h * 0.745, w * 0.14, h * 0.06, hair)
+
+  // Chin below the moustache, so the face does not stop at it.
+  ellipse(ctx, w * 0.5, h * 0.85, w * 0.14, h * 0.06, skin)
 }
 
 // --- toys ------------------------------------------------------------------

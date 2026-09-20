@@ -2,6 +2,7 @@ import {
   BLACK_HOLE,
   BOSS,
   DESERT,
+  FREEZE,
   GRAMOPHONE,
   GRAVITY,
   HEN,
@@ -29,6 +30,9 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawPickup(ctx, state, sprites, time)
   drawWaves(ctx, state)
   drawProjectiles(ctx, state, sprites, time)
+  // The wash goes over everything time has stopped, and under the hen: she is
+  // the only warm thing left on the board, which is the whole point of it.
+  drawFreeze(ctx, state, sprites, time)
   drawBeam(ctx, state, time)
   drawHen(ctx, state, sprites, time)
   drawShield(ctx, state, time)
@@ -500,6 +504,43 @@ function drawNotes(ctx: CanvasRenderingContext2D, x: number, y: number, time: nu
     )
   }
   ctx.restore()
+}
+
+/**
+ * Stopped time: a cold wash over the board, a frost creeping in from the edges,
+ * and Einstein at one side explaining himself. He is drawn after the wash
+ * because he is the cause of it rather than one of its victims.
+ */
+function drawFreeze(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  const freeze = state.freeze
+  if (freeze === null) return
+
+  // Fade the wash in and out so time visibly stops and starts rather than
+  // snapping.
+  const edge = Math.min(1, Math.min(FREEZE.duration - freeze.remaining, freeze.remaining) / 0.4)
+
+  ctx.save()
+  ctx.globalAlpha = edge
+  ctx.fillStyle = 'rgba(120,196,255,0.13)'
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height)
+
+  const frost = ctx.createRadialGradient(
+    VIEW.width / 2,
+    VIEW.height / 2,
+    VIEW.height * 0.32,
+    VIEW.width / 2,
+    VIEW.height / 2,
+    VIEW.height * 0.78,
+  )
+  frost.addColorStop(0, 'rgba(150,220,255,0)')
+  frost.addColorStop(1, 'rgba(150,220,255,0.3)')
+  ctx.fillStyle = frost
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height)
+  ctx.restore()
+
+  const bob = Math.sin(time * 2.4) * 2
+  ctx.drawImage(sprites.einstein, freeze.x, FREEZE.y + bob, FREEZE.width, FREEZE.height)
+  drawBubble(ctx, freeze.x + FREEZE.width / 2, FREEZE.y + bob - 2, FREEZE.greeting, 160)
 }
 
 /** The continuous beam: a hot column from the hen's helmet to the top of the

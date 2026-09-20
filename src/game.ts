@@ -3,6 +3,7 @@ import {
   BOSS,
   DESERT,
   EGG,
+  FREEZE,
   GRAMOPHONE,
   GRAVITY,
   HEART,
@@ -109,6 +110,8 @@ export function createGame(): GameState {
     blasts: [],
     desertions: [],
     bossTaunt: null,
+    freeze: null,
+    freezeTimer: null,
     nextLifeAt: HEN.extraLifeEvery,
     marchTimer: 0,
     marchDirection: 1,
@@ -141,6 +144,8 @@ export function startRound(state: GameState, round: number): void {
   state.pickupTimer = rollPickup()
   state.desertions = rollDesertions(state.ufos.length)
   state.bossTaunt = null
+  state.freeze = null
+  state.freezeTimer = rollFreeze()
   state.marchDirection = 1
   state.marchTimer = stepInterval(state)
   state.fireTimer = boss ? bossFireInterval(round) : fireInterval(round)
@@ -177,7 +182,8 @@ export function update(state: GameState, dt: number, input: InputState, events: 
     case 'cleared':
       state.phase.remaining -= dt
       moveHen(state, dt, input)
-      advanceProjectiles(state, dt, events)
+      advanceShots(state, dt, events)
+      advanceLasers(state, dt)
       tickTimers(state, dt)
       if (state.phase.remaining <= 0) startRound(state, state.round + 1)
       return
@@ -189,22 +195,31 @@ export function update(state: GameState, dt: number, input: InputState, events: 
       break
   }
 
+  // The hen, and everything she has already thrown, are exempt from the freeze.
+  // Everything else on the board simply does not get its tick.
+  const frozen = state.freeze !== null
   moveHen(state, dt, input)
   tickTimers(state, dt)
   tryShoot(state, input)
-  advanceProjectiles(state, dt, events)
+  advanceShots(state, dt, events)
   tickWaves(state, dt, events)
-  marchFormation(state, dt, events)
-  tickLeaving(state, dt, events)
-  tickWobble(state, dt, events)
-  tickObstacles(state, dt, events)
-  tickDesertions(state, dt, events)
-  tickBoss(state, dt, events)
-  if (state.boss === null) fireLasers(state, dt)
-  else fireVolley(state, dt)
-  tickPickup(state, dt)
   tickBeam(state, dt, events)
-  resolveCollisions(state, events)
+
+  if (!frozen) {
+    advanceLasers(state, dt)
+    marchFormation(state, dt, events)
+    tickLeaving(state, dt, events)
+    tickWobble(state, dt, events)
+    tickObstacles(state, dt, events)
+    tickDesertions(state, dt, events)
+    tickBoss(state, dt, events)
+    if (state.boss === null) fireLasers(state, dt)
+    else fireVolley(state, dt)
+    tickPickup(state, dt)
+    tickEinstein(state, dt)
+  }
+
+  resolveCollisions(state, frozen, events)
 
   if (state.ufos.length === 0 && state.boss === null) {
     events.onRoundCleared?.(state.round)
@@ -236,6 +251,13 @@ function tickTimers(state: GameState, dt: number): void {
     if (state.bossTaunt <= 0) state.bossTaunt = null
   }
 
+  // Stopped time runs down on the hen's clock, which is the only one still
+  // going.
+  if (state.freeze !== null) {
+    state.freeze.remaining -= dt
+    if (state.freeze.remaining <= 0) state.freeze = null
+  }
+
   // The one-shot upgrades have no clock: they are spent by firing them.
   const power = state.power
   if ('remaining' in power) {
@@ -249,6 +271,27 @@ function tickTimers(state: GameState, dt: number): void {
     if (blast.age < blast.duration) blasts.push(blast)
   }
   state.blasts = blasts
+}
+
+/** About one round in three gets a visit; the rest get none. */
+function rollFreeze(): number | null {
+  if (Math.random() >= FREEZE.chance) return null
+  return FREEZE.minDelay + Math.random() * (FREEZE.maxDelay - FREEZE.minDelay)
+}
+
+/** Einstein turning up. He picks a side and stops the board; he is not shot at
+ *  and cannot be missed, so there is nothing for the player to do but use it. */
+function tickEinstein(state: GameState, dt: number): void {
+  if (state.freezeTimer === null) return
+  state.freezeTimer -= dt
+  if (state.freezeTimer > 0) return
+
+  state.freezeTimer = null
+  const onLeft = Math.random() < 0.5
+  state.freeze = {
+    x: onLeft ? FREEZE.sideMargin : VIEW.width - FREEZE.sideMargin - FREEZE.width,
+    remaining: FREEZE.duration,
+  }
 }
 
 /** Adds points and hands out a free life for every threshold crossed. The loop
@@ -336,7 +379,7 @@ function egg(muzzleX: number): Shot {
   }
 }
 
-function advanceProjectiles(state: GameState, dt: number, events: GameEvents): void {
+function advanceShots(state: GameState, dt: number, events: GameEvents): void {
   const flying = []
   for (const shot of state.shots) {
     const { width, height } = shotSize(shot.kind)
@@ -364,14 +407,16 @@ function advanceProjectiles(state: GameState, dt: number, events: GameEvents): v
     if (shot.y + height > 0 && shot.x + width > 0 && shot.x < VIEW.width) flying.push(shot)
   }
   state.shots = flying
+}
 
-  const flyingLasers = []
+function advanceLasers(state: GameState, dt: number): void {
+  const flying = []
   for (const laser of state.lasers) {
     laser.x += laser.vx * dt
     laser.y += laser.vy * dt
-    if (laser.y < VIEW.height && laser.x + LASER.width > 0 && laser.x < VIEW.width) flyingLasers.push(laser)
+    if (laser.y < VIEW.height && laser.x + LASER.width > 0 && laser.x < VIEW.width) flying.push(laser)
   }
-  state.lasers = flyingLasers
+  state.lasers = flying
 }
 
 // --- what the upgrades do --------------------------------------------------
@@ -786,7 +831,9 @@ function fireVolley(state: GameState, dt: number): void {
   if (state.fireTimer > 0) return
   state.fireTimer += bossFireInterval(state.round)
 
-  const shots = state.round
+  // Two directions fewer than the round number, which is what keeps a round-4
+  // mothership from putting out a wall rather than a volley.
+  const shots = Math.max(1, state.round - BOSS.volleyReduction)
   for (let i = 0; i < shots; i++) {
     const across = shots === 1 ? 0.5 : i / (shots - 1)
     const angle = (across - 0.5) * BOSS.volleySpread + (Math.random() - 0.5) * BOSS.volleyJitter
@@ -914,7 +961,7 @@ function tickBeam(state: GameState, dt: number, events: GameEvents): void {
 
 // --- collisions ------------------------------------------------------------
 
-function resolveCollisions(state: GameState, events: GameEvents): void {
+function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents): void {
   const survivingShots = []
   for (const shot of state.shots) {
     // Only an ordinary egg can be stopped. Everything the upgrades fire is on
@@ -927,10 +974,14 @@ function resolveCollisions(state: GameState, events: GameEvents): void {
     if (hitsPickup(state, eggRect, events)) continue
     if (hitsObstacle(state, eggRect, { vx: shot.vx })) continue
     if (hitsBoss(state, eggRect, events)) continue
-    if (splattersUfo(state, eggRect, events)) continue
+    if (splattersUfo(state, eggRect, frozen, events)) continue
     survivingShots.push(shot)
   }
   state.shots = survivingShots
+
+  // A laser with time stopped is a stationary object that cannot act. Walking
+  // into one costing a life would make the freeze a hazard rather than a gift.
+  if (frozen) return
 
   const shielded = state.power.kind === 'shield'
   const henRect: Rect = { x: state.hen.x, y: HEN_TOP, width: HEN.width, height: HEN.height }
@@ -1070,17 +1121,38 @@ function hitsBoss(state: GameState, egg: Rect, events: GameEvents): boolean {
  * get, and the player has spent one of three in flight on a saucer that was
  * already going. That is the whole cost the retreat imposes, so it is
  * deliberate.
+ *
+ * With time stopped there is no retreat to wait for: a saucer that takes an egg
+ * simply goes up, and scores at once.
  */
-function splattersUfo(state: GameState, egg: Rect, events: GameEvents): boolean {
+function splattersUfo(state: GameState, egg: Rect, frozen: boolean, events: GameEvents): boolean {
+  const survivors: Ufo[] = []
+  let hit = false
+
   for (const ufo of state.ufos) {
-    if (!overlaps(egg, ufoRect(ufo))) continue
+    if (hit || !overlaps(egg, ufoRect(ufo))) {
+      survivors.push(ufo)
+      continue
+    }
+    hit = true
+
+    if (frozen) {
+      pop(state, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
+      const points = ufoPoints(ufo)
+      awardScore(state, points, events)
+      events.onUfoDowned?.(ufo, points)
+      continue
+    }
+
     if (ufo.state.kind === 'flying') {
       ufo.state = leaveFrom(ufo.x, UFO.width, 'splattered')
       events.onUfoSplattered?.(ufo)
     }
-    return true
+    survivors.push(ufo)
   }
-  return false
+
+  if (hit) state.ufos = survivors
+  return hit
 }
 
 /** A hull's way off the board: run for whichever wall it is already nearer,
