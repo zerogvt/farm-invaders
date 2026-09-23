@@ -76,6 +76,22 @@ export interface Shot {
   /** Seconds of music left before a gramophone finishes the fleet. Unused by
    *  every other kind. */
   fuse: number
+  /** Thrown by the wingman rather than the hen. Her eggs do not count against
+   *  the hen's cap and cannot collect a Rambo egg, which would replace the very
+   *  upgrade she is part of. */
+  wingman: boolean
+}
+
+/** One of the cow's burp bubbles, drifting out across the screen. */
+export interface Bubble {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  radius: number
+  /** Per-bubble phase for the sideways wobble. */
+  phase: number
+  age: number
 }
 
 /** One gravity wave, expanding from wherever the hen was when it was fired. */
@@ -147,6 +163,15 @@ export type Power =
   | ({ kind: 'gravity' } & Timed)
   | ({ kind: 'blackHole' } & Timed)
   | ({ kind: 'gramophone' } & Timed)
+  | ({ kind: 'burp' } & Timed)
+  | ({
+      kind: 'wingman'
+      /** Left edge of the second hen, who patrols the ground by herself. */
+      x: number
+      direction: -1 | 1
+      /** Seconds until her next volley. */
+      cooldown: number
+    } & Timed)
 
 /** Einstein, mid-sentence, with the board stopped behind him. */
 export interface Freeze {
@@ -174,7 +199,7 @@ export interface Blast {
   duration: number
 }
 
-export type ToyKind = 'horse' | 'duck' | 'ball' | 'teddy'
+export type ToyKind = 'horse' | 'duck' | 'ball' | 'teddy' | 'bicycle' | 'tractor'
 
 export interface Obstacle {
   kind: ToyKind
@@ -189,8 +214,6 @@ export interface Obstacle {
   /** Tumble, once it is loose. */
   spin: number
   rotation: number
-  /** Fixed random offsets so a toy's scuff marks stay put between frames. */
-  scuffs: Array<{ x: number; y: number; r: number }>
 }
 
 export interface Hen {
@@ -224,6 +247,10 @@ export interface GameState {
   boss: Boss | null
   shots: Shot[]
   waves: Wave[]
+  /** The cow's burp, on its way across the screen. */
+  bubbles: Bubble[]
+  /** Seconds left of the cow saying so, or null. */
+  burpLine: number | null
   lasers: Laser[]
   obstacles: Obstacle[]
   power: Power

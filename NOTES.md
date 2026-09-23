@@ -79,7 +79,7 @@ sheep, and a speech bubble punched through the score counter.
 All are argued in the README; all are cheap to reverse if they play badly.
 
 - **One-shot upgrades expire after 12s.** Added so that "show the countdown for
-  each upgrade" could be true of all eight. Nothing else wanted it.
+  each upgrade" could be true of all of them. Nothing else wanted it.
 - **Halving laser speed was applied to the mothership too**, since both draw on
   the one `LASER` config.
 - **A mothership volley is floored at one direction**, because the arithmetic
@@ -89,3 +89,28 @@ All are argued in the README; all are cheap to reverse if they play badly.
   turns out to be a problem, this is where it comes from.
 - **The beam and the super egg spare the toys**, and gravity waves and a thrown
   toy each cost the mothership one hit point rather than destroying it.
+
+Added on 23 September 2026, from one request of eight items:
+
+- **Still four toys a round.** "One more debris item: a bicycle and a tractor"
+  was read as two more *kinds*, so each round now draws four of six. Raising
+  `OBSTACLE.count` to 5 is the other reading; the lanes adapt, but a fifth toy
+  narrows the gaps between them.
+- **"No holes" was applied to the toys only.** Their scuff marks and the fade
+  that went with them are gone; the `scuffs` field is removed. The mothership
+  keeps its egg splats — they are egg on the canopy, not holes, and they are the
+  only damage readout it has.
+- **The burp is fired, not automatic.** It is a one-shot like the gramophone, on
+  the same 12s hold, so the player chooses the moment. Bubbles pop splattered
+  and tumbling saucers as well as flying ones, skip deserters, ignore toys and
+  lasers, and take one mothership hit point each.
+- **The wingman patrols by herself** rather than following the hen, and absorbs
+  the lasers that reach her rather than letting them through. She throws the
+  same eggs per pull as the hen, every 0.3s. Picking up another Rambo egg while
+  she is out replaces her, as any upgrade replaces the last.
+- **The bonus fan is narrow**: 0.08 rad of half-angle per extra egg
+  (`EGG.extraEggSpread`), and the eggs-in-flight cap is multiplied by the eggs
+  per pull. Multishot is unchanged and ignores the bonus.
+- **Egg-meets-laser applies to ordinary eggs only**, the wingman's included,
+  and works during a freeze too. The super egg and the rest of the heavy
+  ordnance still pass through everything.

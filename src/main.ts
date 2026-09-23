@@ -127,6 +127,10 @@ function noticeFor(power: Power): string {
       return 'Black hole'
     case 'gramophone':
       return 'Gramophone — one shot'
+    case 'burp':
+      return 'Cow burp — one shot'
+    case 'wingman':
+      return 'Wingman'
     case 'none':
       return ''
   }

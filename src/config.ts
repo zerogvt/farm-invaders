@@ -31,6 +31,12 @@ export const EGG = {
    *  saucer taking its time to limp away, scarce ammo is what makes
    *  double-tapping a real cost. */
   maxInFlight: 3,
+  /** Every this many rounds each trigger pull throws one more egg, fanned like
+   *  a small multishot: one egg in rounds 1–8, two in 9–16, and so on. */
+  extraEggEvery: 8,
+  /** Half-angle the bonus fan widens by for each egg past the first, in
+   *  radians. Narrow on purpose — it is a rank, not a spray. */
+  extraEggSpread: 0.08,
 } as const
 
 export const LASER = {
@@ -254,7 +260,42 @@ export const COW = {
   /** Fixed spot on the ground, well clear of where the hen starts. */
   x: 92,
   bottomMargin: 18,
-  line: 'Damm1t',
+  /** What it says on the way up into the mothership. */
+  line: 'Moooooooooo',
+  /** What it says every time a round is cleared. */
+  roundLine: 'Moo',
+} as const
+
+/**
+ * The cow's burp. Firing it has the cow let go a cloud of bubbles that fans out
+ * from its mouth across the whole screen; every bubble that touches a saucer
+ * pops it outright.
+ */
+export const BURP = {
+  /** Bubbles in one burp. Enough that their paths cover the screen. */
+  bubbles: 70,
+  minRadius: 12,
+  maxRadius: 24,
+  minSpeed: 170,
+  maxSpeed: 330,
+  /** Sideways wobble as they rise, in pixels either way. */
+  wobble: 10,
+  /** The speech bubble that goes with it. */
+  line: 'BURP!',
+  lineDuration: 1.1,
+} as const
+
+/**
+ * The wingman: a second hen in a different colour who patrols the ground on
+ * her own and throws eggs non-stop for as long as the upgrade lasts. Lasers
+ * that reach her are absorbed; she cannot be hurt.
+ */
+export const WINGMAN = {
+  duration: 10,
+  /** Patrol speed, wall to wall. Slower than the hen so the two drift apart. */
+  speed: 190,
+  /** Seconds between her volleys. She does not wait for the fire key. */
+  cooldown: 0.3,
 } as const
 
 /** The exchange that opens a run, before the first shot is fired. */

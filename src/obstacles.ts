@@ -1,7 +1,7 @@
 import { OBSTACLE, VIEW } from './config'
 import type { Obstacle, ToyKind } from './types'
 
-const TOY_KINDS: ToyKind[] = ['horse', 'duck', 'ball', 'teddy']
+const TOY_KINDS: ToyKind[] = ['horse', 'duck', 'ball', 'teddy', 'bicycle', 'tractor']
 
 /**
  * Scatters a fresh set of toys for a round.
@@ -31,28 +31,13 @@ export function placeObstacles(): Obstacle[] {
       vy: 0,
       spin: 0,
       rotation: 0,
-      scuffs: makeScuffs(),
     })
   }
   return obstacles
 }
 
-/** One scuff mark per hit the toy can take, pre-positioned so a toy's damage
- *  does not jump around between frames. */
-function makeScuffs(): Obstacle['scuffs'] {
-  const scuffs: Obstacle['scuffs'] = []
-  for (let i = 0; i < OBSTACLE.hitPoints; i++) {
-    scuffs.push({
-      x: 6 + Math.random() * (OBSTACLE.width - 12),
-      y: 6 + Math.random() * (OBSTACLE.height - 12),
-      r: 5 + Math.random() * 5,
-    })
-  }
-  return scuffs
-}
-
-/** Fisher-Yates over the toy kinds, so a round with four toys shows all four
- *  in a different arrangement each time. */
+/** Fisher-Yates over the toy kinds, so a round shows four different toys out
+ *  of the six, in a different arrangement each time. */
 function shuffledKinds(count: number): ToyKind[] {
   const pool = [...TOY_KINDS]
   for (let i = pool.length - 1; i > 0; i--) {
