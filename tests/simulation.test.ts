@@ -910,6 +910,66 @@ check('her eggs leave the Rambo egg for the hen', gwm4.pickup !== null && gwm4.p
 step(gwm, WINGMAN.duration, idle)
 check('the wingman leaves when the upgrade runs out', gwm.power.kind !== 'wingman', gwm.power.kind)
 
+// --- what the sound hangs off -------------------------------------------------
+
+// 42. Every noise the game makes comes from an event; check each one fires.
+// Each check gets fresh counts, so one run's noises cannot pass another's.
+let heard: Record<string, number> = {}
+const listen = new Proxy(
+  {},
+  {
+    get: (_target, name: string) => () => {
+      heard[name] = (heard[name] ?? 0) + 1
+    },
+  },
+)
+
+heard = {}
+const gsnd = newGame()
+intoPlay(gsnd)
+step(gsnd, 6, firing, listen)
+check('a throw is announced', (heard.onShot ?? 0) > 0, `${heard.onShot}`)
+check('a fleet laser is announced', (heard.onLaserFired ?? 0) > 0, `${heard.onLaserFired}`)
+check('a splat is announced', (heard.onUfoSplattered ?? 0) > 0, `${heard.onUfoSplattered}`)
+
+heard = {}
+const gsnd2 = newGame()
+intoPlay(gsnd2)
+grant(gsnd2, { kind: 'superEgg', remaining: 12, duration: 12 })
+step(gsnd2, 1.5, firing, listen)
+check('the super egg announces its splat', heard.onSuperSplat === 1, `${heard.onSuperSplat}`)
+
+heard = {}
+const gsnd3 = newGame()
+intoPlay(gsnd3)
+grant(gsnd3, { kind: 'burp', remaining: 12, duration: 12 })
+step(gsnd3, 2, firing, listen)
+check('the burp is announced once', heard.onBurp === 1, `${heard.onBurp}`)
+check('and what it pops goes off', (heard.onExplosion ?? 0) > 0, `${heard.onExplosion}`)
+
+heard = {}
+const gsnd4 = newGame()
+intoPlay(gsnd4)
+gsnd4.shots = [egg(400, 300)]
+gsnd4.lasers = [{ x: 403, y: 290, vx: 0, vy: LASER.baseSpeed }]
+update(gsnd4, DT, idle, listen)
+check('an egg meeting a laser is announced', heard.onLaserShotDown === 1, `${heard.onLaserShotDown}`)
+
+heard = {}
+const gsnd5 = newGame()
+intoPlay(gsnd5)
+const kickToy = gsnd5.obstacles[0]!
+gsnd5.shots = [egg(kickToy.x + OBSTACLE.width / 2 - 6, kickToy.y + OBSTACLE.height - 4)]
+update(gsnd5, DT, idle, listen)
+check('a kicked toy is announced', heard.onToyKicked === 1, `${heard.onToyKicked}`)
+
+heard = {}
+const gsnd6 = createGame()
+intoPlay(gsnd6)
+gsnd6.freezeTimer = 0.01
+step(gsnd6, 0.1, idle, listen)
+check('the freeze is announced', heard.onFreeze === 1, `${heard.onFreeze}`)
+
 // Throwing rather than calling process.exit keeps this runnable without pulling
 // in @types/node just for one line; an uncaught error is a non-zero exit too.
 if (failures > 0) throw new Error(`${failures} check(s) failed`)

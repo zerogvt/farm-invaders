@@ -79,7 +79,20 @@ npm test         # headless simulation checks
 npm run build    # typecheck + production build into dist/
 ```
 
-Controls: `←` `→` or `A`/`D` to move, `Space` to throw an egg.
+Controls: `←` `→` or `A`/`D` to move, `Space` to throw an egg, `M` to switch
+the sound off and on. The speaker button in the bottom right corner does the
+same, and the choice is remembered in the browser.
+
+## Sound
+
+Everything you hear is synthesised in the browser with the Web Audio API — there
+are no audio files. The theme, *Hoedown in Orbit*, is an eight-bar chiptune loop
+written for this game, so it carries no licence or royalty of any kind. Eggs pip
+as they leave, splat on windscreens, and splat enormously as a super egg; saucers
+and toys go up with a bang; lasers buzz; the cow moos at every cleared round,
+burps when told to, and moos at length on its way into the mothership. Browsers
+keep audio off until the page has been clicked or typed at, so the sound starts
+with the Start button.
 
 ## How it is put together
 
@@ -94,7 +107,9 @@ No game engine and no image files. Plain TypeScript, Canvas 2D, and Vite.
 | `src/ui.ts` | Title card, round banner and game-over panel, as real DOM so buttons and the initials field are keyboard-operable. |
 | `src/scores.ts` | High scores in `localStorage`. |
 | `src/input.ts` | Keyboard state. |
-| `src/main.ts` | Canvas setup and the frame loop. |
+| `src/audio.ts` | Every sound effect and the theme, synthesised with Web Audio. The only file that knows what anything sounds like. |
+| `src/soundToggle.ts` | The speaker button and the `M` key, and remembering the choice. |
+| `src/main.ts` | Canvas setup, the frame loop, and which event makes which sound. |
 
 ### Design decisions worth knowing
 
@@ -249,7 +264,10 @@ canopies can share one hull. Swapping to emoji or PNGs means rewriting
 - **Desktop keyboard only.** There are no touch controls, so the game is not
   playable on a phone. Adding them means a second input source writing the same
   three fields in `src/input.ts`.
-- **No sound.**
+- **Sound is synthesised, not recorded.** It is chiptune by construction — a
+  splat is filtered noise, a moo is a sawtooth through a vowel filter. Swapping
+  in recorded samples means changing the effect table in `src/audio.ts` and
+  nothing else.
 - **High scores are per-browser.** They live in `localStorage`, are not shared
   between players or devices, and vanish when site data is cleared.
 - **Einstein cannot be missed, or sought.** The visit is on a timer, not a

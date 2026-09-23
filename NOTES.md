@@ -74,6 +74,25 @@ exhaust plumes rendering as black holes in the starfield, explosions drawn at
 the super egg's radius no matter how small they were, Einstein reading as a
 sheep, and a speech bubble punched through the score counter.
 
+## Hearing it
+
+No test hears anything either. The simulation checks confirm that each sound
+*event* fires; they cannot say whether the sound is any good. What was measured:
+every effect in `src/audio.ts` was rendered through an `OfflineAudioContext` in
+headless Chromium and checked for a non-zero peak and no NaNs. Two things about
+doing that here:
+
+- **One offline render per page.** Headless Chromium finished the first
+  `startRendering()` on a page and never the second, and never finished a
+  single long render either. One short page per effect worked, with the odd
+  retry.
+- **The theme never rendered at all** that way, even at two bars. When it was
+  written (23 September 2026) it had not been heard or measured by anyone;
+  listen to it in a real browser before trusting it or a change to it.
+
+Loudness is three numbers at the top of `src/audio.ts` (`MASTER_VOLUME`,
+`MUSIC_VOLUME`, `SFX_VOLUME`); per-effect peaks are inside each effect.
+
 ## Calls that were mine, not the user's
 
 All are argued in the README; all are cheap to reverse if they play badly.
@@ -113,6 +132,18 @@ Added on 23 September 2026, from one request of eight items:
   easy. One egg a throw, three in flight, whatever the round. The multishot
   upgrade was left alone — it is a pickup on a six-second clock, not a
   permanent bonus.
+- **The theme is an original composition, synthesised**, rather than a CC0
+  track from somewhere. "One with no royalties" is then true by construction,
+  there is no file to host, and no licence to keep a copy of. A downloaded
+  track is the other reading, if this one does not please.
+- **The wingman's eggs are silent** (her hits are not): at one every 0.3s for
+  ten seconds they drowned everything else.
+- **Sound starts on, and the music plays everywhere**, title screen included,
+  from the first click or key press. Muting suspends the whole audio context,
+  so the tune pauses rather than carrying on silently.
+- **Repeated effects are rate-limited** (`MIN_GAP` in `src/audio.ts`), so a
+  gramophone finale popping thirty saucers in one frame is one bang, not thirty
+  summed into clipping.
 - **Egg-meets-laser applies to ordinary eggs only**, the wingman's included,
   and works during a freeze too. The super egg and the rest of the heavy
   ordnance still pass through everything.

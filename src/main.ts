@@ -1,9 +1,11 @@
-import { VIEW } from './config'
+import { createSound } from './audio'
+import { ABDUCTION, VIEW } from './config'
 import { bossHitPoints, createGame, isBossRound, restart, update, type GameEvents } from './game'
 import { createInput } from './input'
 import { render } from './render'
 import { buildSprites } from './sprites'
 import type { GameState, Power } from './types'
+import { createSoundToggle, loadMuted } from './soundToggle'
 import { createUi } from './ui'
 import './style.css'
 
@@ -15,7 +17,10 @@ const NOTICE_DURATION = 2.2
 function main(): void {
   const canvas = document.querySelector<HTMLCanvasElement>('#stage')
   const overlay = document.querySelector<HTMLElement>('#overlay')
-  if (canvas === null || overlay === null) throw new Error('missing #stage or #overlay in the document')
+  const frameEl = document.querySelector<HTMLElement>('#game')
+  if (canvas === null || overlay === null || frameEl === null) {
+    throw new Error('missing #game, #stage or #overlay in the document')
+  }
 
   const ctx = canvas.getContext('2d')
   if (ctx === null) throw new Error('this browser has no 2D canvas context')
@@ -24,6 +29,14 @@ function main(): void {
   const input = createInput()
   const ui = createUi(overlay)
   const game = createGame()
+
+  // Browsers keep audio off until the page has been clicked or typed at, so
+  // the first of either starts it — the title screen's button is enough.
+  const sound = createSound(loadMuted())
+  const unlock = (): void => sound.unlock()
+  window.addEventListener('pointerdown', unlock, { capture: true })
+  window.addEventListener('keydown', unlock, { capture: true })
+  createSoundToggle(frameEl, sound)
 
   let screen: Screen = 'title'
   // A transient line over the playfield, used for upgrade pickups. The
@@ -34,10 +47,34 @@ function main(): void {
   const events: GameEvents = {
     onPowerGained: (power) => {
       notice = { text: noticeFor(power), remaining: NOTICE_DURATION }
+      sound.play('powerUp')
     },
     onExtraLife: () => {
       notice = { text: 'Extra life', remaining: NOTICE_DURATION }
+      sound.play('extraLife')
     },
+    onShot: (kind, wingman) => {
+      // The wingman throws every 0.3s for ten seconds; hearing each one would
+      // drown everything else. Her hits still make their noise.
+      if (wingman) return
+      if (kind === 'normal') sound.play('throw')
+      else if (kind === 'gramophone') sound.play('gramophone')
+      else sound.play('heavyThrow')
+    },
+    onUfoSplattered: () => sound.play('splat'),
+    onSuperSplat: () => sound.play('superSplat'),
+    onExplosion: (size) => sound.play(size === 'big' ? 'bigExplosion' : 'explosion'),
+    onBossHit: () => sound.play('bossHit'),
+    onBossDowned: () => sound.play('bigExplosion'),
+    onLaserFired: () => sound.play('laser'),
+    onLaserShotDown: () => sound.play('zap'),
+    onBurp: () => sound.play('burp'),
+    onHeartBurst: () => sound.play('heart'),
+    onGravityWave: () => sound.play('wave'),
+    onFreeze: () => sound.play('freeze'),
+    onToyKicked: () => sound.play('bonk'),
+    onHenHurt: () => sound.play('hurt'),
+    onRoundCleared: () => sound.play('moo'),
     // The mothership's refusal is worth a line of its own: it is also the
     // moment the hen is handed a super egg instead.
     onBossTaunt: () => {
@@ -70,7 +107,14 @@ function main(): void {
     previous = now
 
     if (screen === 'running') {
+      const before = game.phase.kind
       update(game, dt, input, events)
+      // The abduction is entered from several places in the simulation, so its
+      // moo is keyed off the phase changing rather than an event of its own.
+      // It is timed to the cow's speech bubble appearing.
+      if (before !== 'abduction' && phaseOf(game) === 'abduction') {
+        sound.play('longMoo', ABDUCTION.beamOn + 0.2)
+      }
       if (notice !== null) {
         notice.remaining -= dt
         if (notice.remaining <= 0) notice = null
@@ -84,6 +128,12 @@ function main(): void {
     requestAnimationFrame(frame)
   }
   requestAnimationFrame(frame)
+}
+
+/** Read through a call so the compiler does not carry a narrowing from before
+ *  `update` ran across to after it. */
+function phaseOf(game: GameState): GameState['phase']['kind'] {
+  return game.phase.kind
 }
 
 function bannerFor(game: GameState): string | null {
@@ -107,7 +157,7 @@ function bannerFor(game: GameState): string | null {
   }
 }
 
-/** Every upgrade announces itself: which of the eight a Rambo egg turns into is
+/** Every upgrade announces itself: which of the ten a Rambo egg turns into is
  *  random, so the player has no way of knowing what they are holding otherwise. */
 function noticeFor(power: Power): string {
   switch (power.kind) {
