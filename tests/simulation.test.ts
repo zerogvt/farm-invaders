@@ -1,4 +1,4 @@
-import { bossHitPoints, createGame, eggsPerShot, isBossRound, startRound, update, HEN_TOP } from '../src/game.ts'
+import { bossHitPoints, createGame, isBossRound, startRound, update, HEN_TOP } from '../src/game.ts'
 import { placeObstacles } from '../src/obstacles.ts'
 import type { InputState } from '../src/input.ts'
 import {
@@ -771,20 +771,16 @@ check('a one-shot that is never fired goes off the boil', gc2.power.kind === 'no
 check('the cow moos at a cleared round', COW.roundLine === 'Moo', COW.roundLine)
 check('and moos at length when it is taken', COW.line === 'Moooooooooo', COW.line)
 
-// --- one more egg every eight rounds ------------------------------------------
+// --- one egg a throw, whatever the round ------------------------------------
 
-// 37. The bonus eggs arrive on schedule.
-check(
-  'one egg a pull up to round 8, two from 9, three from 17',
-  eggsPerShot(1) === 1 && eggsPerShot(8) === 1 && eggsPerShot(9) === 2 && eggsPerShot(16) === 2 && eggsPerShot(17) === 3,
-)
+// 37. The extra eggs every eight rounds were tried and taken out again.
 const gpe = newGame()
-enterRound(gpe, 9)
+enterRound(gpe, 17)
 while (gpe.phase.kind !== 'playing') update(gpe, DT, idle)
 gpe.lasers = []
 update(gpe, DT, firing)
-check('a round-9 pull throws two eggs', gpe.shots.length === 2, `${gpe.shots.length}`)
-check('fanned rather than stacked', gpe.shots.length === 2 && gpe.shots[0]!.vx < 0 && gpe.shots[1]!.vx > 0)
+check('a round-17 pull still throws one egg', gpe.shots.length === 1, `${gpe.shots.length}`)
+check('straight up', gpe.shots.length === 1 && gpe.shots[0]!.vx === 0)
 
 // --- eggs shoot lasers down -----------------------------------------------------
 

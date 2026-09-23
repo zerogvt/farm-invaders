@@ -31,12 +31,6 @@ export const EGG = {
    *  saucer taking its time to limp away, scarce ammo is what makes
    *  double-tapping a real cost. */
   maxInFlight: 3,
-  /** Every this many rounds each trigger pull throws one more egg, fanned like
-   *  a small multishot: one egg in rounds 1–8, two in 9–16, and so on. */
-  extraEggEvery: 8,
-  /** Half-angle the bonus fan widens by for each egg past the first, in
-   *  radians. Narrow on purpose — it is a rank, not a spray. */
-  extraEggSpread: 0.08,
 } as const
 
 export const LASER = {

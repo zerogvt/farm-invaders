@@ -44,12 +44,6 @@ export function bossHitPoints(round: number): number {
   return round
 }
 
-/** Eggs per trigger pull: one, plus another for every EGG.extraEggEvery rounds
- *  survived. */
-export function eggsPerShot(round: number): number {
-  return 1 + Math.floor((round - 1) / EGG.extraEggEvery)
-}
-
 /** How big each thing the hen throws is. Exported because the renderer needs
  *  the same answer and a second copy of the table would drift. */
 export function shotSize(kind: Shot['kind']): { width: number; height: number } {
@@ -420,31 +414,17 @@ function tryShoot(state: GameState, input: InputState): void {
     return
   }
 
-  // The cap scales with the eggs per pull, or the bonus fan from round 9 on
-  // would be throttled back to one volley in flight.
-  const perShot = eggsPerShot(state.round)
+  // The wingman's eggs are her own; they do not use up the hen's three.
   const ownEggs = state.shots.reduce((count, shot) => count + (shot.wingman ? 0 : 1), 0)
-  if (ownEggs >= EGG.maxInFlight * perShot) return
-  state.shots.push(...eggVolley(muzzleX, perShot, false))
+  if (ownEggs >= EGG.maxInFlight) return
+  state.shots.push(egg(muzzleX))
   state.shotCooldown = EGG.cooldown
 }
 
-/** One trigger pull's worth of ordinary eggs: straight up for one, a narrow fan
- *  for more. */
-function eggVolley(muzzleX: number, count: number, wingman: boolean): Shot[] {
-  const halfAngle = (count - 1) * EGG.extraEggSpread
-  const volley: Shot[] = []
-  for (let i = 0; i < count; i++) {
-    const across = count === 1 ? 0 : (i / (count - 1)) * 2 - 1
-    volley.push({ ...egg(muzzleX), vx: Math.sin(across * halfAngle) * EGG.speed, wingman })
-  }
-  return volley
-}
-
 /**
- * The wingman. She walks the ground wall to wall by herself and throws a volley
- * on her own clock, with the same eggs per pull the hen has earned. She lives
- * inside the upgrade, so she is gone the moment its clock runs out.
+ * The wingman. She walks the ground wall to wall by herself and throws an egg
+ * on her own clock. She lives inside the upgrade, so she is gone the moment its
+ * clock runs out.
  */
 function tickWingman(state: GameState, dt: number): void {
   const wing = state.power
@@ -462,7 +442,7 @@ function tickWingman(state: GameState, dt: number): void {
   wing.cooldown -= dt
   if (wing.cooldown > 0) return
   wing.cooldown += WINGMAN.cooldown
-  state.shots.push(...eggVolley(wing.x + HEN.width / 2, eggsPerShot(state.round), true))
+  state.shots.push({ ...egg(wing.x + HEN.width / 2), wingman: true })
 }
 
 /** She turns up on the far side of the board from the hen, walking inwards. */
