@@ -7,14 +7,22 @@ A run opens with the saucers demanding **"give us the cow now!"**, the hen
 answering **"never!"**, and the shooting starting. The cow stands on the ground
 behind her the whole time. If she runs out of lives, a mothership comes down,
 puts a tractor beam on the cow and takes it, and the cow has just enough time to
-say **"Damm1t"** on the way up.
+say **"Moooooooooo"** on the way up. It is happier the rest of the time: every
+round the hen clears gets a **"Moo"**.
 
 An egg does not shoot a saucer down. One that connects bursts across the canopy
 and blinds the pilot: the saucer drops out of the formation, hangs there reeling
 for a moment, then banks over and limps off whichever side of the screen is
 nearer. It scores when it is gone. Toys scattered across the floor absorb
 anything that hits them — the hen's eggs and the saucers' lasers alike — and no
-amount of fire wears them down.
+amount of fire wears them down, or leaves a mark on them.
+
+**Eggs shoot lasers down.** An egg that meets a laser in mid-air takes it out
+and is spent doing it, so a well-aimed egg is a shield as well as a shot.
+
+**Every eight rounds is another egg per throw.** Rounds 1–8 throw one egg a
+pull, rounds 9–16 two, rounds 17–24 three, fanned a little like a small
+multishot. The eggs-in-flight cap grows with it.
 
 **The toys are not nailed down.** An egg comes from below, so it punts the toy it
 hits up into the fleet, and anything a loose toy ploughs into goes up. Every
@@ -57,6 +65,8 @@ can hit it before it leaves. Which upgrade is not up to her:
 | Gravity waves | Five seconds of expanding rings. Anything a ring washes over loses attitude control, tumbles off at random, and detonates against whatever it blunders into, itself included. |
 | Black hole | Six seconds of them. Three egg-radii across, swallowing everything inside four times that as each one climbs. |
 | Gramophone | One shot. It drifts up playing, and three seconds later the entire fleet goes up with it. |
+| Cow burp | One shot. The cow lets go a cloud of bubbles that fans out across the whole screen; every saucer a bubble touches pops, and the mothership loses a hit point per bubble. |
+| Wingman | Ten seconds of a second, brown hen who walks the ground by herself and throws eggs non-stop. Lasers that reach her are absorbed — she cannot be hurt until the upgrade runs out. |
 
 Every upgrade announces itself over the playfield, because which one you have is
 not something you chose — and every one of them carries a clock, shown in the
@@ -159,9 +169,17 @@ always the odd rule out; it now keeps firing for as long as it is held, on a
 cooldown long enough that the holes stay separate rather than stacking.
 
 **The cow is scenery, and that is the point.** It has no state, no collision box
-and no hit points — it is drawn at a fixed spot and nothing in the simulation
-knows about it. All it has to do is be there, so that the opening demand has
-something to refer to and the closing scene has something to take.
+and no hit points — it is drawn at a fixed spot and nothing it says is
+simulated. All it has to do is be there, so that the opening demand has
+something to refer to and the closing scene has something to take. Its burp is
+the one exception, and even that is the hen's upgrade: the simulation only needs
+to know where its mouth is.
+
+**The wingman lives inside the upgrade.** Her position and firing clock are
+fields of the `wingman` power rather than a second `Hen`, so she arrives and
+leaves with it and nothing else has to know about her. Her eggs are flagged, so
+they do not count against the hen's cap and cannot collect a Rambo egg — which
+would replace the very upgrade she is part of.
 
 **The run is not over when the last hen falls.** `endGame` moves the game into
 an `abduction` phase and `onGameOver` fires when that phase ends, which is what
@@ -186,11 +204,11 @@ a whole fleet talked out of it by a heart — leaves unscored, which is the pric
 of the heart being the most spectacular thing in the game.
 
 **Three upgrades take the mothership outright** (super egg, black hole,
-gramophone), two grind it down (the beam at one hit point per second, gravity
-waves at one per wave), the heart is refused, and multishot and the shield do
-what they always do. That spread is deliberate: a boss round should sometimes be
-stolen by a lucky pickup, but two of the eight have to be earned and two are no
-help at all.
+gramophone), three grind it down (the beam at one hit point per second, gravity
+waves at one per wave, the burp at one per bubble that lands), the heart is
+refused, and multishot, the shield and the wingman do what they always do. That
+spread is deliberate: a boss round should sometimes be stolen by a lucky pickup,
+but three of the ten have to be earned and three are no help beyond the usual.
 
 **Lasers travel at half the speed they once did.** That has a second effect
 worth knowing about: a slower shot is on screen for longer, so the cap on lasers
@@ -241,13 +259,14 @@ canopies can share one hull. Swapping to emoji or PNGs means rewriting
 - **Einstein cannot be missed, or sought.** The visit is on a timer, not a
   pickup: there is nothing to shoot and nothing to steer towards, so a round
   either gets one or does not.
-- **Upgrades are not chosen.** Which of the four a Rambo egg grants is random and
+- **Upgrades are not chosen.** Which of the ten a Rambo egg grants is random and
   cannot be influenced. That is deliberate — being able to plan around it would
   spoil the joke — but it does mean a run can be decided by a coin flip.
-- **The obstacles are still nursery toys.** They are carried over from the
+- **The obstacles are mostly nursery toys.** They are carried over from the
   previous theme, so a rocking horse and a teddy bear are what shields the hen
-  from orbital laser fire — and, now, what she fires back. Replacing them is confined
-  to the four toy painters in `src/sprites.ts` and the `ToyKind` union.
+  from orbital laser fire — and, now, what she fires back. A bicycle and a
+  tractor have joined them; each round draws four of the six. Replacing them is
+  confined to the toy painters in `src/sprites.ts` and the `ToyKind` union.
 
 ## Deploying to GitHub Pages
 

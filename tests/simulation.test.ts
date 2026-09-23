@@ -1,9 +1,12 @@
-import { bossHitPoints, createGame, isBossRound, startRound, update, HEN_TOP } from '../src/game.ts'
+import { bossHitPoints, createGame, eggsPerShot, isBossRound, startRound, update, HEN_TOP } from '../src/game.ts'
+import { placeObstacles } from '../src/obstacles.ts'
 import type { InputState } from '../src/input.ts'
 import {
   ABDUCTION,
   BLACK_HOLE,
   BOSS,
+  BURP,
+  COW,
   DESERT,
   EGG,
   FREEZE,
@@ -14,6 +17,7 @@ import {
   POWER,
   UFO,
   VIEW,
+  WINGMAN,
 } from '../src/config.ts'
 import type { GameState, Laser, Power, Shot, Ufo } from '../src/types.ts'
 
@@ -54,7 +58,7 @@ function enterRound(game: GameState, round: number): void {
 }
 
 function egg(x: number, y: number): Shot {
-  return { x, y, spin: 0, rotation: 0, vx: 0, kind: 'normal', fuse: 0 }
+  return { x, y, spin: 0, rotation: 0, vx: 0, kind: 'normal', fuse: 0, wingman: false }
 }
 
 /** True when a saucer is on its way off the board for the given reason. */
@@ -760,6 +764,155 @@ intoPlay(gc2)
 grant(gc2, { kind: 'gramophone', remaining: 0.4, duration: 12 })
 step(gc2, 0.6, idle)
 check('a one-shot that is never fired goes off the boil', gc2.power.kind === 'none', gc2.power.kind)
+
+// --- the cow has more to say -------------------------------------------------
+
+// 36. A moo for every round cleared, and a longer one on the way up.
+check('the cow moos at a cleared round', COW.roundLine === 'Moo', COW.roundLine)
+check('and moos at length when it is taken', COW.line === 'Moooooooooo', COW.line)
+
+// --- one more egg every eight rounds ------------------------------------------
+
+// 37. The bonus eggs arrive on schedule.
+check(
+  'one egg a pull up to round 8, two from 9, three from 17',
+  eggsPerShot(1) === 1 && eggsPerShot(8) === 1 && eggsPerShot(9) === 2 && eggsPerShot(16) === 2 && eggsPerShot(17) === 3,
+)
+const gpe = newGame()
+enterRound(gpe, 9)
+while (gpe.phase.kind !== 'playing') update(gpe, DT, idle)
+gpe.lasers = []
+update(gpe, DT, firing)
+check('a round-9 pull throws two eggs', gpe.shots.length === 2, `${gpe.shots.length}`)
+check('fanned rather than stacked', gpe.shots.length === 2 && gpe.shots[0]!.vx < 0 && gpe.shots[1]!.vx > 0)
+
+// --- eggs shoot lasers down -----------------------------------------------------
+
+// 38. An egg and a laser that meet cancel out.
+const gel = newGame()
+intoPlay(gel)
+gel.ufos = []
+gel.boss = null
+gel.obstacles = []
+gel.ufos = [{ column: 0, row: 0, x: 10, y: 60, state: { kind: 'flying' }, wobblePhase: 0 }]
+gel.shots = [egg(400, 300)]
+gel.lasers = [{ x: 403, y: 290, vx: 0, vy: LASER.baseSpeed }]
+update(gel, DT, idle)
+check('an egg that meets a laser takes it out', gel.lasers.length === 0, `${gel.lasers.length} left`)
+check('and is spent doing it', gel.shots.length === 0, `${gel.shots.length} left`)
+
+// With time stopped a laser still hangs there to be shot down.
+const gelz = newGame()
+intoPlay(gelz)
+gelz.freeze = { x: 0, remaining: 3 }
+gelz.shots = [egg(400, 300)]
+gelz.lasers = [{ x: 403, y: 290, vx: 0, vy: LASER.baseSpeed }]
+update(gelz, DT, idle)
+check('a frozen laser can be shot down too', gelz.lasers.length === 0 && gelz.shots.length === 0)
+
+// --- toys are left as they are ---------------------------------------------
+
+// 39. Two more kinds, and no damage marks to carry.
+const kindsSeen = new Set<string>()
+for (let i = 0; i < 60; i++) for (const toy of placeObstacles()) kindsSeen.add(toy.kind)
+check('bicycles turn up among the toys', kindsSeen.has('bicycle'))
+check('and tractors', kindsSeen.has('tractor'))
+check('a round still gets four toys, all different', new Set(placeObstacles().map((t) => t.kind)).size === OBSTACLE.count)
+check('toys carry no damage marks', placeObstacles().every((t) => !('scuffs' in t)))
+
+// --- the cow's burp ------------------------------------------------------------
+
+// 40. Firing it lets go the whole cloud at once, and spends the upgrade.
+const gburp = newGame()
+intoPlay(gburp)
+gburp.desertions = []
+gburp.lasers = []
+const burpFleet = gburp.ufos.length
+grant(gburp, { kind: 'burp', remaining: 12, duration: 12 })
+update(gburp, DT, firing)
+check('the burp lets go a cloud of bubbles', gburp.bubbles.length === BURP.bubbles, `${gburp.bubbles.length}`)
+check('and the cow says so', gburp.burpLine !== null)
+check('and it is a single shot', gburp.power.kind === 'none', gburp.power.kind)
+check('nothing the hen throws is involved', gburp.shots.length === 0, `${gburp.shots.length}`)
+// The slowest bubble aimed at the far top corner needs about five and a half
+// seconds to clear the view.
+step(gburp, 6, idle)
+check('the bubbles take out saucers', gburp.ufos.length < burpFleet, `${burpFleet} -> ${gburp.ufos.length}`)
+check('which scores', gburp.score > 0, `score ${gburp.score}`)
+check('and they are gone once they have crossed the screen', gburp.bubbles.length === 0, `${gburp.bubbles.length} left`)
+
+// On a boss round each bubble that lands costs the mothership a hit point.
+const gburpBoss = newGame()
+enterRound(gburpBoss, 10)
+while (gburpBoss.phase.kind !== 'playing') update(gburpBoss, DT, idle)
+gburpBoss.boss!.x = 20
+grant(gburpBoss, { kind: 'burp', remaining: 12, duration: 12 })
+update(gburpBoss, DT, firing)
+const bossHpBefore = gburpBoss.boss!.hitPoints
+step(gburpBoss, 1.5, idle)
+check(
+  'bubbles wear the mothership down',
+  gburpBoss.boss === null || gburpBoss.boss.state.kind !== 'flying' || gburpBoss.boss.hitPoints < bossHpBefore,
+  `${gburpBoss.boss?.hitPoints} of ${bossHpBefore}`,
+)
+
+// --- the wingman ---------------------------------------------------------------
+
+// 41. She walks, she throws, and nothing touches her.
+const gwm = newGame()
+intoPlay(gwm)
+gwm.lasers = []
+grant(gwm, { kind: 'wingman', x: 500, direction: 1, cooldown: 0, remaining: WINGMAN.duration, duration: WINGMAN.duration })
+// Counted across the window: a toy or a saucer overhead eats her eggs as fast
+// as she throws them, so any single frame may show none in the air.
+const herEggs = new Set<Shot>()
+for (let i = 0; i < 30; i++) {
+  update(gwm, DT, idle)
+  for (const shot of gwm.shots) if (shot.wingman) herEggs.add(shot)
+}
+const wing = gwm.power
+check('the wingman is on the board', wing.kind === 'wingman')
+check('and walks by herself', wing.kind === 'wingman' && wing.x !== 500, wing.kind === 'wingman' ? `${wing.x}` : '')
+check('and throws without the fire key', herEggs.size >= 2, `${herEggs.size} eggs`)
+
+// Her eggs do not use up the hen's.
+const gwm2 = newGame()
+intoPlay(gwm2)
+gwm2.lasers = []
+gwm2.ufos = [{ column: 0, row: 0, x: 10, y: 60, state: { kind: 'flying' }, wobblePhase: 0 }]
+gwm2.desertions = []
+gwm2.obstacles = []
+grant(gwm2, { kind: 'wingman', x: 600, direction: 1, cooldown: 0, remaining: WINGMAN.duration, duration: WINGMAN.duration })
+step(gwm2, 1.2, firing)
+const ownEggs = gwm2.shots.filter((s) => !s.wingman).length
+check('the hen keeps her own three eggs', ownEggs > 0 && ownEggs <= EGG.maxInFlight, `${ownEggs} of hers`)
+
+// A laser that reaches her is simply absorbed.
+const gwm3 = newGame()
+intoPlay(gwm3)
+gwm3.hen.x = 40
+gwm3.hen.invulnerable = 0
+grant(gwm3, { kind: 'wingman', x: 600, direction: 1, cooldown: 99, remaining: WINGMAN.duration, duration: WINGMAN.duration })
+gwm3.lasers = [{ x: 600 + 20, y: HEN_TOP - 4, vx: 0, vy: LASER.baseSpeed }]
+update(gwm3, 0.05, idle)
+check('a laser on the wingman is absorbed', gwm3.lasers.length === 0, `${gwm3.lasers.length} left`)
+check('and costs nobody a life', gwm3.hen.lives === HEN.lives, `lives ${gwm3.hen.lives}`)
+check('and she is still there', gwm3.power.kind === 'wingman', gwm3.power.kind)
+
+// Her eggs cannot collect a Rambo egg, which would replace her.
+const gwm4 = newGame()
+intoPlay(gwm4)
+gwm4.pickupTimer = 0.05
+step(gwm4, 0.2, idle)
+const prize4 = gwm4.pickup!
+grant(gwm4, { kind: 'wingman', x: 600, direction: 1, cooldown: 99, remaining: WINGMAN.duration, duration: WINGMAN.duration })
+gwm4.shots = [{ ...egg(prize4.x + POWER.width / 2 - 6, prize4.y + POWER.height / 2), wingman: true }]
+update(gwm4, DT, idle)
+check('her eggs leave the Rambo egg for the hen', gwm4.pickup !== null && gwm4.power.kind === 'wingman')
+
+// And she goes when her clock does.
+step(gwm, WINGMAN.duration, idle)
+check('the wingman leaves when the upgrade runs out', gwm.power.kind !== 'wingman', gwm.power.kind)
 
 // Throwing rather than calling process.exit keeps this runnable without pulling
 // in @types/node just for one line; an uncaught error is a non-zero exit too.

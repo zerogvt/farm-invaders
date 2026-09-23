@@ -25,6 +25,10 @@ const FEATHER = '#fdf4e3'
 const FEATHER_SHADE = '#e6d7bd'
 const FEATHER_HURT = '#ffd0d6'
 const FEATHER_HURT_SHADE = '#eaaab4'
+/** The wingman is a brown hen, so the two read apart at a glance when they
+ *  cross. */
+const FEATHER_WINGMAN = '#c77a3e'
+const FEATHER_WINGMAN_SHADE = '#9a5627'
 const COMB = '#e8455f'
 const BEAK = '#f2a03c'
 const DARK = '#22283c'
@@ -37,6 +41,7 @@ export interface SpriteSet {
   ufoSplattered: HTMLCanvasElement[]
   hen: HTMLCanvasElement
   henHurt: HTMLCanvasElement
+  wingman: HTMLCanvasElement
   egg: HTMLCanvasElement
   superEgg: HTMLCanvasElement
   laser: HTMLCanvasElement
@@ -66,6 +71,7 @@ export function buildSprites(): SpriteSet {
     ufoSplattered: splattered,
     hen: sprite(HEN.width, HEN.height, (ctx, w, h) => drawHen(ctx, w, h, false)),
     henHurt: sprite(HEN.width, HEN.height, (ctx, w, h) => drawHen(ctx, w, h, true)),
+    wingman: sprite(HEN.width, HEN.height, (ctx, w, h) => drawHen(ctx, w, h, false, true)),
     egg: sprite(EGG.width, EGG.height, drawEgg),
     superEgg: sprite(POWER.superEggWidth, POWER.superEggHeight, drawSuperEgg),
     laser: sprite(LASER.width, LASER.height, drawLaser),
@@ -82,6 +88,8 @@ export function buildSprites(): SpriteSet {
       duck: sprite(OBSTACLE.width, OBSTACLE.height, drawDuck),
       ball: sprite(OBSTACLE.width, OBSTACLE.height, drawBall),
       teddy: sprite(OBSTACLE.width, OBSTACLE.height, drawTeddy),
+      bicycle: sprite(OBSTACLE.width, OBSTACLE.height, drawBicycle),
+      tractor: sprite(OBSTACLE.width, OBSTACLE.height, drawTractor),
     },
   }
 }
@@ -240,9 +248,9 @@ function drawSplat(
  * around a compact head rather than a realistic visor: at this size anything
  * subtler just looked like a smudge above the beak.
  */
-function drawHen(ctx: CanvasRenderingContext2D, w: number, h: number, hurt: boolean): void {
-  const body = hurt ? FEATHER_HURT : FEATHER
-  const bodyShade = hurt ? FEATHER_HURT_SHADE : FEATHER_SHADE
+function drawHen(ctx: CanvasRenderingContext2D, w: number, h: number, hurt: boolean, wingman = false): void {
+  const body = hurt ? FEATHER_HURT : wingman ? FEATHER_WINGMAN : FEATHER
+  const bodyShade = hurt ? FEATHER_HURT_SHADE : wingman ? FEATHER_WINGMAN_SHADE : FEATHER_SHADE
   const headX = w * 0.5
   const headY = h * 0.3
   const headR = w * 0.15
@@ -283,7 +291,7 @@ function drawHen(ctx: CanvasRenderingContext2D, w: number, h: number, hurt: bool
 
   // Wing, with two feather lines so it is not just a paler blob.
   ellipse(ctx, w * 0.66, h * 0.68, w * 0.15, h * 0.11, bodyShade)
-  ctx.strokeStyle = hurt ? '#d68f9a' : '#cbb794'
+  ctx.strokeStyle = hurt ? '#d68f9a' : wingman ? '#7a4119' : '#cbb794'
   ctx.lineWidth = w * 0.018
   ctx.beginPath()
   ctx.moveTo(w * 0.57, h * 0.7)
@@ -1004,4 +1012,134 @@ function drawTeddy(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   // Nose sits on the snout, well clear of the eyes — bunched together they
   // merged into one dark bar that read as sunglasses.
   ellipse(ctx, w * 0.45, h * 0.44, w * 0.032, h * 0.026, '#3a2a20')
+}
+
+/** A child's bicycle, side on: two big wheels are what carry the shape, so they
+ *  are drawn heavy and the frame between them light. */
+function drawBicycle(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const tyre = '#2c3040'
+  const frame = '#e8455f'
+  const metal = '#c9d6ec'
+  const r = h * 0.27
+  const backX = w * 0.24
+  const frontX = w * 0.76
+  const axleY = h * 0.68
+
+  for (const x of [backX, frontX]) {
+    ctx.strokeStyle = tyre
+    ctx.lineWidth = h * 0.08
+    ctx.beginPath()
+    ctx.arc(x, axleY, r, 0, Math.PI * 2)
+    ctx.stroke()
+    // Spokes, few and thin, so the wheel reads as a wheel and not a disc.
+    ctx.strokeStyle = metal
+    ctx.lineWidth = h * 0.02
+    ctx.beginPath()
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI
+      ctx.moveTo(x - Math.cos(a) * r * 0.85, axleY - Math.sin(a) * r * 0.85)
+      ctx.lineTo(x + Math.cos(a) * r * 0.85, axleY + Math.sin(a) * r * 0.85)
+    }
+    ctx.stroke()
+  }
+
+  // Frame: the classic diamond, back wheel to pedals to the head tube.
+  const crankX = w * 0.48
+  const seatX = w * 0.4
+  const headX = w * 0.68
+  const topY = h * 0.38
+  ctx.strokeStyle = frame
+  ctx.lineWidth = h * 0.065
+  ctx.beginPath()
+  ctx.moveTo(backX, axleY)
+  ctx.lineTo(crankX, axleY)
+  ctx.lineTo(headX, topY)
+  ctx.lineTo(seatX, topY)
+  ctx.lineTo(backX, axleY)
+  ctx.moveTo(seatX, topY)
+  ctx.lineTo(crankX, axleY)
+  ctx.moveTo(headX, topY)
+  ctx.lineTo(frontX, axleY)
+  ctx.stroke()
+
+  // Saddle, handlebars and a basket, because it is a farm bicycle.
+  ctx.strokeStyle = tyre
+  ctx.lineWidth = h * 0.06
+  ctx.beginPath()
+  ctx.moveTo(seatX - w * 0.07, topY - h * 0.1)
+  ctx.lineTo(seatX + w * 0.05, topY - h * 0.1)
+  ctx.moveTo(seatX, topY - h * 0.1)
+  ctx.lineTo(seatX, topY)
+  ctx.moveTo(headX, topY)
+  ctx.lineTo(headX - w * 0.02, topY - h * 0.16)
+  ctx.lineTo(headX - w * 0.1, topY - h * 0.2)
+  ctx.stroke()
+
+  ctx.fillStyle = '#d9a463'
+  ctx.beginPath()
+  ctx.roundRect(headX + w * 0.02, topY - h * 0.12, w * 0.18, h * 0.16, w * 0.02)
+  ctx.fill()
+  ctx.strokeStyle = '#82552a'
+  ctx.lineWidth = h * 0.02
+  ctx.beginPath()
+  ctx.moveTo(headX + w * 0.02, topY - h * 0.04)
+  ctx.lineTo(headX + w * 0.2, topY - h * 0.04)
+  ctx.stroke()
+
+  ellipse(ctx, crankX, axleY, w * 0.035, w * 0.035, metal)
+}
+
+/** A little red tractor facing left: one big back wheel, one small front one,
+ *  a cab and an exhaust stack. The size difference between the wheels is what
+ *  says tractor rather than car. */
+function drawTractor(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const paint = '#d8433a'
+  const paintDark = '#a32c26'
+  const tyre = '#2c3040'
+  const hub = '#f5cf87'
+
+  // Bonnet and body.
+  ctx.fillStyle = paint
+  ctx.beginPath()
+  ctx.roundRect(w * 0.1, h * 0.42, w * 0.58, h * 0.24, w * 0.04)
+  ctx.fill()
+
+  // Cab: a frame with a window, over the back wheel.
+  ctx.fillStyle = paintDark
+  ctx.beginPath()
+  ctx.roundRect(w * 0.5, h * 0.08, w * 0.36, h * 0.5, w * 0.04)
+  ctx.fill()
+  ctx.fillStyle = 'rgba(190,230,255,0.85)'
+  ctx.beginPath()
+  ctx.roundRect(w * 0.56, h * 0.16, w * 0.24, h * 0.22, w * 0.02)
+  ctx.fill()
+
+  // Exhaust stack on the bonnet.
+  ctx.fillStyle = '#3a3f52'
+  ctx.fillRect(w * 0.24, h * 0.18, w * 0.05, h * 0.26)
+
+  // Grille at the nose.
+  ctx.strokeStyle = paintDark
+  ctx.lineWidth = h * 0.025
+  ctx.beginPath()
+  for (const y of [0.48, 0.54, 0.6]) {
+    ctx.moveTo(w * 0.11, h * y)
+    ctx.lineTo(w * 0.18, h * y)
+  }
+  ctx.stroke()
+
+  // Wheels: the big one at the back, the small one under the nose.
+  ellipse(ctx, w * 0.7, h * 0.7, h * 0.29, h * 0.29, tyre)
+  ellipse(ctx, w * 0.7, h * 0.7, h * 0.13, h * 0.13, hub)
+  ellipse(ctx, w * 0.22, h * 0.8, h * 0.18, h * 0.18, tyre)
+  ellipse(ctx, w * 0.22, h * 0.8, h * 0.08, h * 0.08, hub)
+
+  // Tread nubs on the big tyre.
+  ctx.fillStyle = tyre
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2
+    ctx.beginPath()
+    ctx.arc(w * 0.7 + Math.cos(a) * h * 0.3, h * 0.7 + Math.sin(a) * h * 0.3, h * 0.035, 0, Math.PI * 2)
+    ctx.fill()
+  }
 }

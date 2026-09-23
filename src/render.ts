@@ -2,6 +2,7 @@ import {
   ABDUCTION,
   BLACK_HOLE,
   BOSS,
+  BURP,
   COW,
   DESERT,
   FREEZE,
@@ -18,7 +19,7 @@ import {
   UFO,
   VIEW,
 } from './config'
-import { HEN_TOP, shotSize } from './game'
+import { bubbleCentre, HEN_TOP, shotSize } from './game'
 import { rowVariant, type SpriteSet } from './sprites'
 import type { GameState } from './types'
 
@@ -34,12 +35,15 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawPickup(ctx, state, sprites, time)
   drawWaves(ctx, state)
   drawProjectiles(ctx, state, sprites, time)
+  drawBubbles(ctx, state)
   // The wash goes over everything time has stopped, and under the hen: she is
   // the only warm thing left on the board, which is the whole point of it.
   drawFreeze(ctx, state, sprites, time)
   drawBeam(ctx, state, time)
+  drawWingman(ctx, state, sprites, time)
   drawHen(ctx, state, sprites, time)
   drawShield(ctx, state, time)
+  drawCowSpeech(ctx, state)
   drawBlasts(ctx, state)
   drawParley(ctx, state)
   drawAbduction(ctx, state, sprites, time)
@@ -57,6 +61,45 @@ const HUD_BOTTOM = 62
 function drawCow(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
   if (state.phase.kind === 'abduction' || state.phase.kind === 'over') return
   ctx.drawImage(sprites.cow, COW.x, GROUND - COW.height, COW.width, COW.height)
+}
+
+/** The cow's own lines: a burp when it lets one go, and a moo for every round
+ *  cleared. The abduction line is the scene's, drawn there. */
+function drawCowSpeech(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const centreX = COW.x + COW.width * 0.3
+  const top = GROUND - COW.height
+  if (state.burpLine !== null) {
+    drawBubble(ctx, centreX, top - 2, BURP.line, 120)
+    return
+  }
+  if (state.phase.kind === 'cleared') drawBubble(ctx, centreX, top - 2, COW.roundLine, 120)
+}
+
+/** The burp: soap-film bubbles, a rim, a highlight and nothing inside, so the
+ *  board shows through the cloud rather than being buried under it. */
+function drawBubbles(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const bubble of state.bubbles) {
+    const { x, y } = bubbleCentre(bubble)
+    const r = bubble.radius
+    ctx.save()
+    const film = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r)
+    film.addColorStop(0, 'rgba(255,255,255,0.05)')
+    film.addColorStop(0.75, 'rgba(170,225,255,0.12)')
+    film.addColorStop(1, 'rgba(220,170,255,0.42)')
+    ctx.fillStyle = film
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(210,240,255,0.8)'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(x, y, r * 0.68, Math.PI * 1.1, Math.PI * 1.45)
+    ctx.stroke()
+    ctx.restore()
+  }
 }
 
 /** The opening exchange. The fleet speaks from above its own back rank, so the
@@ -252,15 +295,14 @@ function drawSpace(ctx: CanvasRenderingContext2D, time: number): void {
   ctx.setLineDash([])
 }
 
-/** Toys, tumbling once an egg has knocked them loose. Everything is drawn about
- *  the toy's centre so the scuff marks turn with it rather than sliding across
- *  it. */
+/** Toys, tumbling once an egg has knocked them loose. A toy looks the same from
+ *  the first frame to the last: nothing marks, holes or fades it, however many
+ *  saucers it has been through. */
 function drawObstacles(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
   const halfWidth = OBSTACLE.width / 2
   const halfHeight = OBSTACLE.height / 2
 
   for (const obstacle of state.obstacles) {
-    const damage = OBSTACLE.hitPoints - obstacle.health
     ctx.save()
     ctx.translate(obstacle.x + halfWidth, obstacle.y + halfHeight)
     ctx.rotate(obstacle.rotation)
@@ -280,20 +322,7 @@ function drawObstacles(ctx: CanvasRenderingContext2D, state: GameState, sprites:
       ctx.restore()
     }
 
-    // A battered toy fades as well as scuffs, so its remaining health reads
-    // from across the screen rather than only up close.
-    ctx.globalAlpha = 1 - damage * 0.13
     ctx.drawImage(sprites.toys[obstacle.kind], -halfWidth, -halfHeight, OBSTACLE.width, OBSTACLE.height)
-
-    ctx.globalAlpha = 1
-    ctx.fillStyle = 'rgba(5,9,21,0.82)'
-    for (let i = 0; i < damage; i++) {
-      const scuff = obstacle.scuffs[i]
-      if (scuff === undefined) continue
-      ctx.beginPath()
-      ctx.arc(scuff.x - halfWidth, scuff.y - halfHeight, scuff.r, 0, Math.PI * 2)
-      ctx.fill()
-    }
     ctx.restore()
   }
 }
@@ -721,6 +750,16 @@ function drawBeam(ctx: CanvasRenderingContext2D, state: GameState, time: number)
   ctx.restore()
 }
 
+/** The second hen. She is never hurt, so she never blinks; she flickers over
+ *  her last two seconds instead, as the Rambo egg does, to say she is going. */
+function drawWingman(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  const wing = state.power
+  if (wing.kind !== 'wingman') return
+  if (state.phase.kind === 'abduction' || state.phase.kind === 'over') return
+  if (wing.remaining < 2 && Math.floor(time * 8) % 2 === 0) return
+  ctx.drawImage(sprites.wingman, wing.x, HEN_TOP, HEN.width, HEN.height)
+}
+
 function drawHen(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
   // Blink while immune. The blink is what tells the player the hit registered
   // and that they are briefly safe.
@@ -824,6 +863,10 @@ function powerName(power: GameState['power']): string | null {
       return 'BLACK HOLE'
     case 'gramophone':
       return 'GRAMOPHONE'
+    case 'burp':
+      return 'COW BURP'
+    case 'wingman':
+      return 'WINGMAN'
   }
 }
 
