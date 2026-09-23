@@ -38,8 +38,8 @@ export function createUi(root: HTMLElement): Ui {
       paragraph(
         'An egg does not shoot a saucer down — it bursts on the windscreen. The pilot ' +
           'reels, drops out of the formation, and limps off the nearest edge of the screen. ' +
-          'Toys on the floor soak up anything that hits them, from either side, until they ' +
-          'fall apart.',
+          'Toys on the floor soak up anything that hits them, from either side — and an egg ' +
+          'that meets a laser shoots it down.',
       ),
       paragraph(
         'Every second round sends one mothership instead of a fleet: it takes as many eggs ' +
@@ -49,7 +49,7 @@ export function createUi(root: HTMLElement): Ui {
       ),
       paragraph(
         'Watch the corners for a Rambo egg — shoot it and your eggs are upgraded to one of ' +
-          'eight things you do not get to choose. Every 2000 points is another hen.',
+          'ten things you do not get to choose. Every 2000 points is another hen.',
       ),
       scoreBoard(loadScores()),
     )
@@ -151,7 +151,7 @@ function button(text: string, onClick: () => void): HTMLButtonElement {
 function controlsList(): HTMLElement {
   const list = document.createElement('ul')
   list.className = 'controls'
-  for (const line of ['← → or A / D to move', 'Space to throw an egg']) {
+  for (const line of ['← → or A / D to move', 'Space to throw an egg', 'M or the speaker, bottom right, for sound']) {
     const item = document.createElement('li')
     item.textContent = line
     list.append(item)

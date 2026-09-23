@@ -95,6 +95,25 @@ export interface GameEvents {
   onHenHurt?: () => void
   onRoundCleared?: (round: number) => void
   onGameOver?: (score: number, round: number) => void
+  /** Something has gone up. `big` is a gramophone finale; everything else is a
+   *  single saucer or toy popping. */
+  onExplosion?: (size: 'small' | 'big') => void
+  /** The hen (or the wingman) has thrown something. */
+  onShot?: (kind: Shot['kind'], wingman: boolean) => void
+  /** The super egg has burst over the fleet. */
+  onSuperSplat?: () => void
+  onHeartBurst?: () => void
+  /** The cow has let go of its burp. */
+  onBurp?: () => void
+  onGravityWave?: () => void
+  /** A saucer or the mothership has fired. Once per volley, not per laser. */
+  onLaserFired?: () => void
+  /** An egg has met a laser in mid-air and both are gone. */
+  onLaserShotDown?: () => void
+  /** An egg has knocked a toy loose, or knocked a loose one harder. */
+  onToyKicked?: () => void
+  /** Einstein has stopped the clock. */
+  onFreeze?: () => void
 }
 
 export function createGame(): GameState {
@@ -241,8 +260,8 @@ export function update(state: GameState, dt: number, input: InputState, events: 
   const frozen = state.freeze !== null
   moveHen(state, dt, input)
   tickTimers(state, dt)
-  tryShoot(state, input)
-  tickWingman(state, dt)
+  tryShoot(state, input, events)
+  tickWingman(state, dt, events)
   advanceShots(state, dt, events)
   tickBubbles(state, dt, events)
   tickWaves(state, dt, events)
@@ -256,10 +275,10 @@ export function update(state: GameState, dt: number, input: InputState, events: 
     tickObstacles(state, dt, events)
     tickDesertions(state, dt, events)
     tickBoss(state, dt, events)
-    if (state.boss === null) fireLasers(state, dt)
-    else fireVolley(state, dt)
+    if (state.boss === null) fireLasers(state, dt, events)
+    else fireVolley(state, dt, events)
     tickPickup(state, dt)
-    tickEinstein(state, dt)
+    tickEinstein(state, dt, events)
   }
 
   resolveCollisions(state, frozen, events)
@@ -328,7 +347,7 @@ function rollFreeze(): number | null {
 
 /** Einstein turning up. He picks a side and stops the board; he is not shot at
  *  and cannot be missed, so there is nothing for the player to do but use it. */
-function tickEinstein(state: GameState, dt: number): void {
+function tickEinstein(state: GameState, dt: number, events: GameEvents): void {
   if (state.freezeTimer === null) return
   state.freezeTimer -= dt
   if (state.freezeTimer > 0) return
@@ -339,6 +358,7 @@ function tickEinstein(state: GameState, dt: number): void {
     x: onLeft ? FREEZE.sideMargin : VIEW.width - FREEZE.sideMargin - FREEZE.width,
     remaining: FREEZE.duration,
   }
+  events.onFreeze?.()
 }
 
 /** Adds points and hands out a free life for every threshold crossed. The loop
@@ -361,7 +381,7 @@ function moveHen(state: GameState, dt: number, input: InputState): void {
 
 // --- the hen's shots -------------------------------------------------------
 
-function tryShoot(state: GameState, input: InputState): void {
+function tryShoot(state: GameState, input: InputState, events: GameEvents): void {
   if (!input.fire) return
   if (state.shotCooldown > 0) return
 
@@ -373,6 +393,7 @@ function tryShoot(state: GameState, input: InputState): void {
   if (power.kind === 'gravity') {
     state.waves.push({ x: muzzleX, y: HEN_TOP, radius: 0, hitBoss: false })
     state.shotCooldown = GRAVITY.cooldown
+    events.onGravityWave?.()
     return
   }
 
@@ -381,19 +402,23 @@ function tryShoot(state: GameState, input: InputState): void {
   if (power.kind === 'blackHole') {
     state.shots.push(heavyShot('blackHole', muzzleX))
     state.shotCooldown = BLACK_HOLE.cooldown
+    events.onShot?.('blackHole', false)
     return
   }
 
   // The burp is the cow's, not the hen's: the trigger is only what sets it off.
   if (power.kind === 'burp') {
     burp(state)
+    events.onBurp?.()
     state.power = { kind: 'none' }
     state.shotCooldown = EGG.cooldown
     return
   }
 
   if (power.kind === 'superEgg' || power.kind === 'heart' || power.kind === 'gramophone') {
-    state.shots.push(heavyShot(power.kind === 'superEgg' ? 'super' : power.kind, muzzleX))
+    const kind = power.kind === 'superEgg' ? 'super' : power.kind
+    state.shots.push(heavyShot(kind, muzzleX))
+    events.onShot?.(kind, false)
     state.power = { kind: 'none' }
     state.shotCooldown = EGG.cooldown
     return
@@ -411,6 +436,7 @@ function tryShoot(state: GameState, input: InputState): void {
       })
     }
     state.shotCooldown = EGG.cooldown
+    events.onShot?.('normal', false)
     return
   }
 
@@ -419,6 +445,7 @@ function tryShoot(state: GameState, input: InputState): void {
   if (ownEggs >= EGG.maxInFlight) return
   state.shots.push(egg(muzzleX))
   state.shotCooldown = EGG.cooldown
+  events.onShot?.('normal', false)
 }
 
 /**
@@ -426,7 +453,7 @@ function tryShoot(state: GameState, input: InputState): void {
  * on her own clock. She lives inside the upgrade, so she is gone the moment its
  * clock runs out.
  */
-function tickWingman(state: GameState, dt: number): void {
+function tickWingman(state: GameState, dt: number, events: GameEvents): void {
   const wing = state.power
   if (wing.kind !== 'wingman') return
 
@@ -443,6 +470,7 @@ function tickWingman(state: GameState, dt: number): void {
   if (wing.cooldown > 0) return
   wing.cooldown += WINGMAN.cooldown
   state.shots.push({ ...egg(wing.x + HEN.width / 2), wingman: true })
+  events.onShot?.('normal', true)
 }
 
 /** She turns up on the far side of the board from the hen, walking inwards. */
@@ -493,7 +521,7 @@ function advanceShots(state: GameState, dt: number, events: GameEvents): void {
     shot.rotation += shot.spin * dt
 
     if (shot.kind === 'super' && shot.y <= VIEW.height * POWER.superEggBurstY) {
-      burst(state, shot.x + width / 2, shot.y + height / 2)
+      burst(state, shot.x + width / 2, shot.y + height / 2, events)
       continue
     }
     if (shot.kind === 'heart' && shot.y <= VIEW.height * HEART.burstY) {
@@ -533,8 +561,9 @@ function advanceLasers(state: GameState, dt: number): void {
  * they are the player's cover, and blowing them up would make the best pickup
  * in the game a liability.
  */
-function burst(state: GameState, x: number, y: number): void {
+function burst(state: GameState, x: number, y: number, events: GameEvents): void {
   state.blasts.push({ x, y, age: 0, radius: POWER.blastRadius, duration: POWER.blastDuration })
+  events.onSuperSplat?.()
   for (const ufo of state.ufos) {
     if (ufo.state.kind === 'flying') ufo.state = leaveFrom(ufo.x, UFO.width, 'splattered')
   }
@@ -553,6 +582,7 @@ function burst(state: GameState, x: number, y: number): void {
  */
 function heartBurst(state: GameState, x: number, y: number, events: GameEvents): void {
   state.blasts.push({ x, y, age: 0, radius: POWER.blastRadius * 0.8, duration: POWER.blastDuration })
+  events.onHeartBurst?.()
   for (const ufo of state.ufos) {
     if (ufo.state.kind !== 'flying') continue
     ufo.state = leaveFrom(ufo.x, UFO.width, 'deserted')
@@ -569,8 +599,9 @@ function heartBurst(state: GameState, x: number, y: number, events: GameEvents):
 /** The gramophone reaching the end of the record. Everything still up there
  *  goes up with it, the mothership included. */
 function finale(state: GameState, events: GameEvents): void {
+  events.onExplosion?.('big')
   for (const ufo of state.ufos) {
-    pop(state, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
+    pop(state, events, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
     awardScore(state, ufoPoints(ufo), events)
     events.onUfoDowned?.(ufo, ufoPoints(ufo))
   }
@@ -681,7 +712,7 @@ function tickBubbles(state: GameState, dt: number, events: GameEvents): void {
     )
     if (victim !== undefined) {
       state.ufos = state.ufos.filter((ufo) => ufo !== victim)
-      pop(state, victim.x + UFO.width / 2, victim.y + UFO.height / 2)
+      pop(state, events, victim.x + UFO.width / 2, victim.y + UFO.height / 2)
       const points = ufoPoints(victim)
       awardScore(state, points, events)
       events.onUfoDowned?.(victim, points)
@@ -782,7 +813,7 @@ function tickWobble(state: GameState, dt: number, events: GameEvents): void {
       survivors.push(ufo)
       continue
     }
-    if (doomed.has(ufo)) pop(state, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
+    if (doomed.has(ufo)) pop(state, events, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
     const points = ufoPoints(ufo)
     awardScore(state, points, events)
     events.onUfoDowned?.(ufo, points)
@@ -790,8 +821,9 @@ function tickWobble(state: GameState, dt: number, events: GameEvents): void {
   state.ufos = survivors
 }
 
-function pop(state: GameState, x: number, y: number): void {
+function pop(state: GameState, events: GameEvents, x: number, y: number): void {
   state.blasts.push({ x, y, age: 0, radius: POWER.popRadius, duration: POWER.popDuration })
+  events.onExplosion?.('small')
 }
 
 // --- desertions ------------------------------------------------------------
@@ -913,7 +945,7 @@ function tickLeaving(state: GameState, dt: number, events: GameEvents): void {
 /** Only the front saucer of a column can fire, so lasers always come from the
  *  rank the player can actually see and shoot back at. Rank-and-file saucers
  *  fire straight down; angling a shot is the mothership's trick alone. */
-function fireLasers(state: GameState, dt: number): void {
+function fireLasers(state: GameState, dt: number, events: GameEvents): void {
   const limit = ROUND.baseMaxLasers + Math.floor((state.round - 1) / 2)
   state.fireTimer -= dt
   if (state.fireTimer > 0) return
@@ -926,6 +958,7 @@ function fireLasers(state: GameState, dt: number): void {
   if (shooter === undefined) return
 
   state.lasers.push(shoot(shooter.x + UFO.width / 2, shooter.y + UFO.height, 0, state.round))
+  events.onLaserFired?.()
 }
 
 /** The lowest still-flying saucer in each occupied column. Anything leaving or
@@ -1007,7 +1040,7 @@ function tickBoss(state: GameState, dt: number, events: GameEvents): void {
 /** One volley of as many lasers as the round number, fanned across the
  *  mothership's underside and jittered so no two volleys are the same. This is
  *  the only thing on the board that shoots anywhere but straight down. */
-function fireVolley(state: GameState, dt: number): void {
+function fireVolley(state: GameState, dt: number, events: GameEvents): void {
   const boss = state.boss
   if (boss === null || boss.state.kind !== 'flying') return
 
@@ -1024,6 +1057,7 @@ function fireVolley(state: GameState, dt: number): void {
     const x = boss.x + BOSS.width * (0.2 + 0.6 * across)
     state.lasers.push(shoot(x, boss.y + BOSS.height * 0.82, angle, state.round))
   }
+  events.onLaserFired?.()
 }
 
 function bossFireInterval(round: number): number {
@@ -1163,9 +1197,15 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
       continue
     }
     const eggRect: Rect = { x: shot.x, y: shot.y, width: EGG.width, height: EGG.height }
-    if (meetsLaser(state, eggRect)) continue
+    if (meetsLaser(state, eggRect)) {
+      events.onLaserShotDown?.()
+      continue
+    }
     if (!shot.wingman && hitsPickup(state, eggRect, events)) continue
-    if (hitsObstacle(state, eggRect, { vx: shot.vx })) continue
+    if (hitsObstacle(state, eggRect, { vx: shot.vx })) {
+      events.onToyKicked?.()
+      continue
+    }
     if (hitsBoss(state, eggRect, events)) continue
     if (splattersUfo(state, eggRect, frozen, events)) continue
     survivingShots.push(shot)
@@ -1263,7 +1303,7 @@ function tickObstacles(state: GameState, dt: number, events: GameEvents): void {
     const survivors: Ufo[] = []
     for (const ufo of state.ufos) {
       if (obstacle.health > 0 && overlaps(rect, ufoRect(ufo))) {
-        pop(state, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
+        pop(state, events, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
         const points = ufoPoints(ufo)
         awardScore(state, points, events)
         events.onUfoDowned?.(ufo, points)
@@ -1292,7 +1332,7 @@ function tickObstacles(state: GameState, dt: number, events: GameEvents): void {
       obstacle.x + OBSTACLE.width < 0 ||
       obstacle.x > VIEW.width
     if (obstacle.health <= 0 || offBoard) {
-      if (!offBoard) pop(state, obstacle.x + OBSTACLE.width / 2, obstacle.y + OBSTACLE.height / 2)
+      if (!offBoard) pop(state, events, obstacle.x + OBSTACLE.width / 2, obstacle.y + OBSTACLE.height / 2)
       continue
     }
     standing.push(obstacle)
@@ -1344,7 +1384,7 @@ function splattersUfo(state: GameState, egg: Rect, frozen: boolean, events: Game
     hit = true
 
     if (frozen) {
-      pop(state, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
+      pop(state, events, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
       const points = ufoPoints(ufo)
       awardScore(state, points, events)
       events.onUfoDowned?.(ufo, points)

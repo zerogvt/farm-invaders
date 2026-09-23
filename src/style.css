@@ -155,3 +155,31 @@ button:focus-visible {
 .banner[hidden] {
   display: none;
 }
+
+/* The sound switch: small and quiet in the bottom right corner, over the
+   canvas, so it is always one click away without competing with the game. */
+.sound-toggle {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(12, 18, 36, 0.72);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px rgba(232, 236, 247, 0.22);
+  opacity: 0.75;
+}
+
+.sound-toggle:hover,
+.sound-toggle:focus-visible {
+  opacity: 1;
+}
+
+.sound-toggle[aria-pressed="true"] {
+  color: var(--ink-dim);
+}
