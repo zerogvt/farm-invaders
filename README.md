@@ -20,10 +20,6 @@ amount of fire wears them down, or leaves a mark on them.
 **Eggs shoot lasers down.** An egg that meets a laser in mid-air takes it out
 and is spent doing it, so a well-aimed egg is a shield as well as a shot.
 
-**Every eight rounds is another egg per throw.** Rounds 1–8 throw one egg a
-pull, rounds 9–16 two, rounds 17–24 three, fanned a little like a small
-multishot. The eggs-in-flight cap grows with it.
-
 **The toys are not nailed down.** An egg comes from below, so it punts the toy it
 hits up into the fleet, and anything a loose toy ploughs into goes up. Every
 wreck costs the toy a hit point, so a punted teddy bear is worth three or four

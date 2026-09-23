@@ -105,12 +105,14 @@ Added on 23 September 2026, from one request of eight items:
   and tumbling saucers as well as flying ones, skip deserters, ignore toys and
   lasers, and take one mothership hit point each.
 - **The wingman patrols by herself** rather than following the hen, and absorbs
-  the lasers that reach her rather than letting them through. She throws the
-  same eggs per pull as the hen, every 0.3s. Picking up another Rambo egg while
+  the lasers that reach her rather than letting them through. She throws one
+  egg every 0.3s. Picking up another Rambo egg while
   she is out replaces her, as any upgrade replaces the last.
-- **The bonus fan is narrow**: 0.08 rad of half-angle per extra egg
-  (`EGG.extraEggSpread`), and the eggs-in-flight cap is multiplied by the eggs
-  per pull. Multishot is unchanged and ignores the bonus.
+- **The extra egg every eight rounds was taken out again** the same day, at
+  Vasilis's call: with two and three eggs a throw the late rounds were far too
+  easy. One egg a throw, three in flight, whatever the round. The multishot
+  upgrade was left alone — it is a pickup on a six-second clock, not a
+  permanent bonus.
 - **Egg-meets-laser applies to ordinary eggs only**, the wingman's included,
   and works during a freeze too. The super egg and the rest of the heavy
   ordnance still pass through everything.
