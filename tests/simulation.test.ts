@@ -20,6 +20,7 @@ import {
   WINGMAN,
 } from '../src/config.ts'
 import type { GameState, Laser, Power, Shot, Ufo } from '../src/types.ts'
+import { createTelemetry, telemetry } from '../src/telemetry.ts'
 
 const DT = 1 / 60
 const idle: InputState = { left: false, right: false, fire: false }
@@ -969,6 +970,90 @@ intoPlay(gsnd6)
 gsnd6.freezeTimer = 0.01
 step(gsnd6, 0.1, idle, listen)
 check('the freeze is announced', heard.onFreeze === 1, `${heard.onFreeze}`)
+
+// Telemetry. It must send nothing unless both the switch and the agent URL
+// are there, never throw, and send what the dashboards expect when it does.
+{
+  type Fields = Record<string, string | number | boolean>
+  const rig = (enabled: boolean, agentSrc: string | undefined) => {
+    const sent: Fields[] = []
+    let clock = 0
+    const t = createTelemetry({
+      enabled,
+      agentSrc,
+      target: { dynatrace: { sendEvent: (f) => void sent.push(f) } },
+      now: () => clock,
+    })
+    return { t, sent, tick: (ms: number) => void (clock += ms) }
+  }
+  const play = (t: ReturnType<typeof rig>) => {
+    t.t.start()
+    t.t.gameStarted()
+    t.t.powerGained('beam')
+    t.tick(61_400)
+    t.t.gameOver(1234, 5, true)
+  }
+
+  const off = rig(false, 'https://example.invalid/agent.js')
+  play(off)
+  check('telemetry switched off sends nothing', off.sent.length === 0, `${off.sent.length}`)
+
+  const noSrc = rig(true, undefined)
+  play(noSrc)
+  check('telemetry with no agent URL sends nothing', noSrc.sent.length === 0, `${noSrc.sent.length}`)
+
+  const on = rig(true, 'https://example.invalid/agent.js')
+  play(on)
+  const over = on.sent[2]
+  check(
+    'telemetry reports a game start, the upgrade and the game over',
+    on.sent.map((f) => f['event_properties.game_event']).join() === 'game_started,power_gained,game_over',
+  )
+  check('telemetry names the upgrade', on.sent[1]?.['event_properties.power'] === 'beam')
+  check(
+    'a game over carries score, round, mute and length',
+    over?.['event_properties.score'] === 1234 &&
+      over['event_properties.round'] === 5 &&
+      over['event_properties.muted'] === true &&
+      over['event_properties.seconds'] === 61,
+    JSON.stringify(over),
+  )
+  check(
+    'every telemetry field is under event_properties.',
+    on.sent.every((f) => Object.keys(f).every((k) => k.startsWith('event_properties.'))),
+  )
+
+  // The agent tag goes into <head> only when telemetry is live.
+  const loaded = (enabled: boolean, agentSrc: string | undefined) => {
+    const added: { src: string }[] = []
+    const doc = {
+      createElement: () => ({ src: '' }),
+      head: { appendChild: (el: { src: string }) => void added.push(el) },
+    } as unknown as Document
+    createTelemetry({ enabled, agentSrc, target: { document: doc }, now: () => 0 }).start()
+    return added.map((el) => el.src).join()
+  }
+  check('the agent loads when telemetry is live', loaded(true, 'https://example.invalid/agent.js') === 'https://example.invalid/agent.js')
+  check('the agent does not load behind the kill switch', loaded(false, 'https://example.invalid/agent.js') === '')
+  check('the agent does not load without a URL', loaded(true, '') === '')
+
+  let threw = false
+  try {
+    const broken = createTelemetry({
+      enabled: true,
+      agentSrc: 'https://example.invalid/agent.js',
+      target: { dynatrace: { sendEvent: () => { throw new Error('agent broke') } } },
+      now: () => 0,
+    })
+    broken.gameStarted()
+    telemetry.start()
+    telemetry.gameStarted()
+    telemetry.gameOver(0, 1, false)
+  } catch {
+    threw = true
+  }
+  check('telemetry never throws, broken agent or no agent at all', !threw)
+}
 
 // Throwing rather than calling process.exit keeps this runnable without pulling
 // in @types/node just for one line; an uncaught error is a non-zero exit too.

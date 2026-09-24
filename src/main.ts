@@ -6,6 +6,7 @@ import { render } from './render'
 import { buildSprites } from './sprites'
 import type { GameState, Power } from './types'
 import { createSoundToggle, loadMuted } from './soundToggle'
+import { telemetry } from './telemetry'
 import { createUi } from './ui'
 import './style.css'
 
@@ -25,6 +26,7 @@ function main(): void {
   const ctx = canvas.getContext('2d')
   if (ctx === null) throw new Error('this browser has no 2D canvas context')
 
+  telemetry.start()
   const sprites = buildSprites()
   const input = createInput()
   const ui = createUi(overlay)
@@ -48,6 +50,7 @@ function main(): void {
     onPowerGained: (power) => {
       notice = { text: noticeFor(power), remaining: NOTICE_DURATION }
       sound.play('powerUp')
+      telemetry.powerGained(power.kind)
     },
     onExtraLife: () => {
       notice = { text: 'Extra life', remaining: NOTICE_DURATION }
@@ -81,11 +84,13 @@ function main(): void {
       notice = { text: 'Super egg — one shot', remaining: NOTICE_DURATION }
     },
     onGameOver: (score, round) => {
+      telemetry.gameOver(score, round, sound.muted)
       screen = 'over'
       notice = null
       ui.setBanner(null)
       ui.showGameOver(score, round, () => {
         restart(game)
+        telemetry.gameStarted()
         screen = 'running'
       })
     },
@@ -93,6 +98,7 @@ function main(): void {
 
   ui.showTitle(() => {
     restart(game)
+    telemetry.gameStarted()
     screen = 'running'
   })
 

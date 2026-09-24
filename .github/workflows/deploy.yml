@@ -29,6 +29,10 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          # Dynatrace RUM agent URL (see src/telemetry.ts). An unset repository
+          # variable builds a game that reports nothing.
+          VITE_DT_RUM_SRC: ${{ vars.DT_RUM_SRC }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

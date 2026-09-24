@@ -147,3 +147,24 @@ Added on 23 September 2026, from one request of eight items:
 - **Egg-meets-laser applies to ordinary eggs only**, the wingman's included,
   and works during a freeze too. The super egg and the rest of the heavy
   ordnance still pass through everything.
+
+Added on 24 September 2026, with Dynatrace telemetry:
+
+- **The agent is injected from `src/telemetry.ts`**, not written into
+  `index.html`, so that the kill switch and removal both stay in one file. The
+  cost is that the agent arrives slightly after the page starts loading, so
+  Dynatrace's page-load timings for the very start of the load are less
+  complete than they would be with the tag first in `<head>`. For a single-page
+  canvas game that loads once, that seemed the better trade.
+- **Events go through the new RUM experience's `dynatrace.sendEvent`**, which
+  accepts only `event_properties.*` fields. A Dynatrace application on RUM
+  Classic would need `dynatrace.sendBizEvent` instead — change it in `send()`.
+- **The `@dynatrace/rum-javascript-sdk` npm package is not used.** It is a
+  no-op-safe wrapper around the same global. The file does that itself in a
+  few lines, to avoid adding a dependency.
+- **Three events only**: start, upgrade picked, game over. A per-round event
+  was left out on purpose, because every event is billed. Mute state rides
+  along on `game_over`, so `src/soundToggle.ts` needed no changes.
+- **Nothing is live until `DT_RUM_SRC` is set.** The consent question
+  (opt-in mode or cookieless) is still open. See "Telemetry" in the README.
+
