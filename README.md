@@ -130,6 +130,68 @@ changing your mind is one click (`dtrum.disable()` to stop). A player who never
 answers sends nothing. Keep opt-in mode on: without it the agent would start
 monitoring before anyone was asked.
 
+**What the Dynatrace frontend needs.** It must be on the new RUM experience,
+since `sendEvent` doesn't exist on RUM Classic. Everything below is under
+**Experience Vitals → Overview → Web →** the frontend **→ Settings**:
+
+- **Data privacy:** "Data-collection and opt-in mode" on. Leave IP masking and
+  "Do Not Track" compliance on, as they are by default.
+- **Capture properties → Allowed API-reported properties:** add `game_event`,
+  `score`, `round`, `power`, `seconds` and `muted`. Enter the keys without the
+  `event_properties.` prefix. **Any property not on this list is dropped at
+  ingest.** The event still arrives, but with those fields empty, so every
+  query filtering on them returns nothing. Adding a key only affects events
+  sent afterwards. Add a key here whenever `telemetry.ts` starts sending a new
+  field.
+- **Beacon origins:** accept beacons only from `https://zerogvt.github.io`.
+- **Cost control:** cap or sample sessions.
+
+**Checking it works.** Open the live game with DevTools on the Network tab. The
+`…_complete.js` agent script should load from `js-cdn.dynatrace.com` with status
+200. After **Allow** and one game, requests to a path starting with `rb_` should
+go to the tenant. Those are the beacons. If the script shows
+`ERR_BLOCKED_BY_CLIENT`, the browser refused to fetch it, and Dynatrace never
+saw the request. The usual causes are an ad blocker, the browser's tracking
+protection, a DevTools request-blocking rule, or an extension or security tool
+installed by your organisation. A phone on mobile data is a quick way to rule
+your own machine out.
+
+The game events land in `user.events` within a minute or two. RUM events keep
+their time in `start_time`, not `timestamp`:
+
+```dql
+fetch user.events, from: now() - 24h
+| filter isNotNull(event_properties.game_event)
+| fields start_time, dt.rum.session.id, event_properties.game_event,
+         event_properties.score, event_properties.round, event_properties.power,
+         event_properties.seconds, event_properties.muted
+| sort start_time desc
+```
+
+How far players get:
+
+```dql
+fetch user.events, from: now() - 7d
+| filter event_properties.game_event == "game_over"
+| summarize games = count(), avg_score = avg(event_properties.score),
+            avg_seconds = avg(event_properties.seconds),
+            by: {round = event_properties.round}
+| sort round asc
+```
+
+If the first query is empty, check whether the events are arriving at all.
+`characteristics.is_api_reported` marks the `sendEvent` calls:
+
+```dql
+fetch user.events, from: now() - 24h
+| summarize events = count(), by: {characteristics.is_api_reported}
+```
+
+Rows with `true` mean the events arrive, so it's the property allow-list. No
+rows at all means the frontend is not writing to `user.events`. Sessions in
+`user.sessions` are only written after about 30 minutes of inactivity, so they
+lag behind the events.
+
 **To remove telemetry completely:**
 
 1. Delete `src/telemetry.ts`.
