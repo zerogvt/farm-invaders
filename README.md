@@ -119,9 +119,16 @@ anyone do is send data *into* this one application. Restrict the application's
 beacon origins to `https://zerogvt.github.io` and cap its sessions in Dynatrace.
 Never put a Dynatrace API token in this code.
 
-**No consent prompt is built yet.** The RUM agent sets cookies, and players
-in the EU need to agree to that first. Configure the Dynatrace application for
-opt-in mode or cookieless monitoring before setting `DT_RUM_SRC`.
+**The player has to agree first.** The Dynatrace application runs in
+**opt-in mode** ("Data-collection and opt-in mode" under the frontend's
+**Settings → Data privacy**). In that mode the agent sets no cookies and captures
+nothing until the page calls `dtrum.enable()`. When telemetry is live, a small card
+in the bottom left corner asks the player. **Allow** calls `dtrum.enable()`,
+and **No thanks** sends nothing. The answer is remembered in the browser, and the
+card then shrinks to a **Stats on / Stats off** switch in the same corner, so
+changing your mind is one click (`dtrum.disable()` to stop). A player who never
+answers sends nothing. Keep opt-in mode on: without it the agent would start
+monitoring before anyone was asked.
 
 **To remove telemetry completely:**
 

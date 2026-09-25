@@ -971,45 +971,102 @@ gsnd6.freezeTimer = 0.01
 step(gsnd6, 0.1, idle, listen)
 check('the freeze is announced', heard.onFreeze === 1, `${heard.onFreeze}`)
 
-// Telemetry. It must send nothing unless both the switch and the agent URL
-// are there, never throw, and send what the dashboards expect when it does.
+// Telemetry. It must send nothing unless the switch, the agent URL and the
+// player's consent are all there, never throw, and send what the dashboards
+// expect when it does.
 {
   type Fields = Record<string, string | number | boolean>
-  const rig = (enabled: boolean, agentSrc: string | undefined) => {
+  const SRC = 'https://example.invalid/agent.js'
+  const rig = (enabled: boolean, agentSrc: string | undefined, stored: boolean | null = null) => {
     const sent: Fields[] = []
+    const calls: string[] = []
+    const scripts: { src: string; onload: (() => void) | null }[] = []
+    let saved = stored
     let clock = 0
+    const doc = {
+      createElement: () => ({ src: '', onload: null }),
+      head: { appendChild: (el: (typeof scripts)[number]) => void scripts.push(el) },
+    } as unknown as Document
     const t = createTelemetry({
       enabled,
       agentSrc,
-      target: { dynatrace: { sendEvent: (f) => void sent.push(f) } },
+      target: {
+        document: doc,
+        dynatrace: { sendEvent: (f) => void sent.push(f) },
+        dtrum: { enable: () => void calls.push('enable'), disable: () => void calls.push('disable') },
+      },
+      store: { load: () => saved, save: (v) => void (saved = v) },
       now: () => clock,
     })
-    return { t, sent, tick: (ms: number) => void (clock += ms) }
+    return {
+      t,
+      sent,
+      calls,
+      scripts,
+      saved: () => saved,
+      agentArrives: () => scripts.forEach((s) => s.onload?.()),
+      tick: (ms: number) => void (clock += ms),
+    }
   }
-  const play = (t: ReturnType<typeof rig>) => {
-    t.t.start()
-    t.t.gameStarted()
-    t.t.powerGained('beam')
-    t.tick(61_400)
-    t.t.gameOver(1234, 5, true)
+  const play = (r: ReturnType<typeof rig>) => {
+    r.t.gameStarted()
+    r.t.powerGained('beam')
+    r.tick(61_400)
+    r.t.gameOver(1234, 5, true)
   }
 
-  const off = rig(false, 'https://example.invalid/agent.js')
+  const off = rig(false, SRC, true)
+  off.t.start()
+  off.t.setConsent(true)
   play(off)
-  check('telemetry switched off sends nothing', off.sent.length === 0, `${off.sent.length}`)
+  check(
+    'telemetry switched off loads nothing and sends nothing',
+    off.scripts.length === 0 && off.sent.length === 0 && off.calls.length === 0,
+  )
 
-  const noSrc = rig(true, undefined)
+  const noSrc = rig(true, undefined, true)
+  noSrc.t.start()
   play(noSrc)
-  check('telemetry with no agent URL sends nothing', noSrc.sent.length === 0, `${noSrc.sent.length}`)
+  check('telemetry with no agent URL loads nothing and sends nothing', noSrc.scripts.length === 0 && noSrc.sent.length === 0)
 
-  const on = rig(true, 'https://example.invalid/agent.js')
-  play(on)
-  const over = on.sent[2]
+  const unasked = rig(true, SRC)
+  unasked.t.start()
+  unasked.agentArrives()
+  play(unasked)
+  check('the agent loads before the player has answered', unasked.scripts.map((s) => s.src).join() === SRC)
+  check(
+    'nothing is enabled or sent before the player has answered',
+    unasked.t.consent() === null && unasked.calls.length === 0 && unasked.sent.length === 0,
+  )
+
+  const declined = rig(true, SRC)
+  declined.t.start()
+  declined.agentArrives()
+  declined.t.setConsent(false)
+  play(declined)
+  check(
+    'a player who declines is never enabled and sends nothing',
+    declined.calls.join() === 'disable' && declined.sent.length === 0 && declined.saved() === false,
+  )
+
+  const early = rig(true, SRC)
+  early.t.start()
+  early.t.setConsent(true)
+  check('consent given before the agent arrives waits for it', early.calls.length === 0)
+  early.agentArrives()
+  check('and is passed on when it does', early.calls.join() === 'enable' && early.saved() === true)
+
+  const returning = rig(true, SRC, true)
+  returning.t.start()
+  returning.agentArrives()
+  check('a returning player who agreed is enabled without being asked again', returning.calls.join() === 'enable')
+  play(returning)
+  const over = returning.sent[2]
   check(
     'telemetry reports a game start, the upgrade and the game over',
-    on.sent.map((f) => f['event_properties.game_event']).join() === 'game_started,power_gained,game_over',
+    returning.sent.map((f) => f['event_properties.game_event']).join() === 'game_started,power_gained,game_over',
   )
-  check('telemetry names the upgrade', on.sent[1]?.['event_properties.power'] === 'beam')
+  check('telemetry names the upgrade', returning.sent[1]?.['event_properties.power'] === 'beam')
   check(
     'a game over carries score, round, mute and length',
     over?.['event_properties.score'] === 1234 &&
@@ -1020,39 +1077,39 @@ check('the freeze is announced', heard.onFreeze === 1, `${heard.onFreeze}`)
   )
   check(
     'every telemetry field is under event_properties.',
-    on.sent.every((f) => Object.keys(f).every((k) => k.startsWith('event_properties.'))),
+    returning.sent.every((f) => Object.keys(f).every((k) => k.startsWith('event_properties.'))),
   )
 
-  // The agent tag goes into <head> only when telemetry is live.
-  const loaded = (enabled: boolean, agentSrc: string | undefined) => {
-    const added: { src: string }[] = []
-    const doc = {
-      createElement: () => ({ src: '' }),
-      head: { appendChild: (el: { src: string }) => void added.push(el) },
-    } as unknown as Document
-    createTelemetry({ enabled, agentSrc, target: { document: doc }, now: () => 0 }).start()
-    return added.map((el) => el.src).join()
-  }
-  check('the agent loads when telemetry is live', loaded(true, 'https://example.invalid/agent.js') === 'https://example.invalid/agent.js')
-  check('the agent does not load behind the kill switch', loaded(false, 'https://example.invalid/agent.js') === '')
-  check('the agent does not load without a URL', loaded(true, '') === '')
+  returning.t.setConsent(false)
+  const before = returning.sent.length
+  play(returning)
+  check(
+    'taking consent back disables the agent and stops the events',
+    returning.calls.join() === 'enable,disable' && returning.sent.length === before && returning.saved() === false,
+  )
 
   let threw = false
   try {
     const broken = createTelemetry({
       enabled: true,
-      agentSrc: 'https://example.invalid/agent.js',
-      target: { dynatrace: { sendEvent: () => { throw new Error('agent broke') } } },
+      agentSrc: SRC,
+      target: {
+        dynatrace: { sendEvent: () => { throw new Error('agent broke') } },
+        dtrum: { enable: () => { throw new Error('agent broke') } },
+      },
+      store: { load: () => true, save: () => { throw new Error('storage blocked') } },
       now: () => 0,
     })
+    broken.setConsent(true)
     broken.gameStarted()
     telemetry.start()
+    telemetry.setConsent(true)
     telemetry.gameStarted()
     telemetry.gameOver(0, 1, false)
   } catch {
     threw = true
   }
-  check('telemetry never throws, broken agent or no agent at all', !threw)
+  check('telemetry never throws: broken agent, blocked storage or no agent at all', !threw)
 }
 
 // Throwing rather than calling process.exit keeps this runnable without pulling
