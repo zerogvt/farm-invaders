@@ -17,6 +17,10 @@ export interface Rect {
  * have been caught by a gravity wave, have lost attitude control, and detonate
  * against whatever they drift into.
  *
+ * `swirling` ones have been caught by the black hole and are spiralling into
+ * it. Their position is worked out from the hole's centre each frame, so the
+ * angle and distance are all they carry.
+ *
  * There is deliberately no `dead` state: a saucer is removed from the array
  * outright once it has cleared the view or gone up.
  */
@@ -42,6 +46,12 @@ export type UfoState =
       /** Seconds until it picks a new random heading. */
       turn: number
     }
+  | {
+      kind: 'swirling'
+      /** Radians around the black hole, and pixels out from its centre. */
+      angle: number
+      radius: number
+    }
 
 export interface Ufo {
   /** Column and row within the formation, fixed for the saucer's whole life. */
@@ -56,8 +66,8 @@ export interface Ufo {
 }
 
 /**
- * Something the hen has thrown. Most of them are eggs; the upgrades put a heart,
- * a black hole and a gramophone in the same array, because they all travel up
+ * Something the hen has thrown. Most of them are eggs; the upgrades put a heart
+ * and a gramophone in the same array, because they all travel up
  * the screen under the same rules and differ only in what they do when they get
  * somewhere.
  */
@@ -72,7 +82,7 @@ export interface Shot {
   vx: number
   /** `normal` and `super` are eggs; the rest are upgrades. Everything except
    *  `normal` passes through whatever is in its way. */
-  kind: 'normal' | 'super' | 'heart' | 'blackHole' | 'gramophone'
+  kind: 'normal' | 'super' | 'heart' | 'gramophone'
   /** Seconds of music left before a gramophone finishes the fleet. Unused by
    *  every other kind. */
   fuse: number
@@ -137,7 +147,13 @@ export interface Boss {
   /** Patrol direction. */
   direction: -1 | 1
   state: UfoState
+  /** Egg marks, in the order they appear. The first `maxHitPoints - hitPoints`
+   *  are showing; the wiper reorders them, so random ones go. */
   splats: Splat[]
+  /** Seconds until the wiper next crosses the canopy. */
+  wipeTimer: number
+  /** Seconds left of the blade crossing the canopy, or 0. Only for drawing. */
+  wiping: number
 }
 
 /** Every upgrade runs on a clock, so every upgrade has a countdown to show.
@@ -199,7 +215,7 @@ export interface Blast {
   duration: number
 }
 
-export type ToyKind = 'horse' | 'duck' | 'ball' | 'teddy' | 'bicycle' | 'tractor'
+export type ToyKind = 'horse' | 'duck' | 'ball' | 'teddy' | 'bicycle' | 'tractor' | 'alien'
 
 export interface Obstacle {
   kind: ToyKind
@@ -214,6 +230,38 @@ export interface Obstacle {
   /** Tumble, once it is loose. */
   spin: number
   rotation: number
+}
+
+/** A radioactive fox, dropped by a saucer. It falls, lands, and runs for the
+ *  nearer wall. */
+export interface Fox {
+  x: number
+  y: number
+  /** Zero while it falls; its running speed once it has landed. */
+  vx: number
+  rotation: number
+  landed: boolean
+}
+
+/** A feather knocked off the hen. Purely decorative, like a blast. */
+export interface Feather {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  rotation: number
+  spin: number
+  age: number
+  /** Per-feather phase for the sway. */
+  phase: number
+}
+
+/** The black hole, open in the sky. */
+export interface Vortex {
+  x: number
+  y: number
+  /** Seconds since it opened. */
+  age: number
 }
 
 export interface Hen {
@@ -252,6 +300,12 @@ export interface GameState {
   /** Seconds left of the cow saying so, or null. */
   burpLine: number | null
   lasers: Laser[]
+  foxes: Fox[]
+  /** Seconds until a saucer next drops a fox, or null if this round has none. */
+  foxTimer: number | null
+  feathers: Feather[]
+  /** Set while a black hole is open. */
+  vortex: Vortex | null
   obstacles: Obstacle[]
   power: Power
   pickup: Pickup | null

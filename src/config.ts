@@ -227,19 +227,75 @@ export const GRAVITY = {
   bossDamage: 1,
 } as const
 
-/** The black hole: three times an ordinary egg's radius, swallowing everything
- *  inside twice that. */
+/**
+ * The black hole. A single shot: the hen fires it and it opens somewhere in the
+ * sky, not where she is standing. Every saucer on the board, and the
+ * mothership, is caught at once and spirals in, the nearer ones first.
+ */
 export const BLACK_HOLE = {
-  radius: (12 / 2) * 3,
-  /** Multiple of the radius it reaches out to. */
-  reach: 4,
-  speed: 150,
-  /** Unlike the other heavy ordnance this one is not a single shot: while it is
-   *  held, every trigger pull sends another up the screen. */
-  duration: 6,
-  /** Long next to the egg cooldown, because they climb slowly and linger — a
-   *  faster one would just stack them on top of each other. */
-  cooldown: 0.8,
+  radius: 34,
+  /** Where it may open: a band of sky clear of the HUD and of the toys. */
+  minX: 140,
+  maxX: 660,
+  minY: 150,
+  maxY: 260,
+  /** How fast a caught hull falls inwards: a fixed pull plus a share of its
+   *  distance, per second. From across the screen that is about three
+   *  seconds; from close by, about one and a half. */
+  pull: 30,
+  pullPerPixel: 0.9,
+  /** Spin, in radians per second: a base rate plus more the closer it gets, so
+   *  the last turns are the fastest. */
+  baseSpin: 1.6,
+  spinNear: 240,
+  /** Swallowed once it is this close to the centre. */
+  swallowRadius: 10,
+  /** Seconds it takes to open, and the longest it stays open. */
+  openDuration: 0.35,
+  maxDuration: 4,
+} as const
+
+/**
+ * The radioactive fox. Now and then a saucer at the front of the formation
+ * drops one instead of firing. Eggs go straight through it and nothing the hen
+ * has can stop it: it falls to the ground and runs off the nearer side, and if
+ * it touches her on the way she loses a life.
+ */
+export const FOX = {
+  width: 48,
+  height: 36,
+  /** Seconds between foxes on a fleet round, rolled afresh after each one. */
+  minInterval: 8,
+  maxInterval: 16,
+  fallSpeed: 150,
+  runSpeed: 260,
+  /** Radians per second it tumbles at on the way down. */
+  spin: 3,
+} as const
+
+/** The feathers that come off the hen when she loses a life. */
+export const FEATHERS = {
+  count: 10,
+  /** Seconds each one lasts, fading over the last part. */
+  life: 1.8,
+  /** How hard they are knocked loose, and how fast they may then fall. */
+  burst: 150,
+  gravity: 120,
+  maxFall: 55,
+  /** Side-to-side sway as they drift down, in pixels either way. */
+  sway: 7,
+} as const
+
+/**
+ * The mothership's windscreen wiper. Every so often it clears about a fifth of
+ * the eggs off its canopy, and each egg it clears is a hit point back.
+ */
+export const WIPER = {
+  minInterval: 5,
+  maxInterval: 10,
+  fraction: 0.2,
+  /** Seconds the blade takes to cross the canopy. */
+  duration: 0.7,
 } as const
 
 /**

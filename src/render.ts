@@ -5,6 +5,8 @@ import {
   BURP,
   COW,
   DESERT,
+  FEATHERS,
+  FOX,
   FREEZE,
   GRAMOPHONE,
   GRAVITY,
@@ -18,9 +20,10 @@ import {
   TAUNT,
   UFO,
   VIEW,
+  WIPER,
 } from './config'
-import { bubbleCentre, HEN_TOP, shotSize } from './game'
-import { rowVariant, type SpriteSet } from './sprites'
+import { bubbleCentre, featherSway, HEN_TOP, shotSize } from './game'
+import { FEATHER_SIZE, rowVariant, type SpriteSet } from './sprites'
 import type { GameState } from './types'
 
 /** Draws one frame. `time` is seconds since the game started and drives every
@@ -29,12 +32,14 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawSpace(ctx, time)
   drawCow(ctx, state, sprites)
   drawObstacles(ctx, state, sprites)
+  drawVortex(ctx, state, sprites, time)
   drawUfos(ctx, state, sprites, time)
   drawBoss(ctx, state, sprites, time)
   drawSpeech(ctx, state)
   drawPickup(ctx, state, sprites, time)
   drawWaves(ctx, state)
   drawProjectiles(ctx, state, sprites, time)
+  drawFoxes(ctx, state, sprites, time)
   drawBubbles(ctx, state)
   // The wash goes over everything time has stopped, and under the hen: she is
   // the only warm thing left on the board, which is the whole point of it.
@@ -43,6 +48,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawWingman(ctx, state, sprites, time)
   drawHen(ctx, state, sprites, time)
   drawShield(ctx, state, time)
+  drawFeathers(ctx, state, sprites)
   drawCowSpeech(ctx, state)
   drawBlasts(ctx, state)
   drawParley(ctx, state)
@@ -66,7 +72,8 @@ function drawCow(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
 /** The cow's own lines: a burp when it lets one go, and a moo for every round
  *  cleared. The abduction line is the scene's, drawn there. */
 function drawCowSpeech(ctx: CanvasRenderingContext2D, state: GameState): void {
-  const centreX = COW.x + COW.width * 0.3
+  // Over its head, which is at the right-hand end now that it faces the field.
+  const centreX = COW.x + COW.width * 0.7
   const top = GROUND - COW.height
   if (state.burpLine !== null) {
     drawBubble(ctx, centreX, top - 2, BURP.line, 120)
@@ -340,6 +347,19 @@ function drawUfos(ctx: CanvasRenderingContext2D, state: GameState, sprites: Spri
       continue
     }
 
+    // Falling into the black hole: turning with its orbit, and shrinking as it
+    // nears the middle so it reads as going in rather than stopping on top.
+    if (ufo.state.kind === 'swirling') {
+      ctx.save()
+      ctx.translate(centreX, centreY)
+      ctx.rotate(ufo.state.angle + Math.PI / 2)
+      const scale = swirlScale(ufo.state.radius)
+      ctx.scale(scale, scale)
+      ctx.drawImage(clean, -UFO.width / 2, -UFO.height / 2, UFO.width, UFO.height)
+      ctx.restore()
+      continue
+    }
+
     // Caught by a gravity wave: spinning on its own axis with a violet halo,
     // which is the only cue that it is about to take something else with it.
     if (ufo.state.kind === 'wobbling') {
@@ -377,6 +397,62 @@ function drawUfos(ctx: CanvasRenderingContext2D, state: GameState, sprites: Spri
     ctx.drawImage(hull, -UFO.width / 2, -UFO.height / 2, UFO.width, UFO.height)
     ctx.restore()
   }
+}
+
+/** How big a hull falling into the black hole is drawn: full size until it is
+ *  close, then down to a sliver at the swallow point. */
+function swirlScale(radius: number): number {
+  return Math.max(0.15, Math.min(1, radius / 110))
+}
+
+/**
+ * The black hole, open in the sky: an accretion disc with spiral arms wound
+ * round it, drawn under the hulls so they visibly go into it. It opens and
+ * closes by scaling, so it never pops in or out.
+ */
+function drawVortex(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  const vortex = state.vortex
+  if (vortex === null) return
+  const opening = ease(clamp01(vortex.age / BLACK_HOLE.openDuration))
+  const closing = ease(clamp01((BLACK_HOLE.maxDuration - vortex.age) / BLACK_HOLE.openDuration))
+  const size = Math.min(opening, closing)
+  const r = BLACK_HOLE.radius * size
+
+  ctx.save()
+  ctx.translate(vortex.x, vortex.y)
+
+  ctx.globalCompositeOperation = 'lighter'
+  const halo = ctx.createRadialGradient(0, 0, r * 0.8, 0, 0, r * 4)
+  halo.addColorStop(0, 'rgba(160,96,255,0.4)')
+  halo.addColorStop(1, 'rgba(90,40,200,0)')
+  ctx.fillStyle = halo
+  ctx.beginPath()
+  ctx.arc(0, 0, r * 4, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Spiral arms, turning faster than anything caught in them.
+  ctx.lineWidth = 3
+  for (let arm = 0; arm < 4; arm++) {
+    ctx.strokeStyle = arm % 2 === 0 ? 'rgba(255,190,110,0.45)' : 'rgba(190,140,255,0.45)'
+    ctx.beginPath()
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40
+      const angle = -time * 3 + arm * (Math.PI / 2) + t * Math.PI * 2.2
+      const reach = r * (1 + t * 3)
+      const x = Math.cos(angle) * reach
+      const y = Math.sin(angle) * reach
+      if (i === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.stroke()
+  }
+  ctx.restore()
+
+  ctx.save()
+  ctx.translate(vortex.x, vortex.y)
+  ctx.rotate(time * 4)
+  ctx.drawImage(sprites.blackHole, -r, -r, r * 2, r * 2)
+  ctx.restore()
 }
 
 /**
@@ -495,6 +571,10 @@ function drawBoss(ctx: CanvasRenderingContext2D, state: GameState, sprites: Spri
         ? Math.sin(time * 26) * 0.08
         : direction * SPLAT.bankAngle * Math.min(1, speed / SPLAT.fleeMaxSpeed),
     )
+  } else if (boss.state.kind === 'swirling') {
+    ctx.rotate(boss.state.angle + Math.PI / 2)
+    const scale = swirlScale(boss.state.radius * 0.6)
+    ctx.scale(scale, scale)
   } else {
     ctx.translate(0, Math.sin(time * 2.2) * 3)
   }
@@ -516,7 +596,43 @@ function drawBoss(ctx: CanvasRenderingContext2D, state: GameState, sprites: Spri
     ctx.restore()
   }
 
+  if (boss.wiping > 0) drawWiper(ctx, 1 - boss.wiping / WIPER.duration)
+
   ctx.restore()
+}
+
+/** The mothership's wiper blade, one sweep across the canopy, pivoting from
+ *  below it. Drawn in the hull's own frame, centred on the hull. */
+function drawWiper(ctx: CanvasRenderingContext2D, progress: number): void {
+  const pivotY = BOSS.height * 0.04
+  const length = BOSS.width * 0.3
+  const angle = -Math.PI / 2 + (ease(progress) * 2 - 1) * 1.15
+
+  ctx.save()
+  ctx.translate(0, pivotY)
+  ctx.rotate(angle)
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = '#3a4058'
+  ctx.lineWidth = 3
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.lineTo(length, 0)
+  ctx.stroke()
+  ctx.strokeStyle = '#15182a'
+  ctx.lineWidth = 5
+  ctx.beginPath()
+  ctx.moveTo(length * 0.35, 0)
+  ctx.lineTo(length, 0)
+  ctx.stroke()
+  ctx.restore()
+  ellipse(ctx, 0, pivotY, 4, '#5b6280')
+}
+
+function ellipse(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fill: string): void {
+  ctx.fillStyle = fill
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.fill()
 }
 
 /** An engine plume trailing a hull that is leaving under protest. Drawn in the
@@ -596,19 +712,6 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, state: GameState, sprite
       glow(ctx, cx, cy, width * (0.8 + urgency * 0.5), `rgba(255,214,120,${0.3 + urgency * 0.4})`, 'rgba(255,170,60,0)')
       drawNotes(ctx, cx, cy, time)
     }
-    if (shot.kind === 'blackHole') {
-      // A faint ring at the swallow reach, so what it is about to take is
-      // legible before it takes it.
-      const reach = BLACK_HOLE.radius * BLACK_HOLE.reach
-      ctx.save()
-      ctx.globalCompositeOperation = 'lighter'
-      ctx.strokeStyle = 'rgba(168,104,255,0.35)'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc(cx, cy, reach, 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.restore()
-    }
 
     ctx.save()
     ctx.translate(cx, cy)
@@ -634,12 +737,41 @@ function spriteFor(sprites: SpriteSet, kind: GameState['shots'][number]['kind'])
       return sprites.superEgg
     case 'heart':
       return sprites.heart
-    case 'blackHole':
-      return sprites.blackHole
     case 'gramophone':
       return sprites.gramophone
     case 'normal':
       return sprites.egg
+  }
+}
+
+/** Radioactive foxes, in a sickly green glow that pulses so they read as
+ *  dangerous at a glance, and apart from anything the hen can shoot. */
+function drawFoxes(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  for (const fox of state.foxes) {
+    const cx = fox.x + FOX.width / 2
+    const cy = fox.y + FOX.height / 2
+    const pulse = 0.4 + Math.sin(time * 9) * 0.12
+    glow(ctx, cx, cy, FOX.width * 1.1, `rgba(150,255,90,${pulse})`, 'rgba(90,220,40,0)')
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.rotate(fox.rotation)
+    // The sprite faces left; a fox running right is turned round to face it.
+    if (fox.vx > 0) ctx.scale(-1, 1)
+    ctx.drawImage(sprites.fox, -FOX.width / 2, -FOX.height / 2, FOX.width, FOX.height)
+    ctx.restore()
+  }
+}
+
+/** Feathers off the hen, fading out over the last third of their life. */
+function drawFeathers(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
+  for (const feather of state.feathers) {
+    const fade = clamp01((FEATHERS.life - feather.age) / (FEATHERS.life / 3))
+    ctx.save()
+    ctx.globalAlpha = fade
+    ctx.translate(feather.x + featherSway(feather), feather.y)
+    ctx.rotate(feather.rotation)
+    ctx.drawImage(sprites.feather, -FEATHER_SIZE.width / 2, -FEATHER_SIZE.height / 2, FEATHER_SIZE.width, FEATHER_SIZE.height)
+    ctx.restore()
   }
 }
 

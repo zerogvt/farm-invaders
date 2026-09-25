@@ -1,7 +1,7 @@
 import { OBSTACLE, VIEW } from './config'
 import type { Obstacle, ToyKind } from './types'
 
-const TOY_KINDS: ToyKind[] = ['horse', 'duck', 'ball', 'teddy', 'bicycle', 'tractor']
+const TOY_KINDS: ToyKind[] = ['horse', 'duck', 'ball', 'teddy', 'bicycle', 'tractor', 'alien']
 
 /**
  * Scatters a fresh set of toys for a round.
@@ -37,7 +37,7 @@ export function placeObstacles(): Obstacle[] {
 }
 
 /** Fisher-Yates over the toy kinds, so a round shows four different toys out
- *  of the six, in a different arrangement each time. */
+ *  of the seven, in a different arrangement each time. */
 function shuffledKinds(count: number): ToyKind[] {
   const pool = [...TOY_KINDS]
   for (let i = pool.length - 1; i > 0; i--) {

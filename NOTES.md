@@ -194,3 +194,34 @@ opt-in mode the same day):
   "Stats off" with `disable()` for a stored no. The click path itself is
   covered by the tests, not a browser.
 
+Added on 25 September 2026, from one request of six items:
+
+- **A fox costs one life**, the same as a laser (Vasilis chose that over
+  instant game over). It passes through toys and the wingman, eggs go
+  through it, and the black hole leaves it alone. The shield and post-hit
+  invulnerability are the only protection. Frozen foxes cannot hurt, like
+  frozen lasers. They come only on fleet rounds, one every 8–16s (`FOX` in
+  `src/config.ts`), from round 1. Tests switch them off in `newGame()` and
+  `enterRound()`, as they do Einstein, because a random lost life would break
+  every check that counts lives.
+- **After landing, the fox runs for the nearer wall** rather than stopping
+  where it lands. That was my addition. It makes it a ground hazard for a
+  moment, not just a slower laser.
+- **The wiper heals** (Vasilis's choice): each cleared egg is a hit point
+  back. "About 20%" is `Math.round(showing * 0.2)`, so it does nothing below
+  three eggs on the canopy, and the round-2 mothership, with two hit points,
+  never wipes. It runs every 5–10s (`WIPER`).
+- **The black hole opens at a random spot** in a band of sky (`BLACK_HOLE`)
+  and swallows the mothership outright (both Vasilis's choices). What is
+  still falling in when it times out at four seconds is swallowed as it
+  closes, so a round can never get stuck on a hull circling nothing. It now
+  takes the Rambo egg's twelve-second hold, like the other one-shots.
+- **The alien doll is a floor toy** (Vasilis's choice), so each round now draws
+  four of seven kinds.
+- **The cow is mirrored as a whole** in its painter, so its shapes are still
+  laid out facing left. The burp mouth and the speech bubble moved to the
+  right-hand end with it.
+- **The chicken sound replaces the old squawk** on the same `hurt` effect. Like
+  the theme, it has not been heard by anyone yet; the three new effects (`fox`,
+  `blackHole`, `wipe`) have not either.
+

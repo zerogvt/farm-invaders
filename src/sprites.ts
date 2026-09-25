@@ -1,4 +1,4 @@
-import { BLACK_HOLE, BOSS, COW, EGG, FREEZE, GRAMOPHONE, HEART, HEN, LASER, OBSTACLE, POWER, UFO } from './config'
+import { BLACK_HOLE, BOSS, COW, EGG, FOX, FREEZE, GRAMOPHONE, HEART, HEN, LASER, OBSTACLE, POWER, UFO } from './config'
 import type { ToyKind } from './types'
 
 /**
@@ -33,6 +33,10 @@ const COMB = '#e8455f'
 const BEAK = '#f2a03c'
 const DARK = '#22283c'
 
+/** A loose feather's drawn size. Exported so the renderer draws it at the size
+ *  it was painted. */
+export const FEATHER_SIZE = { width: 9, height: 16 } as const
+
 /** One hull colour per formation row, so the ranks read apart at a glance. */
 const HULL = ['#8fb8f0', '#7fd4c1', '#c6a6e8', '#f2b6d4', '#f5cf87', '#a8dd90']
 
@@ -55,6 +59,8 @@ export interface SpriteSet {
   gramophone: HTMLCanvasElement
   einstein: HTMLCanvasElement
   cow: HTMLCanvasElement
+  fox: HTMLCanvasElement
+  feather: HTMLCanvasElement
   toys: Record<ToyKind, HTMLCanvasElement>
 }
 
@@ -83,6 +89,8 @@ export function buildSprites(): SpriteSet {
     gramophone: sprite(GRAMOPHONE.width, GRAMOPHONE.height, drawGramophone),
     einstein: sprite(FREEZE.width, FREEZE.height, drawEinstein),
     cow: sprite(COW.width, COW.height, drawCow),
+    fox: sprite(FOX.width, FOX.height, drawFox),
+    feather: sprite(FEATHER_SIZE.width, FEATHER_SIZE.height, drawFeather),
     toys: {
       horse: sprite(OBSTACLE.width, OBSTACLE.height, drawHorse),
       duck: sprite(OBSTACLE.width, OBSTACLE.height, drawDuck),
@@ -90,6 +98,7 @@ export function buildSprites(): SpriteSet {
       teddy: sprite(OBSTACLE.width, OBSTACLE.height, drawTeddy),
       bicycle: sprite(OBSTACLE.width, OBSTACLE.height, drawBicycle),
       tractor: sprite(OBSTACLE.width, OBSTACLE.height, drawTractor),
+      alien: sprite(OBSTACLE.width, OBSTACLE.height, drawAlienDoll),
     },
   }
 }
@@ -792,11 +801,18 @@ function drawEinstein(ctx: CanvasRenderingContext2D, w: number, h: number): void
 }
 
 /**
- * The cow. Side on, facing left, because the whole sprite exists to be pointed
- * at: the saucers open by demanding it and close by taking it, and a
- * three-quarter view of a cow at seventy pixels is a brown smudge.
+ * The cow. Side on, because the whole sprite exists to be pointed at: the
+ * saucers open by demanding it and close by taking it, and a three-quarter view
+ * of a cow at seventy pixels is a brown smudge.
+ *
+ * It faces right, into the field it is standing at the left of. The shapes
+ * below are laid out facing left and mirrored as a whole, which keeps every
+ * coordinate as it was drawn.
  */
 function drawCow(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  ctx.translate(w, 0)
+  ctx.scale(-1, 1)
+
   const hide = '#fbf7ef'
   const patch = '#33323c'
   const muzzle = '#f0a9b4'
@@ -1142,4 +1158,153 @@ function drawTractor(ctx: CanvasRenderingContext2D, w: number, h: number): void 
     ctx.arc(w * 0.7 + Math.cos(a) * h * 0.3, h * 0.7 + Math.sin(a) * h * 0.3, h * 0.035, 0, Math.PI * 2)
     ctx.fill()
   }
+}
+
+/**
+ * A plush alien doll: a big green head on a small body, two black almond eyes
+ * and a pair of bobbled antennae. The eyes carry it; without them it is a lime.
+ */
+function drawAlienDoll(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const skin = '#8fdc6a'
+  const skinDark = '#5fae45'
+  const suit = '#7a5fd1'
+
+  // Antennae first, so the head covers their roots.
+  ctx.strokeStyle = skinDark
+  ctx.lineWidth = w * 0.03
+  ctx.beginPath()
+  ctx.moveTo(w * 0.4, h * 0.2)
+  ctx.quadraticCurveTo(w * 0.33, h * 0.06, w * 0.28, h * 0.05)
+  ctx.moveTo(w * 0.6, h * 0.2)
+  ctx.quadraticCurveTo(w * 0.67, h * 0.06, w * 0.72, h * 0.05)
+  ctx.stroke()
+  ellipse(ctx, w * 0.28, h * 0.05, w * 0.04, w * 0.04, '#ffd24a')
+  ellipse(ctx, w * 0.72, h * 0.05, w * 0.04, w * 0.04, '#ffd24a')
+
+  // A little suit with stubby arms and feet.
+  ellipse(ctx, w * 0.3, h * 0.72, w * 0.08, h * 0.08, skin)
+  ellipse(ctx, w * 0.7, h * 0.72, w * 0.08, h * 0.08, skin)
+  ctx.fillStyle = suit
+  ctx.beginPath()
+  ctx.roundRect(w * 0.34, h * 0.56, w * 0.32, h * 0.34, w * 0.1)
+  ctx.fill()
+  ellipse(ctx, w * 0.41, h * 0.93, w * 0.08, h * 0.06, skinDark)
+  ellipse(ctx, w * 0.59, h * 0.93, w * 0.08, h * 0.06, skinDark)
+  // A star on the chest, because it is a toy and toys have one.
+  ellipse(ctx, w * 0.5, h * 0.7, w * 0.04, w * 0.04, '#ffd24a')
+
+  // Head: wide at the top, narrowing to the chin.
+  ctx.fillStyle = skin
+  ctx.beginPath()
+  ctx.moveTo(w * 0.5, h * 0.62)
+  ctx.bezierCurveTo(w * 0.2, h * 0.58, w * 0.18, h * 0.16, w * 0.5, h * 0.15)
+  ctx.bezierCurveTo(w * 0.82, h * 0.16, w * 0.8, h * 0.58, w * 0.5, h * 0.62)
+  ctx.fill()
+
+  // Eyes, slanted in towards the nose, each with a glint.
+  for (const side of [-1, 1]) {
+    ctx.save()
+    ctx.translate(w * (0.5 + side * 0.12), h * 0.38)
+    ctx.rotate(side * 0.5)
+    ellipse(ctx, 0, 0, w * 0.075, h * 0.1, DARK)
+    ellipse(ctx, -w * 0.02, -h * 0.03, w * 0.02, h * 0.025, 'rgba(255,255,255,0.85)')
+    ctx.restore()
+  }
+
+  // A small smile.
+  ctx.strokeStyle = skinDark
+  ctx.lineWidth = w * 0.02
+  ctx.beginPath()
+  ctx.arc(w * 0.5, h * 0.5, w * 0.05, 0.2 * Math.PI, 0.8 * Math.PI)
+  ctx.stroke()
+}
+
+/**
+ * The radioactive fox: an orange fox side on, facing left, with a white tail
+ * tip and a radiation trefoil on its flank. The renderer adds the green glow.
+ * It is drawn standing; falling, it is only rotated.
+ */
+function drawFox(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const fur = '#f07a2a'
+  const furDark = '#b8531a'
+  const cream = '#fdf1dc'
+
+  // Legs, dark socks and all.
+  ctx.strokeStyle = furDark
+  ctx.lineWidth = w * 0.06
+  ctx.beginPath()
+  for (const x of [0.3, 0.4, 0.62, 0.72]) {
+    ctx.moveTo(w * x, h * 0.62)
+    ctx.lineTo(w * x, h * 0.95)
+  }
+  ctx.stroke()
+
+  // Brush of a tail, up and out behind, with its white tip.
+  ctx.fillStyle = fur
+  ctx.beginPath()
+  ctx.moveTo(w * 0.78, h * 0.5)
+  ctx.quadraticCurveTo(w * 1.0, h * 0.42, w * 0.98, h * 0.12)
+  ctx.quadraticCurveTo(w * 0.84, h * 0.3, w * 0.74, h * 0.38)
+  ctx.closePath()
+  ctx.fill()
+  ellipse(ctx, w * 0.97, h * 0.15, w * 0.04, h * 0.08, cream)
+
+  // Body.
+  ellipse(ctx, w * 0.52, h * 0.52, w * 0.28, h * 0.2, fur)
+  ellipse(ctx, w * 0.5, h * 0.62, w * 0.18, h * 0.08, cream)
+
+  // Head: a wedge to the snout, two tall ears, a cream cheek.
+  ctx.fillStyle = fur
+  ctx.beginPath()
+  ctx.moveTo(w * 0.34, h * 0.3)
+  ctx.lineTo(w * 0.02, h * 0.46)
+  ctx.lineTo(w * 0.3, h * 0.6)
+  ctx.closePath()
+  ctx.fill()
+  ellipse(ctx, w * 0.27, h * 0.4, w * 0.12, h * 0.16, fur)
+  for (const x of [0.2, 0.32]) {
+    ctx.fillStyle = furDark
+    ctx.beginPath()
+    ctx.moveTo(w * (x - 0.05), h * 0.3)
+    ctx.lineTo(w * x, h * 0.04)
+    ctx.lineTo(w * (x + 0.05), h * 0.3)
+    ctx.closePath()
+    ctx.fill()
+  }
+  ellipse(ctx, w * 0.18, h * 0.5, w * 0.08, h * 0.07, cream)
+  ellipse(ctx, w * 0.03, h * 0.46, w * 0.025, h * 0.035, DARK)
+  ellipse(ctx, w * 0.22, h * 0.36, w * 0.022, h * 0.035, DARK)
+
+  // The trefoil: three black blades round a hub, on a yellow disc.
+  const cx = w * 0.56
+  const cy = h * 0.46
+  const r = h * 0.16
+  ellipse(ctx, cx, cy, r, r, '#ffe14a')
+  ctx.fillStyle = DARK
+  for (let i = 0; i < 3; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI * 2) / 3
+    ctx.beginPath()
+    ctx.moveTo(cx, cy)
+    ctx.arc(cx, cy, r * 0.88, a - Math.PI / 6, a + Math.PI / 6)
+    ctx.closePath()
+    ctx.fill()
+  }
+  ellipse(ctx, cx, cy, r * 0.26, r * 0.26, '#ffe14a')
+  ellipse(ctx, cx, cy, r * 0.16, r * 0.16, DARK)
+}
+
+/** One of the hen's feathers: a quill with a soft vane either side. */
+function drawFeather(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  ctx.fillStyle = FEATHER
+  ctx.beginPath()
+  ctx.moveTo(w * 0.5, 0)
+  ctx.bezierCurveTo(w * 1.05, h * 0.25, w * 0.9, h * 0.7, w * 0.5, h * 0.85)
+  ctx.bezierCurveTo(w * 0.1, h * 0.7, w * -0.05, h * 0.25, w * 0.5, 0)
+  ctx.fill()
+  ctx.strokeStyle = FEATHER_SHADE
+  ctx.lineWidth = w * 0.12
+  ctx.beginPath()
+  ctx.moveTo(w * 0.5, h * 0.05)
+  ctx.lineTo(w * 0.5, h)
+  ctx.stroke()
 }

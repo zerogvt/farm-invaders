@@ -75,6 +75,9 @@ function main(): void {
     onHeartBurst: () => sound.play('heart'),
     onGravityWave: () => sound.play('wave'),
     onFreeze: () => sound.play('freeze'),
+    onFoxThrown: () => sound.play('fox'),
+    onBlackHole: () => sound.play('blackHole'),
+    onBossWipe: () => sound.play('wipe'),
     onToyKicked: () => sound.play('bonk'),
     onHenHurt: () => sound.play('hurt'),
     onRoundCleared: () => sound.play('moo'),
@@ -180,7 +183,7 @@ function noticeFor(power: Power): string {
     case 'gravity':
       return 'Gravity waves'
     case 'blackHole':
-      return 'Black hole'
+      return 'Black hole — one shot'
     case 'gramophone':
       return 'Gramophone — one shot'
     case 'burp':
