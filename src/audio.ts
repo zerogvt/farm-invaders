@@ -30,6 +30,9 @@ export type Sfx =
   | 'freeze'
   | 'heart'
   | 'gramophone'
+  | 'fox'
+  | 'blackHole'
+  | 'wipe'
 
 export interface Sound {
   /** Starts the audio context. Must be called from a user gesture. */
@@ -228,6 +231,33 @@ function moo(v: Voice, length: number, peak: number): void {
   osc.stop(v.t + length + 0.05)
 }
 
+/**
+ * One cluck: a buzzy sawtooth pushed through a nasal formant that closes as it
+ * goes, with a breath of noise on the attack. The pitch jumps up at the start
+ * and falls away, which is most of what makes it a hen rather than a duck.
+ */
+function cluck(v: Voice, start: number, length: number, from: number, to: number, peak: number): void {
+  const at = { ...v, t: v.t + start }
+  const formant = at.ctx.createBiquadFilter()
+  formant.type = 'bandpass'
+  formant.Q.value = 3
+  formant.frequency.setValueAtTime(1700, at.t)
+  formant.frequency.exponentialRampToValueAtTime(900, at.t + length)
+  formant.connect(envelope(at, peak, length, 0.008))
+
+  const osc = at.ctx.createOscillator()
+  osc.type = 'sawtooth'
+  osc.frequency.setValueAtTime(from * 0.8, at.t)
+  osc.frequency.exponentialRampToValueAtTime(from * 1.25, at.t + Math.min(0.03, length * 0.3))
+  osc.frequency.exponentialRampToValueAtTime(to, at.t + length)
+  osc.connect(formant)
+  if (length > 0.2) vibrato(at, osc, 24, 30, length)
+  osc.start(at.t)
+  osc.stop(at.t + length + 0.05)
+
+  hiss(at, 'bandpass', 3000, 1500, Math.min(0.05, length), envelope(at, peak * 0.4, Math.min(0.06, length)), 1.5)
+}
+
 /** Notes as MIDI numbers, so a tune can be written as a list of small integers. */
 function hz(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12)
@@ -332,10 +362,11 @@ export const EFFECTS: Record<Sfx, (v: Voice) => void> = {
   // The abduction: "Moooooooooo", fading as the cow goes up.
   longMoo: (v) => moo(v, 2.1, 0.55),
 
-  // A squawk as the hen loses a life.
+  // The hen losing a life: "buk-buk-BAWK!", two short clucks and a squawk.
   hurt: (v) => {
-    const osc = tone(v, 'square', 820, 240, 0.38, envelope(v, 0.2, 0.4))
-    vibrato(v, osc, 28, 60, 0.38)
+    cluck(v, 0, 0.07, 560, 470, 0.35)
+    cluck(v, 0.11, 0.07, 580, 480, 0.35)
+    cluck(v, 0.24, 0.34, 760, 520, 0.5)
   },
 
   powerUp: (v) => {
@@ -385,6 +416,36 @@ export const EFFECTS: Record<Sfx, (v: Voice) => void> = {
     for (const note of [72, 76, 79]) {
       tone(v, 'triangle', hz(note), hz(note), 0.9, envelope(v, 0.14, 0.95, 0.12))
     }
+  },
+
+  // A radioactive fox dropped: a burst of Geiger clicks and a short yip.
+  fox: (v) => {
+    for (let i = 0; i < 14; i++) {
+      const click = { ...v, t: v.t + Math.random() * 0.45 }
+      hiss(click, 'highpass', 4000, 3500, 0.006, envelope(click, 0.5, 0.008, 0.001), 0.8)
+    }
+    const yip = tone(v, 'sawtooth', 900, 600, 0.13, envelope(v, 0.16, 0.15, 0.01))
+    vibrato(v, yip, 30, 80, 0.13)
+  },
+
+  // The black hole opening: a deep swirling fall that takes a couple of
+  // seconds to bottom out, for as long as the fleet takes to go in.
+  blackHole: (v) => {
+    const length = 2.2
+    const low = tone(v, 'sine', 110, 26, length, envelope(v, 0.8, length, 0.08))
+    vibrato(v, low, 3, 12, length)
+    hiss(v, 'lowpass', 1400, 70, length, envelope(v, 0.45, length, 0.1), 3)
+    const whirl = tone(v, 'triangle', 420, 90, length * 0.8, envelope(v, 0.12, length * 0.8, 0.05))
+    vibrato(v, whirl, 7, 60, length * 0.8)
+  },
+
+  // The mothership's wiper: a rubber squeak across the glass and back.
+  wipe: (v) => {
+    const one = tone(v, 'sine', 1500, 2300, 0.2, envelope(v, 0.12, 0.22, 0.02))
+    vibrato(v, one, 40, 70, 0.2)
+    const back = { ...v, t: v.t + 0.3 }
+    const two = tone(back, 'sine', 2200, 1500, 0.2, envelope(back, 0.1, 0.22, 0.02))
+    vibrato(back, two, 40, 70, 0.2)
   },
 
   // The gramophone plays its three seconds: a scratchy little waltz.

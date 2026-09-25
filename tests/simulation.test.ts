@@ -9,6 +9,8 @@ import {
   COW,
   DESERT,
   EGG,
+  FEATHERS,
+  FOX,
   FREEZE,
   HEN,
   LASER,
@@ -18,6 +20,7 @@ import {
   UFO,
   VIEW,
   WINGMAN,
+  WIPER,
 } from '../src/config.ts'
 import type { GameState, Laser, Power, Shot, Ufo } from '../src/types.ts'
 import { createTelemetry, telemetry } from '../src/telemetry.ts'
@@ -32,14 +35,16 @@ function step(game: GameState, seconds: number, input: InputState, events = {}) 
 }
 
 /**
- * A game with Einstein's visit switched off. Almost every check below measures
- * how far the board gets in a given number of seconds, and a random five-second
- * stop in the middle of one measures nothing at all. The freeze has tests of its
- * own, which turn it on deliberately.
+ * A game with Einstein's visit and the radioactive foxes switched off. Almost
+ * every check below measures how far the board gets in a given number of
+ * seconds, and a random five-second stop in the middle of one measures nothing
+ * at all; a fox costing the hen a life would break every check that counts
+ * lives. Both have tests of their own, which turn them on deliberately.
  */
 function newGame(): GameState {
   const game = createGame()
   game.freezeTimer = null
+  game.foxTimer = null
   return game
 }
 
@@ -52,10 +57,12 @@ function intoPlay(game: GameState): void {
   while (game.phase.kind !== 'playing') update(game, DT, idle)
 }
 
-/** startRound re-rolls the visit, so jumping to a round needs the same guard. */
+/** startRound re-rolls the visit and the foxes, so jumping to a round needs
+ *  the same guard. */
 function enterRound(game: GameState, round: number): void {
   startRound(game, round)
   game.freezeTimer = null
+  game.foxTimer = null
 }
 
 function egg(x: number, y: number): Shot {
@@ -536,29 +543,93 @@ step(gg, 4, idle)
 check('and tumbling saucers come off the board', gg.ufos.length < fleetBefore, `${fleetBefore} -> ${gg.ufos.length}`)
 check('which scores', gg.score > 0, `score ${gg.score}`)
 
-// 25. The black hole: three egg-radii across, swallowing everything at twice that.
-check('the black hole is three egg radii', BLACK_HOLE.radius === (EGG.width / 2) * 3, `${BLACK_HOLE.radius}`)
-check('and swallows out to four times that', BLACK_HOLE.reach === 4)
-
+// 25. The black hole: one shot, opening at a random spot in the sky, and
+//     everything on the board spirals into it.
 const gbh = newGame()
 gbh.hen.lives = 99
 intoPlay(gbh)
-grant(gbh, { kind: 'blackHole', remaining: 6, duration: 6 })
+gbh.desertions = []
+const fleetBeforeHole = gbh.ufos.length
+grant(gbh, { kind: 'blackHole', remaining: 12, duration: 12 })
 gbh.shotCooldown = 0
-update(gbh, DT, firing)
-check('firing sends a black hole up', gbh.shots.length === 1 && gbh.shots[0]!.kind === 'blackHole')
-check('and the upgrade is not spent on it', gbh.power.kind === 'blackHole', gbh.power.kind)
-gbh.shotCooldown = 0
-update(gbh, DT, firing)
+let holesOpened = 0
+update(gbh, DT, firing, { onBlackHole: () => holesOpened++ })
+check('firing opens a black hole', gbh.vortex !== null && holesOpened === 1, `${holesOpened}`)
+check('and nothing is thrown to get it there', gbh.shots.length === 0, `${gbh.shots.length}`)
+check('it is a single shot', gbh.power.kind === 'none', gbh.power.kind)
 check(
-  'so it can be fired again',
-  gbh.shots.filter((shot) => shot.kind === 'blackHole').length === 2,
-  `${gbh.shots.filter((shot) => shot.kind === 'blackHole').length} in flight`,
+  'it opens up in the sky',
+  gbh.vortex !== null &&
+    gbh.vortex.x >= BLACK_HOLE.minX &&
+    gbh.vortex.x <= BLACK_HOLE.maxX &&
+    gbh.vortex.y >= BLACK_HOLE.minY &&
+    gbh.vortex.y <= BLACK_HOLE.maxY,
 )
-const beforeHole = gbh.ufos.length
-step(gbh, 3.5, idle)
-check('it swallows what it passes', gbh.ufos.length < beforeHole, `${beforeHole} -> ${gbh.ufos.length}`)
-check('and what it swallows is scored', gbh.score > 0, `score ${gbh.score}`)
+check('and catches every saucer at once', gbh.ufos.every((ufo) => ufo.state.kind === 'swirling'))
+check('and the lasers in the air', gbh.lasers.length === 0)
+check('which no longer fire', (() => {
+  step(gbh, 0.5, idle)
+  return gbh.lasers.length === 0
+})())
+let closest = Infinity
+let farthest = 0
+for (const ufo of gbh.ufos) {
+  if (ufo.state.kind !== 'swirling') continue
+  closest = Math.min(closest, ufo.state.radius)
+  farthest = Math.max(farthest, ufo.state.radius)
+}
+check('they spiral in, the nearer ones first', gbh.ufos.length < fleetBeforeHole || closest < farthest)
+step(gbh, BLACK_HOLE.maxDuration, idle)
+check('and the whole fleet is swallowed', gbh.ufos.length === 0 || gbh.phase.kind !== 'playing', `${gbh.ufos.length} left`)
+check('and scored', gbh.score > 0, `score ${gbh.score}`)
+check('and the hole closes behind them', gbh.vortex === null)
+
+// It opens somewhere different each time.
+const holeSpots = new Set<number>()
+for (let i = 0; i < 6; i++) {
+  const g = newGame()
+  intoPlay(g)
+  grant(g, { kind: 'blackHole', remaining: 12, duration: 12 })
+  g.shotCooldown = 0
+  update(g, DT, firing)
+  if (g.vortex !== null) holeSpots.add(Math.round(g.vortex.x))
+}
+check('the black hole opens at a random spot', holeSpots.size > 1, `${holeSpots.size} spots`)
+
+// Eggs go through a saucer on its way in.
+const gbhe = newGame()
+intoPlay(gbhe)
+grant(gbhe, { kind: 'blackHole', remaining: 12, duration: 12 })
+gbhe.shotCooldown = 0
+update(gbhe, DT, firing)
+const falling = gbhe.ufos[0]!
+gbhe.shots = [egg(falling.x + UFO.width / 2 - 6, falling.y + UFO.height / 2)]
+update(gbhe, DT, idle)
+check('an egg passes through a saucer falling into the black hole', gbhe.shots.length === 1)
+
+// The mothership goes in too.
+const gbhb = newGame()
+gbhb.hen.lives = 99
+enterRound(gbhb, 6)
+while (gbhb.phase.kind !== 'playing') update(gbhb, DT, idle)
+grant(gbhb, { kind: 'blackHole', remaining: 12, duration: 12 })
+gbhb.shotCooldown = 0
+update(gbhb, DT, firing)
+check('the black hole catches the mothership', gbhb.boss?.state.kind === 'swirling', gbhb.boss?.state.kind)
+const bossScoreBefore = gbhb.score
+step(gbhb, BLACK_HOLE.maxDuration, idle)
+check('and swallows it', gbhb.boss === null)
+check('for the full mothership score', gbhb.score - bossScoreBefore >= BOSS.scorePerRound * 6, `${gbhb.score - bossScoreBefore}`)
+
+// Time stopped does not stop it: it is the hen's.
+const gbhz = newGame()
+intoPlay(gbhz)
+grant(gbhz, { kind: 'blackHole', remaining: 12, duration: 12 })
+gbhz.shotCooldown = 0
+update(gbhz, DT, firing)
+gbhz.freeze = { x: 0, remaining: 99 }
+step(gbhz, BLACK_HOLE.maxDuration, idle)
+check('the black hole keeps pulling with time stopped', gbhz.ufos.length === 0, `${gbhz.ufos.length} left`)
 
 // 26. The gramophone finishes the fleet three seconds in, mothership included.
 const gmo = newGame()
@@ -910,6 +981,207 @@ check('her eggs leave the Rambo egg for the hen', gwm4.pickup !== null && gwm4.p
 // And she goes when her clock does.
 step(gwm, WINGMAN.duration, idle)
 check('the wingman leaves when the upgrade runs out', gwm.power.kind !== 'wingman', gwm.power.kind)
+
+// --- the radioactive fox ---------------------------------------------------
+
+// 43. A front-rank saucer drops one now and then.
+const gfx = newGame()
+gfx.hen.lives = 99
+intoPlay(gfx)
+gfx.foxTimer = 0.01
+let foxesThrown = 0
+update(gfx, DT, idle, { onFoxThrown: () => foxesThrown++ })
+check('a saucer drops a radioactive fox', gfx.foxes.length === 1 && foxesThrown === 1, `${gfx.foxes.length}`)
+check(
+  'and another is on its way',
+  gfx.foxTimer !== null && gfx.foxTimer >= FOX.minInterval - 0.1 && gfx.foxTimer <= FOX.maxInterval,
+  `${gfx.foxTimer}`,
+)
+const foxStartY = gfx.foxes[0]!.y
+step(gfx, 0.5, idle)
+check('the fox falls', gfx.foxes[0]!.y > foxStartY)
+
+// A round with no timer of its own gets one from startRound; a boss round none.
+const gfr = newGame()
+startRound(gfr, 3)
+check('a fleet round schedules foxes', gfr.foxTimer !== null)
+startRound(gfr, 4)
+check('a mothership round has none', gfr.foxTimer === null)
+
+// Eggs go straight through it.
+const gfe = newGame()
+intoPlay(gfe)
+gfe.ufos = []
+gfe.boss = null
+gfe.obstacles = []
+gfe.ufos = [{ column: 0, row: 0, x: 10, y: 60, state: { kind: 'flying' }, wobblePhase: 0 }]
+gfe.foxes = [{ x: 400, y: 280, vx: 0, rotation: 0, landed: false }]
+gfe.shots = [egg(410, 290)]
+update(gfe, DT, idle)
+check('an egg goes straight through a fox', gfe.foxes.length === 1 && gfe.shots.length === 1)
+
+// It lands and runs for the nearer wall, and leaves.
+const gfl = newGame()
+gfl.hen.lives = 99
+intoPlay(gfl)
+gfl.hen.x = 700
+gfl.obstacles = []
+gfl.foxes = [{ x: 150, y: 300, vx: 0, rotation: 1, landed: false }]
+// From 300 it is about 1.7s to the ground.
+step(gfl, 1.85, idle)
+const ranFox = gfl.foxes[0]
+check('a fox lands on its feet', ranFox === undefined || (ranFox.landed && ranFox.rotation === 0))
+check('and runs for the nearer wall', ranFox === undefined || ranFox.vx < 0, `${ranFox?.vx}`)
+step(gfl, 2, idle)
+check('and is gone once it gets there', gfl.foxes.length === 0, `${gfl.foxes.length}`)
+
+// Touching the hen costs her a life.
+const gfh = newGame()
+intoPlay(gfh)
+gfh.lasers = []
+gfh.hen.invulnerable = 0
+gfh.hen.x = 400
+const livesBeforeFox = gfh.hen.lives
+gfh.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false }]
+update(gfh, DT, idle)
+check('a fox touching the hen costs a life', gfh.hen.lives === livesBeforeFox - 1, `${livesBeforeFox} -> ${gfh.hen.lives}`)
+check('and one life only', gfh.hen.lives === livesBeforeFox - 1)
+check('and it is gone with the lasers', gfh.foxes.length === 0)
+
+// Toys do not stop it; the shield does.
+const gft = newGame()
+intoPlay(gft)
+const foxToy = gft.obstacles[0]!
+gft.foxes = [{ x: foxToy.x + 4, y: foxToy.y + 2, vx: 0, rotation: 0, landed: false }]
+update(gft, DT, idle)
+check('a toy does not stop a fox', gft.foxes.length === 1)
+
+const gfs = newGame()
+intoPlay(gfs)
+gfs.lasers = []
+gfs.hen.invulnerable = 0
+gfs.hen.x = 400
+grant(gfs, { kind: 'shield', remaining: 5, duration: 5 })
+const livesShielded = gfs.hen.lives
+gfs.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false }]
+update(gfs, DT, idle)
+check('the shield keeps a fox off her', gfs.hen.lives === livesShielded)
+
+const gfz = newGame()
+intoPlay(gfz)
+gfz.lasers = []
+gfz.hen.invulnerable = 0
+gfz.hen.x = 400
+gfz.freeze = { x: 0, remaining: 3 }
+const livesFrozen = gfz.hen.lives
+gfz.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false }]
+update(gfz, DT, idle)
+check('a frozen fox cannot hurt her', gfz.hen.lives === livesFrozen)
+
+// The black hole leaves foxes alone: nothing kills one.
+const gfb = newGame()
+intoPlay(gfb)
+gfb.foxes = [{ x: 400, y: 200, vx: 0, rotation: 0, landed: false }]
+grant(gfb, { kind: 'blackHole', remaining: 12, duration: 12 })
+gfb.shotCooldown = 0
+update(gfb, DT, firing)
+check('the black hole does not take a fox', gfb.foxes.length === 1)
+
+// --- losing a life -----------------------------------------------------------
+
+// 44. Feathers fly.
+const gfe2 = newGame()
+intoPlay(gfe2)
+gfe2.hen.invulnerable = 0
+gfe2.lasers = [{ x: gfe2.hen.x + HEN.width / 2, y: HEN_TOP + 10, vx: 0, vy: 0 }]
+update(gfe2, DT, idle)
+check('losing a life knocks feathers off the hen', gfe2.feathers.length === FEATHERS.count, `${gfe2.feathers.length}`)
+const featherY = Math.min(...gfe2.feathers.map((f) => f.y))
+step(gfe2, 0.9, idle)
+const lowest = Math.max(...gfe2.feathers.map((f) => f.y))
+check('they drift down', lowest > featherY, `${featherY.toFixed(0)} -> ${lowest.toFixed(0)}`)
+step(gfe2, FEATHERS.life, idle)
+check('and are gone once they have faded', gfe2.feathers.length === 0, `${gfe2.feathers.length}`)
+
+// The last life's feathers still fall during the abduction.
+const gfe3 = newGame()
+intoPlay(gfe3)
+gfe3.hen.lives = 1
+gfe3.hen.invulnerable = 0
+gfe3.lasers = [{ x: gfe3.hen.x + HEN.width / 2, y: HEN_TOP + 10, vx: 0, vy: 0 }]
+update(gfe3, DT, idle)
+const lastFeather = gfe3.feathers[0]!
+const lastFeatherAge = lastFeather.age
+update(gfe3, DT, idle)
+check('the last hen\'s feathers fall through the abduction', gfe3.phase.kind === 'abduction' && lastFeather.age > lastFeatherAge)
+
+// --- the cow faces the field -------------------------------------------------
+
+// 45. So the burp comes out of the right-hand end.
+const gcow = newGame()
+intoPlay(gcow)
+grant(gcow, { kind: 'burp', remaining: 12, duration: 12 })
+update(gcow, DT, firing)
+check(
+  'the cow burps from its right-hand end',
+  gcow.bubbles.length > 0 && gcow.bubbles.every((b) => b.x > COW.x + COW.width / 2),
+)
+
+// --- the alien doll ----------------------------------------------------------
+
+// 46. A seventh toy.
+const toysSeen = new Set<string>()
+for (let i = 0; i < 80; i++) for (const t of placeObstacles()) toysSeen.add(t.kind)
+check('alien dolls turn up among the toys', toysSeen.has('alien'))
+check('all seven kinds turn up', toysSeen.size === 7, `${toysSeen.size}`)
+
+// --- the mothership's wiper --------------------------------------------------
+
+// 47. It wipes about a fifth of the egg off, and heals that much.
+const gwp = newGame()
+enterRound(gwp, 10)
+while (gwp.phase.kind !== 'playing') update(gwp, DT, idle)
+const wboss = gwp.boss!
+wboss.hitPoints = wboss.maxHitPoints - 5
+wboss.wipeTimer = 0.01
+let wipes = 0
+update(gwp, DT, idle, { onBossWipe: () => wipes++ })
+check('the mothership wipes its canopy', wipes === 1, `${wipes}`)
+check('clearing a fifth of the eggs, healing one', wboss.hitPoints === wboss.maxHitPoints - 4, `${wboss.hitPoints} of ${wboss.maxHitPoints}`)
+check('and the blade crosses the canopy', wboss.wiping > 0 && wboss.wiping <= WIPER.duration)
+check('and it wipes again later', wboss.wipeTimer >= WIPER.minInterval - 0.1 && wboss.wipeTimer <= WIPER.maxInterval)
+
+const wiped = new Set<number>()
+for (let i = 0; i < 30; i++) {
+  const g = newGame()
+  enterRound(g, 10)
+  while (g.phase.kind !== 'playing') update(g, DT, idle)
+  const b = g.boss!
+  b.hitPoints = b.maxHitPoints - 5
+  const before = b.splats.slice(0, 5)
+  b.wipeTimer = 0.01
+  update(g, DT, idle)
+  const after = new Set(b.splats.slice(0, 4))
+  before.forEach((splat, index) => {
+    if (!after.has(splat)) wiped.add(index)
+  })
+}
+check('it wipes random eggs, not just the newest', wiped.size > 1, `${[...wiped].join(',')}`)
+
+const gwp2 = newGame()
+enterRound(gwp2, 10)
+while (gwp2.phase.kind !== 'playing') update(gwp2, DT, idle)
+gwp2.boss!.hitPoints = gwp2.boss!.maxHitPoints - 2
+gwp2.boss!.wipeTimer = 0.01
+update(gwp2, DT, idle)
+check('with only a couple of eggs up there it does not bother', gwp2.boss!.hitPoints === gwp2.boss!.maxHitPoints - 2)
+
+const gwp3 = newGame()
+enterRound(gwp3, 10)
+while (gwp3.phase.kind !== 'playing') update(gwp3, DT, idle)
+gwp3.boss!.wipeTimer = 0.01
+update(gwp3, DT, idle)
+check('a clean mothership never goes over its hit points', gwp3.boss!.hitPoints === gwp3.boss!.maxHitPoints)
 
 // --- what the sound hangs off -------------------------------------------------
 

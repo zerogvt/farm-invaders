@@ -31,7 +31,20 @@ round number to see off, and the banner says so before the round starts. It
 answers with a volley of two directions fewer than the round number and then
 halved, fired at a third of the rate it started at — it is also the only thing
 out there that shoots at an angle, since rank-and-file saucers only ever fire
-straight down.
+straight down. Every five to ten seconds it runs a **windscreen wiper** across
+its canopy, clearing about a fifth of the egg on it — picked at random — and
+every egg it clears is a hit point back. It needs three eggs up there before a
+fifth comes to one, so a barely touched mothership never bothers.
+
+**Watch out for radioactive foxes.** Every eight to sixteen seconds on a fleet
+round, a saucer in the front rank drops a glowing green fox instead of firing.
+Eggs go straight through it, toys do not stop it and the black hole does not
+take it: it falls to the ground, lands on its feet and runs off the nearer side.
+If it touches the hen on the way she loses a life. The shield is the one thing
+that keeps it off her.
+
+**When the hen loses a life** she lets out a **"buk-buk-BAWK!"** and a handful
+of feathers come off her and drift down.
 
 **A tenth of every fleet deserts.** Somewhere in each round, one saucer in ten
 decides it has had enough, says **make ❤️ not war** and flies home. They leave
@@ -59,7 +72,7 @@ can hit it before it leaves. Which upgrade is not up to her:
 | Shield | Ten seconds during which lasers simply do not land. |
 | Exploding heart | One shot. The whole fleet deserts. The mothership declines — *"no xmas truce. This aint 1914. I'm da central command!"* — and the hen gets a super egg for her trouble. |
 | Gravity waves | Five seconds of expanding rings. Anything a ring washes over loses attitude control, tumbles off at random, and detonates against whatever it blunders into, itself included. |
-| Black hole | Six seconds of them. Three egg-radii across, swallowing everything inside four times that as each one climbs. |
+| Black hole | One shot. It opens at a random spot in the sky, and every saucer on the board — the mothership too — spirals into it and is swallowed, the nearer ones first. |
 | Gramophone | One shot. It drifts up playing, and three seconds later the entire fleet goes up with it. |
 | Cow burp | One shot. The cow lets go a cloud of bubbles that fans out across the whole screen; every saucer a bubble touches pops, and the mothership loses a hit point per bubble. |
 | Wingman | Ten seconds of a second, brown hen who walks the ground by herself and throws eggs non-stop. Lasers that reach her are absorbed — she cannot be hurt until the upgrade runs out. |
@@ -90,7 +103,10 @@ are no audio files. The theme, *Hoedown in Orbit*, is an eight-bar chiptune loop
 written for this game, so it carries no licence or royalty of any kind. Eggs pip
 as they leave, splat on windscreens, and splat enormously as a super egg; saucers
 and toys go up with a bang; lasers buzz; the cow moos at every cleared round,
-burps when told to, and moos at length on its way into the mothership. Browsers
+burps when told to, and moos at length on its way into the mothership. The hen
+clucks when she loses a life, a fox arrives with a crackle of Geiger clicks and a
+yip, the black hole opens with a long swirling fall, and the mothership's wiper
+squeaks. Browsers
 keep audio off until the page has been clicked or typed at, so the sound starts
 with the Start button.
 
@@ -222,11 +238,14 @@ nothing about how long there is to line the shot up. The hold on a single-shot
 upgrade is deliberately generous: it exists so the HUD has something to show and
 so nothing can be carried indefinitely, not to punish anyone for taking aim.
 
-**The black hole is the exception among the heavy ordnance.** The super egg, the
-heart and the gramophone each do their whole job once and are gone. The black
-hole does its job continuously as it climbs, so firing exactly one of them was
-always the odd rule out; it now keeps firing for as long as it is held, on a
-cooldown long enough that the holes stay separate rather than stacking.
+**The black hole is a single shot that the hen does not aim.** It used to be six
+seconds of small holes climbing the screen. It is now one hole that opens at a
+random spot in the sky and takes everything at once, so it is one of the
+screen-clearers alongside the super egg and the gramophone. What it looks like
+is the point: every hull caught spirals in, spinning faster and shrinking as it
+nears the middle, rather than simply vanishing. It keeps pulling while time is
+stopped, because it is the hen's, and it spares deserters, which are out of the
+war already, and foxes, which nothing kills.
 
 **The cow is scenery, and that is the point.** It has no state, no collision box
 and no hit points — it is drawn at a fixed spot and nothing it says is
@@ -328,7 +347,8 @@ canopies can share one hull. Swapping to emoji or PNGs means rewriting
 - **The obstacles are mostly nursery toys.** They are carried over from the
   previous theme, so a rocking horse and a teddy bear are what shields the hen
   from orbital laser fire — and, now, what she fires back. A bicycle and a
-  tractor have joined them; each round draws four of the six. Replacing them is
+  tractor have joined them, and an alien doll; each round draws four of the
+  seven. Replacing them is
   confined to the toy painters in `src/sprites.ts` and the `ToyKind` union.
 
 ## Deploying to GitHub Pages

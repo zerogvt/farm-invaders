@@ -6,6 +6,8 @@ import {
   COW,
   DESERT,
   EGG,
+  FEATHERS,
+  FOX,
   FREEZE,
   GRAMOPHONE,
   GRAVITY,
@@ -21,10 +23,23 @@ import {
   UFO,
   VIEW,
   WINGMAN,
+  WIPER,
 } from './config'
 import type { InputState } from './input'
 import { placeObstacles } from './obstacles'
-import type { Boss, Bubble, GameState, Laser as LaserShot, Power, Rect, Shot, Splat, Timed, Ufo, UfoState } from './types'
+import type {
+  Boss,
+  Bubble,
+  GameState,
+  Laser as LaserShot,
+  Power,
+  Rect,
+  Shot,
+  Splat,
+  Timed,
+  Ufo,
+  UfoState,
+} from './types'
 
 /** Y coordinate of the top of the hen's helmet; the line the saucers race for. */
 export const HEN_TOP = VIEW.height - HEN.bottomMargin - HEN.height
@@ -52,8 +67,6 @@ export function shotSize(kind: Shot['kind']): { width: number; height: number } 
       return { width: POWER.superEggWidth, height: POWER.superEggHeight }
     case 'heart':
       return { width: HEART.width, height: HEART.height }
-    case 'blackHole':
-      return { width: BLACK_HOLE.radius * 2, height: BLACK_HOLE.radius * 2 }
     case 'gramophone':
       return { width: GRAMOPHONE.width, height: GRAMOPHONE.height }
     case 'normal':
@@ -67,8 +80,6 @@ function shotSpeed(kind: Shot['kind']): number {
       return POWER.superEggSpeed
     case 'heart':
       return HEART.speed
-    case 'blackHole':
-      return BLACK_HOLE.speed
     case 'gramophone':
       return GRAMOPHONE.speed
     case 'normal':
@@ -114,6 +125,12 @@ export interface GameEvents {
   onToyKicked?: () => void
   /** Einstein has stopped the clock. */
   onFreeze?: () => void
+  /** A saucer has dropped a radioactive fox. */
+  onFoxThrown?: () => void
+  /** The hen has fired the black hole, and it has opened. */
+  onBlackHole?: () => void
+  /** The mothership has wiped some of the egg off its canopy. */
+  onBossWipe?: () => void
 }
 
 export function createGame(): GameState {
@@ -129,6 +146,10 @@ export function createGame(): GameState {
     bubbles: [],
     burpLine: null,
     lasers: [],
+    foxes: [],
+    foxTimer: null,
+    feathers: [],
+    vortex: null,
     obstacles: [],
     power: { kind: 'none' },
     pickup: null,
@@ -167,6 +188,10 @@ export function startRound(state: GameState, round: number): void {
   state.bubbles = []
   state.burpLine = null
   state.lasers = []
+  state.foxes = []
+  // Foxes come from the formation, so a mothership round has none.
+  state.foxTimer = boss ? null : rollFox()
+  state.vortex = null
   state.blasts = []
   state.pickup = null
   state.pickupTimer = rollPickup()
@@ -221,8 +246,10 @@ export function update(state: GameState, dt: number, input: InputState, events: 
     case 'abduction':
       // The board is held exactly as it was; only the scene advances. The
       // game-over panel waits for it, which is why onGameOver fires here rather
-      // than when the last hen fell.
+      // than when the last hen fell. The feathers off that last hit still
+      // drift down over it.
       state.phase.age += dt
+      tickFeathers(state, dt)
       if (state.phase.age >= ABDUCTION.duration) {
         state.phase = { kind: 'over', scoreSubmitted: false }
         events.onGameOver?.(state.score, state.round)
@@ -244,6 +271,7 @@ export function update(state: GameState, dt: number, input: InputState, events: 
       advanceShots(state, dt, events)
       tickBubbles(state, dt, events)
       advanceLasers(state, dt)
+      advanceFoxes(state, dt)
       tickTimers(state, dt)
       if (state.phase.remaining <= 0) startRound(state, state.round + 1)
       return
@@ -266,9 +294,13 @@ export function update(state: GameState, dt: number, input: InputState, events: 
   tickBubbles(state, dt, events)
   tickWaves(state, dt, events)
   tickBeam(state, dt, events)
+  // The black hole is the hen's, so it keeps pulling with time stopped.
+  tickVortex(state, dt, events)
 
   if (!frozen) {
     advanceLasers(state, dt)
+    advanceFoxes(state, dt)
+    tickFoxTimer(state, dt, events)
     marchFormation(state, dt)
     tickLeaving(state, dt, events)
     tickWobble(state, dt, events)
@@ -337,6 +369,32 @@ function tickTimers(state: GameState, dt: number): void {
     if (blast.age < blast.duration) blasts.push(blast)
   }
   state.blasts = blasts
+  tickFeathers(state, dt)
+}
+
+/** Feathers drifting down after a hit: knocked loose fast, then slowed to a
+ *  sway by the air, and gone once they have faded. */
+function tickFeathers(state: GameState, dt: number): void {
+  if (state.feathers.length === 0) return
+  const drag = Math.max(0, 1 - 2.4 * dt)
+  const drifting = []
+  for (const feather of state.feathers) {
+    feather.age += dt
+    if (feather.age >= FEATHERS.life) continue
+    feather.vx *= drag
+    feather.vy = Math.min(FEATHERS.maxFall, feather.vy * drag + FEATHERS.gravity * dt)
+    feather.x += feather.vx * dt
+    feather.y += feather.vy * dt
+    feather.rotation += feather.spin * dt
+    drifting.push(feather)
+  }
+  state.feathers = drifting
+}
+
+/** Where a feather is drawn, sway included. Kept out of the state so the sway
+ *  never drags a feather off its path. */
+export function featherSway(feather: GameState['feathers'][number]): number {
+  return Math.sin(feather.age * 5 + feather.phase) * FEATHERS.sway
 }
 
 /** About one round in three gets a visit; the rest get none. */
@@ -397,12 +455,12 @@ function tryShoot(state: GameState, input: InputState, events: GameEvents): void
     return
   }
 
-  // The black hole keeps firing for as long as it is held; the rest of the
-  // heavy ordnance is one shot and gone.
+  // The black hole opens up in the sky rather than being thrown there.
   if (power.kind === 'blackHole') {
-    state.shots.push(heavyShot('blackHole', muzzleX))
-    state.shotCooldown = BLACK_HOLE.cooldown
-    events.onShot?.('blackHole', false)
+    openVortex(state)
+    events.onBlackHole?.()
+    state.power = { kind: 'none' }
+    state.shotCooldown = EGG.cooldown
     return
   }
 
@@ -490,7 +548,7 @@ function heavyShot(kind: Exclude<Shot['kind'], 'normal'>, muzzleX: number): Shot
   return {
     x: muzzleX - width / 2,
     y: HEN_TOP - height,
-    spin: kind === 'blackHole' ? 4.5 : kind === 'gramophone' ? 0 : 1.4,
+    spin: kind === 'gramophone' ? 0 : 1.4,
     rotation: 0,
     vx: 0,
     kind,
@@ -535,8 +593,6 @@ function advanceShots(state: GameState, dt: number, events: GameEvents): void {
         continue
       }
     }
-    if (shot.kind === 'blackHole') swallow(state, shot, events)
-
     if (shot.y + height > 0 && shot.x + width > 0 && shot.x < VIEW.width) flying.push(shot)
   }
   state.shots = flying
@@ -621,16 +677,84 @@ function finale(state: GameState, events: GameEvents): void {
   state.lasers = []
 }
 
-/** A black hole passing over the board. Everything inside twice its radius is
- *  simply gone — no wreck, no retreat, nothing left to draw. */
-function swallow(state: GameState, hole: Shot, events: GameEvents): void {
-  const centreX = hole.x + BLACK_HOLE.radius
-  const centreY = hole.y + BLACK_HOLE.radius
-  const reach = BLACK_HOLE.radius * BLACK_HOLE.reach
+/**
+ * The black hole opening. It turns up at a random spot in the sky and catches
+ * everything at once: every saucer still in the fight and the mothership start
+ * spiralling in from wherever they were. Deserters are left to go home — they
+ * are out of the war already. The lasers in the air go in first.
+ */
+function openVortex(state: GameState): void {
+  const x = BLACK_HOLE.minX + Math.random() * (BLACK_HOLE.maxX - BLACK_HOLE.minX)
+  const y = BLACK_HOLE.minY + Math.random() * (BLACK_HOLE.maxY - BLACK_HOLE.minY)
+  state.vortex = { x, y, age: 0 }
+  state.lasers = []
+
+  for (const ufo of state.ufos) {
+    if (ufo.state.kind === 'leaving' && ufo.state.reason === 'deserted') continue
+    ufo.state = caught(x, y, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
+  }
+  const boss = state.boss
+  if (boss !== null) boss.state = caught(x, y, boss.x + BOSS.width / 2, boss.y + BOSS.height / 2)
+}
+
+function caught(cx: number, cy: number, x: number, y: number): UfoState {
+  return { kind: 'swirling', angle: Math.atan2(y - cy, x - cx), radius: Math.hypot(x - cx, y - cy) }
+}
+
+/**
+ * Everything caught by the black hole falling in. Each hull closes on the
+ * centre at a pull that grows with its distance, so everything arrives within a
+ * few seconds, and spins faster the closer it gets. What reaches the middle is
+ * gone, and scores. The hole closes once it has nothing left to eat.
+ */
+function tickVortex(state: GameState, dt: number, events: GameEvents): void {
+  const vortex = state.vortex
+  if (vortex === null) return
+  vortex.age += dt
 
   const survivors: Ufo[] = []
   for (const ufo of state.ufos) {
-    if (!withinReach(centreX, centreY, reach, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)) {
+    if (ufo.state.kind !== 'swirling') {
+      survivors.push(ufo)
+      continue
+    }
+    if (spiral(ufo.state, dt)) {
+      const points = ufoPoints(ufo)
+      awardScore(state, points, events)
+      events.onUfoDowned?.(ufo, points)
+      continue
+    }
+    ufo.x = vortex.x + Math.cos(ufo.state.angle) * ufo.state.radius - UFO.width / 2
+    ufo.y = vortex.y + Math.sin(ufo.state.angle) * ufo.state.radius - UFO.height / 2
+    survivors.push(ufo)
+  }
+  state.ufos = survivors
+
+  const boss = state.boss
+  if (boss !== null && boss.state.kind === 'swirling') {
+    if (spiral(boss.state, dt)) {
+      downBoss(state, events)
+    } else {
+      boss.x = vortex.x + Math.cos(boss.state.angle) * boss.state.radius - BOSS.width / 2
+      boss.y = vortex.y + Math.sin(boss.state.angle) * boss.state.radius - BOSS.height / 2
+    }
+  }
+
+  const eating =
+    state.ufos.some((ufo) => ufo.state.kind === 'swirling') ||
+    (state.boss !== null && state.boss.state.kind === 'swirling')
+  if (!eating && vortex.age >= BLACK_HOLE.openDuration * 2) state.vortex = null
+  else if (vortex.age >= BLACK_HOLE.maxDuration) closeVortex(state, events)
+}
+
+/** Closes the hole on whatever is still on its way in. Without this a hull
+ *  caught late would be left spinning round a hole that is no longer there, and
+ *  the round could never end. */
+function closeVortex(state: GameState, events: GameEvents): void {
+  state.vortex = null
+  const survivors: Ufo[] = []
+  for (const ufo of state.ufos) {
+    if (ufo.state.kind !== 'swirling') {
       survivors.push(ufo)
       continue
     }
@@ -639,15 +763,14 @@ function swallow(state: GameState, hole: Shot, events: GameEvents): void {
     events.onUfoDowned?.(ufo, points)
   }
   state.ufos = survivors
+  if (state.boss !== null && state.boss.state.kind === 'swirling') downBoss(state, events)
+}
 
-  state.lasers = state.lasers.filter(
-    (laser) => !withinReach(centreX, centreY, reach, laser.x + LASER.width / 2, laser.y + LASER.height / 2),
-  )
-
-  const boss = state.boss
-  if (boss === null) return
-  const rect: Rect = { x: boss.x, y: boss.y, width: BOSS.width, height: BOSS.height }
-  if (circleTouchesRect(centreX, centreY, reach, rect)) downBoss(state, events)
+/** One step of a fall into the black hole. True once it has reached the middle. */
+function spiral(swirl: Extract<UfoState, { kind: 'swirling' }>, dt: number): boolean {
+  swirl.radius -= (BLACK_HOLE.pull + swirl.radius * BLACK_HOLE.pullPerPixel) * dt
+  swirl.angle += (BLACK_HOLE.baseSpin + BLACK_HOLE.spinNear / (swirl.radius + 30)) * dt
+  return swirl.radius <= BLACK_HOLE.swallowRadius
 }
 
 function withinReach(cx: number, cy: number, reach: number, x: number, y: number): boolean {
@@ -662,8 +785,9 @@ function withinReach(cx: number, cy: number, reach: number, x: number, y: number
  * fans out and sweeps the whole sky rather than climbing as one blob.
  */
 function burp(state: GameState): void {
-  const mouthX = COW.x + COW.width * 0.12
-  // The cow stands on the same ground as the hen and faces left, muzzle low.
+  const mouthX = COW.x + COW.width * 0.88
+  // The cow stands on the same ground as the hen and faces right, into the
+  // field, muzzle low.
   const mouthY = HEN_TOP + HEN.height - COW.height * 0.42
   for (let i = 0; i < BURP.bubbles; i++) {
     const targetX = Math.random() * VIEW.width
@@ -705,9 +829,12 @@ function tickBubbles(state: GameState, dt: number, events: GameEvents): void {
     bubble.y += bubble.vy * dt
     const { x, y } = bubbleCentre(bubble)
 
+    // Deserters are out of the war, and anything falling into a black hole is
+    // already on its way out of it.
     const victim = state.ufos.find(
       (ufo) =>
         !(ufo.state.kind === 'leaving' && ufo.state.reason === 'deserted') &&
+        ufo.state.kind !== 'swirling' &&
         circleTouchesRect(x, y, bubble.radius, ufoRect(ufo)),
     )
     if (victim !== undefined) {
@@ -961,6 +1088,53 @@ function fireLasers(state: GameState, dt: number, events: GameEvents): void {
   events.onLaserFired?.()
 }
 
+/** Now and then a front-rank saucer drops a radioactive fox instead of firing. */
+function tickFoxTimer(state: GameState, dt: number, events: GameEvents): void {
+  if (state.foxTimer === null) return
+  state.foxTimer -= dt
+  if (state.foxTimer > 0) return
+  state.foxTimer = rollFox()
+
+  const throwers = frontLineUfos(state)
+  const thrower = throwers[Math.floor(Math.random() * throwers.length)]
+  if (thrower === undefined) return
+  state.foxes.push({
+    x: thrower.x + UFO.width / 2 - FOX.width / 2,
+    y: thrower.y + UFO.height,
+    vx: 0,
+    rotation: 0,
+    landed: false,
+  })
+  events.onFoxThrown?.()
+}
+
+function rollFox(): number {
+  return FOX.minInterval + Math.random() * (FOX.maxInterval - FOX.minInterval)
+}
+
+/** Foxes tumble down to the ground, land on their feet, and run for the nearer
+ *  wall. Nothing stops them on the way. */
+function advanceFoxes(state: GameState, dt: number): void {
+  if (state.foxes.length === 0) return
+  const ground = HEN_TOP + HEN.height
+  const running = []
+  for (const fox of state.foxes) {
+    if (!fox.landed) {
+      fox.y += FOX.fallSpeed * dt
+      fox.rotation += FOX.spin * dt
+      if (fox.y + FOX.height >= ground) {
+        fox.y = ground - FOX.height
+        fox.rotation = 0
+        fox.landed = true
+        fox.vx = (fox.x + FOX.width / 2 < VIEW.width / 2 ? -1 : 1) * FOX.runSpeed
+      }
+    }
+    fox.x += fox.vx * dt
+    if (fox.x + FOX.width > 0 && fox.x < VIEW.width) running.push(fox)
+  }
+  state.foxes = running
+}
+
 /** The lowest still-flying saucer in each occupied column. Anything leaving or
  *  tumbling is excluded: a pilot who cannot see out cannot aim. */
 function frontLineUfos(state: GameState): Ufo[] {
@@ -1005,7 +1179,45 @@ function buildBoss(round: number): Boss {
     direction: Math.random() < 0.5 ? -1 : 1,
     state: { kind: 'flying' },
     splats,
+    wipeTimer: rollWipe(),
+    wiping: 0,
   }
+}
+
+function rollWipe(): number {
+  return WIPER.minInterval + Math.random() * (WIPER.maxInterval - WIPER.minInterval)
+}
+
+/**
+ * The mothership's wiper. Every so often it clears about a fifth of the eggs on
+ * its canopy, picked at random, and each one it clears is a hit point back. It
+ * needs a few eggs up there before a fifth comes to one, so a mothership that
+ * has barely been touched never bothers.
+ */
+function tickWiper(boss: Boss, dt: number, events: GameEvents): void {
+  if (boss.wiping > 0) boss.wiping = Math.max(0, boss.wiping - dt)
+  boss.wipeTimer -= dt
+  if (boss.wipeTimer > 0) return
+  boss.wipeTimer = rollWipe()
+
+  const showing = Math.min(boss.splats.length, Math.floor(boss.maxHitPoints - boss.hitPoints))
+  const wiped = Math.round(showing * WIPER.fraction)
+  if (wiped === 0) return
+
+  // The showing marks are the front of the list. Moving the wiped ones to just
+  // behind it hides them, and they are the next to come back.
+  for (let i = 0; i < wiped; i++) {
+    const last = showing - 1 - i
+    const pick = Math.floor(Math.random() * (last + 1))
+    const a = boss.splats[pick]
+    const b = boss.splats[last]
+    if (a === undefined || b === undefined) continue
+    boss.splats[pick] = b
+    boss.splats[last] = a
+  }
+  boss.hitPoints = Math.min(boss.maxHitPoints, boss.hitPoints + wiped)
+  boss.wiping = WIPER.duration
+  events.onBossWipe?.()
 }
 
 function tickBoss(state: GameState, dt: number, events: GameEvents): void {
@@ -1024,8 +1236,9 @@ function tickBoss(state: GameState, dt: number, events: GameEvents): void {
     if (boss.x + BOSS.width < 0 || boss.x > VIEW.width) downBoss(state, events)
     return
   }
-  if (exit.kind === 'wobbling') return
+  if (exit.kind === 'wobbling' || exit.kind === 'swirling') return
 
+  tickWiper(boss, dt, events)
   boss.x += boss.direction * BOSS.speed * dt
   if (boss.x <= 0) {
     boss.x = 0
@@ -1136,7 +1349,7 @@ function rollPower(state: GameState): Power {
     case 5:
       return { kind: 'gravity', ...clock(GRAVITY.duration) }
     case 6:
-      return { kind: 'blackHole', ...clock(BLACK_HOLE.duration) }
+      return { kind: 'blackHole', ...clock(POWER.holdDuration) }
     case 7:
       return { kind: 'burp', ...clock(POWER.holdDuration) }
     case 8:
@@ -1239,6 +1452,15 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
     survivingLasers.push(laser)
   }
   state.lasers = survivingLasers
+
+  // A fox goes through toys and past the wingman, and eggs go through it. The
+  // shield is the one thing that keeps it off her.
+  if (shielded || state.hen.invulnerable > 0) return
+  for (const fox of state.foxes) {
+    if (!overlaps(henRect, { x: fox.x, y: fox.y, width: FOX.width, height: FOX.height })) continue
+    hurtHen(state, events)
+    return
+  }
 }
 
 /** An egg that meets a laser in mid-air: the two cancel out and both are gone.
@@ -1377,7 +1599,8 @@ function splattersUfo(state: GameState, egg: Rect, frozen: boolean, events: Game
   let hit = false
 
   for (const ufo of state.ufos) {
-    if (hit || !overlaps(egg, ufoRect(ufo))) {
+    // A saucer falling into the black hole is past being egged.
+    if (hit || ufo.state.kind === 'swirling' || !overlaps(egg, ufoRect(ufo))) {
       survivors.push(ufo)
       continue
     }
@@ -1417,10 +1640,33 @@ function leaveFrom(x: number, width: number, reason: 'splattered' | 'deserted'):
 function hurtHen(state: GameState, events: GameEvents): void {
   state.hen.lives -= 1
   state.hen.invulnerable = HEN.hurtInvulnerability
-  // Clear the air so she does not respawn into a laser she cannot dodge.
+  // Clear the air so she does not respawn into a laser or a fox she cannot
+  // dodge.
   state.lasers = []
+  state.foxes = []
+  loseFeathers(state)
   events.onHenHurt?.()
   if (state.hen.lives <= 0) endGame(state)
+}
+
+/** A handful of feathers knocked off in every direction, mostly upwards. */
+function loseFeathers(state: GameState): void {
+  const x = state.hen.x + HEN.width / 2
+  const y = HEN_TOP + HEN.height * 0.45
+  for (let i = 0; i < FEATHERS.count; i++) {
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.3
+    const speed = FEATHERS.burst * (0.5 + Math.random() * 0.7)
+    state.feathers.push({
+      x: x + (Math.random() - 0.5) * HEN.width * 0.5,
+      y: y + (Math.random() - 0.5) * HEN.height * 0.3,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      rotation: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 5,
+      age: 0,
+      phase: Math.random() * Math.PI * 2,
+    })
+  }
 }
 
 /** The last hen has fallen. The run is not over until the mothership has been
