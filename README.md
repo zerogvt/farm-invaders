@@ -94,6 +94,48 @@ burps when told to, and moos at length on its way into the mothership. Browsers
 keep audio off until the page has been clicked or typed at, so the sound starts
 with the Start button.
 
+## Telemetry
+
+The game can report to Dynatrace Real User Monitoring: page loads, JavaScript
+errors, and three game events — `game_started`, `power_gained` (which upgrade)
+and `game_over` (score, round, whether sound was muted, and length in seconds).
+All of it lives in `src/telemetry.ts`.
+
+**It is off unless two things are true**:
+
+1. `TELEMETRY_ENABLED` at the top of `src/telemetry.ts` is `true`. This is
+   the kill switch. Set it to `false` and push, and the next deploy neither
+   loads the Dynatrace agent nor sends anything. The build then drops the
+   telemetry code entirely.
+2. The repository variable `DT_RUM_SRC` (**Settings → Secrets and variables →
+   Actions → Variables**) holds the agent's script URL from the Dynatrace web
+   application's setup page. The deploy workflow passes it to the build as
+   `VITE_DT_RUM_SRC`. Unset, the build reports nothing, which is also how local
+   builds, tests and forks behave. Deleting the variable and re-running the
+   deploy is a second way to turn telemetry off, without a commit.
+
+The URL is not a secret. Anyone can read it from the page, and all it lets
+anyone do is send data *into* this one application. Restrict the application's
+beacon origins to `https://zerogvt.github.io` and cap its sessions in Dynatrace.
+Never put a Dynatrace API token in this code.
+
+**No consent prompt is built yet.** The RUM agent sets cookies, and players
+in the EU need to agree to that first. Configure the Dynatrace application for
+opt-in mode or cookieless monitoring before setting `DT_RUM_SRC`.
+
+**To remove telemetry completely:**
+
+1. Delete `src/telemetry.ts`.
+2. Delete every line in `src/main.ts` that mentions `telemetry` (one import,
+   five calls).
+3. Delete the telemetry block in `tests/simulation.test.ts` (its import, and
+   the block that starts `// Telemetry.`).
+4. Delete the `env:` block under `npm run build` in
+   `.github/workflows/deploy.yml`, and the `DT_RUM_SRC` variable.
+5. Delete this section.
+
+`npm run build` and `npm test` will then report anything left over.
+
 ## How it is put together
 
 No game engine and no image files. Plain TypeScript, Canvas 2D, and Vite.
