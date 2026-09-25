@@ -26,7 +26,7 @@ function main(): void {
   const ctx = canvas.getContext('2d')
   if (ctx === null) throw new Error('this browser has no 2D canvas context')
 
-  telemetry.start()
+  telemetry.start(frameEl)
   const sprites = buildSprites()
   const input = createInput()
   const ui = createUi(overlay)

@@ -165,6 +165,32 @@ Added on 24 September 2026, with Dynatrace telemetry:
 - **Three events only**: start, upgrade picked, game over. A per-round event
   was left out on purpose, because every event is billed. Mute state rides
   along on `game_over`, so `src/soundToggle.ts` needed no changes.
-- **Nothing is live until `DT_RUM_SRC` is set.** The consent question
-  (opt-in mode or cookieless) is still open. See "Telemetry" in the README.
+- **Nothing is live until `DT_RUM_SRC` is set.**
+
+Added on 25 September 2026, the consent prompt (the tenant was switched to
+opt-in mode the same day):
+
+- **The prompt is a small card in the bottom left corner**, not a modal. It
+  covers the cow's patch of ground until it's answered, and it never blocks
+  play. After an answer it becomes a "Stats on / off" pill in the same place,
+  because taking consent back should be as easy as giving it.
+- **The agent loads before the player answers.** In opt-in mode it sets no
+  cookies and captures nothing until it's enabled, and loading it early means
+  an "Allow" takes effect at once. If that is too much, delay the script tag
+  until consent in `start()`, at the cost of losing the page load for players
+  who agree.
+- **`dtrum.enable()` / `disable()` are called on every load** according to the
+  stored answer, not just once. That's idempotent, and it doesn't rely on the
+  agent remembering.
+- **The events are also held back in code** without consent, not only by the
+  agent, so a tenant accidentally switched out of opt-in mode still gets
+  nothing from players who declined or never answered. Page loads and errors,
+  though, are the agent's own and would be captured in that case.
+- **Its CSS is in `telemetry.ts`**, injected as a `<style>`, so deleting the
+  file removes it. The answer lives in `localStorage` under
+  `farminvaders.telemetry-consent.v1`.
+- Seen in headless Chromium against a stand-in agent: the card when
+  unanswered, "Stats on" with `enable()` called for a stored yes, and
+  "Stats off" with `disable()` for a stored no. The click path itself is
+  covered by the tests, not a browser.
 
