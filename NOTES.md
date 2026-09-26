@@ -282,3 +282,35 @@ Added on 26 September 2026, from one request of three items:
 - Two old checks read the prize off `power` and would have failed whenever the
   roll was the shield (one in ten); they now accept either.
 
+Added on 26 September 2026, from one request of nine items:
+
+- **A free life every 4000 points**, up from 2000.
+- **Shields come from deserters, not Rambo eggs.** Each deserter has a 50%
+  chance to drop one, the heart's mass desertion included, so a heart can
+  shower the ground with them. A fresh one tops the shield back up to 3.
+  `state.shield` is `{ hits }` now; there is no clock.
+- **A wide laser into the shield costs its full power in hits and is
+  absorbed**, even if the shield had fewer hits left: a triple on a 1-hit
+  shield takes the shield and spares the hen. The request said "3 hits (or a
+  triple laser)"; what happens to the leftover power was mine to pick.
+- **A fox touching a shielded hen costs one hit** and gives her
+  `SHIELD.foxGrace` (1s) of invulnerability to get past it. Without the grace a
+  sitting fox would drain the whole shield in three frames. My call.
+- **Eggs per throw**: `ceil(round / 10)`, capped at 4, side by side
+  `EGG.spacing` apart. The in-flight cap counts throws (3), and a whole throw
+  has to fit under it. This is the second time extra eggs have been added: the
+  first (every 8 rounds) was reverted in PR #3 as far too easy. This one was
+  asked for outright, but watch for the same complaint.
+- **The beam bug**: `tryShoot` had no branch for the beam, so the fire key
+  still threw ordinary eggs while it burned. It now returns early. While there,
+  a second black hole can no longer be fired while one is open.
+- **The ending**: clearing round 42 (a boss round) leads to a `victory`
+  phase, not round 43. `onGameOver` carries a `won` flag, and the panel says
+  "The cow is safe". The scene is all in `drawVictory` in `src/render.ts`. The
+  song's notes and lyrics live in `src/song.ts`, so the audio and the bubbles
+  share one timing. Music is `silence` while the fleet leaves (the sad trombone
+  is an effect), then `song`, which keeps looping behind the panel.
+- **The song has not been heard.** Three of its four lines render offline with
+  sound and no NaNs. The last line, which all three sing at once, never
+  finished rendering headless, though it schedules without an exception.
+

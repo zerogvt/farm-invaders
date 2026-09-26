@@ -19,9 +19,11 @@ import {
   PARLEY_SHIP,
   POWER,
   ROUND,
+  SHIELD,
   SPLAT,
   TAUNT,
   UFO,
+  VICTORY,
   VIEW,
   WINGMAN,
   WIPER,
@@ -31,7 +33,6 @@ import { placeObstacles } from './obstacles'
 import type {
   Boss,
   Bubble,
-  Gained,
   GameState,
   Laser as LaserShot,
   Power,
@@ -103,11 +104,18 @@ export interface GameEvents {
   onBossDowned?: (points: number) => void
   /** The mothership has declined a heart, and the hen has a super egg instead. */
   onBossTaunt?: () => void
-  onPowerGained?: (power: Gained) => void
+  onPowerGained?: (power: Power) => void
+  /** The hen has picked up a dropped shield. */
+  onShieldGained?: () => void
+  /** Her shield has taken a hit; `hits` is what it has left. */
+  onShieldHit?: (hits: number) => void
+  /** The final round is over: the beaten fleet is leaving. */
+  onVictory?: () => void
   onExtraLife?: (lives: number) => void
   onHenHurt?: () => void
   onRoundCleared?: (round: number) => void
-  onGameOver?: (score: number, round: number) => void
+  /** The run is over, lost or — after the final round — won. */
+  onGameOver?: (score: number, round: number, won: boolean) => void
   /** Something has gone up. `big` is a gramophone finale; everything else is a
    *  single saucer or toy popping. */
   onExplosion?: (size: 'small' | 'big') => void
@@ -156,6 +164,8 @@ export function createGame(): GameState {
     obstacles: [],
     power: { kind: 'none' },
     shield: null,
+    shieldDrops: [],
+    cheat: false,
     pickup: null,
     pickupTimer: null,
     pickupsLeft: 0,
@@ -194,6 +204,7 @@ export function startRound(state: GameState, round: number): void {
   state.burpLine = null
   state.lasers = []
   state.foxes = []
+  state.shieldDrops = []
   state.foxesThrown = 0
   // Foxes come from the formation, so a mothership round has none.
   state.foxTimer = boss ? null : rollFox(round)
@@ -274,7 +285,7 @@ export function update(state: GameState, dt: number, input: InputState, events: 
       tickFeathers(state, dt)
       if (state.phase.age >= ABDUCTION.duration) {
         state.phase = { kind: 'over', scoreSubmitted: false }
-        events.onGameOver?.(state.score, state.round)
+        events.onGameOver?.(state.score, state.round, false)
       }
       return
 
@@ -295,7 +306,24 @@ export function update(state: GameState, dt: number, input: InputState, events: 
       advanceLasers(state, dt)
       advanceFoxes(state, dt)
       tickTimers(state, dt)
-      if (state.phase.remaining <= 0) startRound(state, state.round + 1)
+      if (state.phase.remaining > 0) return
+      if (state.round >= VICTORY.finalRound) {
+        state.phase = { kind: 'victory', age: 0 }
+        events.onVictory?.()
+      } else {
+        startRound(state, state.round + 1)
+      }
+      return
+
+    case 'victory':
+      // The board is empty and stays that way; the ending is all the
+      // renderer's, driven off the phase's age.
+      state.phase.age += dt
+      tickFeathers(state, dt)
+      if (state.phase.age >= VICTORY.duration) {
+        state.phase = { kind: 'over', scoreSubmitted: false }
+        events.onGameOver?.(state.score, state.round, true)
+      }
       return
 
     case 'over':
@@ -323,6 +351,7 @@ export function update(state: GameState, dt: number, input: InputState, events: 
     advanceLasers(state, dt)
     advanceFoxes(state, dt)
     tickFoxTimer(state, dt, events)
+    tickShieldDrops(state, dt)
     marchFormation(state, dt)
     tickLeaving(state, dt, events)
     tickWobble(state, dt, events)
@@ -336,6 +365,7 @@ export function update(state: GameState, dt: number, input: InputState, events: 
   }
 
   resolveCollisions(state, frozen, events)
+  collectShields(state, events)
 
   if (state.ufos.length === 0 && state.boss === null) {
     events.onRoundCleared?.(state.round)
@@ -384,10 +414,9 @@ function tickTimers(state: GameState, dt: number): void {
     power.remaining -= dt
     if (power.remaining <= 0) state.power = { kind: 'none' }
   }
-  if (state.shield !== null) {
-    state.shield.remaining -= dt
-    if (state.shield.remaining <= 0) state.shield = null
-  }
+  // A black hole always in hand, freshly charged.
+  if (state.cheat && state.power.kind !== 'blackHole') state.power = { kind: 'blackHole', ...clock(POWER.holdDuration) }
+  if (state.cheat && state.power.kind === 'blackHole') state.power.remaining = state.power.duration
 
   const blasts = []
   for (const blast of state.blasts) {
@@ -481,8 +510,14 @@ function tryShoot(state: GameState, input: InputState, events: GameEvents): void
     return
   }
 
-  // The black hole opens up in the sky rather than being thrown there.
+  // The beam burns by itself for as long as it lasts. It is not a gun, and the
+  // fire key used to throw eggs straight up it as well.
+  if (power.kind === 'beam') return
+
+  // The black hole opens up in the sky rather than being thrown there — one at
+  // a time.
   if (power.kind === 'blackHole') {
+    if (state.vortex !== null) return
     openVortex(state)
     events.onBlackHole?.()
     state.power = { kind: 'none' }
@@ -524,12 +559,22 @@ function tryShoot(state: GameState, input: InputState, events: GameEvents): void
     return
   }
 
-  // The wingman's eggs are her own; they do not use up the hen's three.
+  // The wingman's eggs are her own; they do not use up the hen's three throws.
+  const perThrow = eggsPerThrow(state.round)
   const ownEggs = state.shots.reduce((count, shot) => count + (shot.wingman ? 0 : 1), 0)
-  if (ownEggs >= EGG.maxInFlight) return
-  state.shots.push(egg(muzzleX))
+  // A whole throw has to fit under the cap, or a part-spent one would overshoot.
+  if (ownEggs + perThrow > EGG.maxInFlight * perThrow) return
+  for (let i = 0; i < perThrow; i++) {
+    state.shots.push(egg(muzzleX + (i - (perThrow - 1) / 2) * EGG.spacing))
+  }
   state.shotCooldown = EGG.cooldown
   events.onShot?.('normal', false)
+}
+
+/** Eggs in one ordinary throw: one more for every ten rounds. Exported for the
+ *  tests. */
+export function eggsPerThrow(round: number): number {
+  return Math.min(EGG.perThrowMax, Math.ceil(round / EGG.roundsPerExtraEgg))
 }
 
 /**
@@ -667,8 +712,7 @@ function heartBurst(state: GameState, x: number, y: number, events: GameEvents):
   events.onHeartBurst?.()
   for (const ufo of state.ufos) {
     if (ufo.state.kind !== 'flying') continue
-    ufo.state = leaveFrom(ufo.x, UFO.width, 'deserted')
-    events.onUfoDeserted?.(ufo)
+    desert(state, ufo, events)
   }
 
   const boss = state.boss
@@ -1005,10 +1049,75 @@ function tickDesertions(state: GameState, dt: number, events: GameEvents): void 
     const chosen = willing[Math.floor(Math.random() * willing.length)]
     // Nobody left to lose their nerve: the desertion is simply dropped.
     if (chosen === undefined) continue
-    chosen.state = leaveFrom(chosen.x, UFO.width, 'deserted')
-    events.onUfoDeserted?.(chosen)
+    desert(state, chosen, events)
   }
   state.desertions = pending
+}
+
+/** A saucer giving up the war. Every other one leaves a shield behind for the
+ *  hen, dropped from where it was. */
+function desert(state: GameState, ufo: Ufo, events: GameEvents): void {
+  ufo.state = leaveFrom(ufo.x, UFO.width, 'deserted')
+  events.onUfoDeserted?.(ufo)
+  if (Math.random() >= SHIELD.dropChance) return
+  state.shieldDrops.push({
+    x: ufo.x + UFO.width / 2 - SHIELD.width / 2,
+    y: ufo.y + UFO.height,
+    landed: false,
+    remaining: SHIELD.groundTime,
+  })
+}
+
+/** Dropped shields fall to the ground and lie there a few seconds. */
+function tickShieldDrops(state: GameState, dt: number): void {
+  if (state.shieldDrops.length === 0) return
+  const ground = HEN_TOP + HEN.height
+  const lying = []
+  for (const drop of state.shieldDrops) {
+    if (!drop.landed) {
+      drop.y += SHIELD.fallSpeed * dt
+      if (drop.y + SHIELD.height >= ground) {
+        drop.y = ground - SHIELD.height
+        drop.landed = true
+      }
+    } else {
+      drop.remaining -= dt
+      if (drop.remaining <= 0) continue
+    }
+    lying.push(drop)
+  }
+  state.shieldDrops = lying
+}
+
+/** The hen picks up any shield she touches, falling or lying. A fresh one tops
+ *  hers back up to full. */
+function collectShields(state: GameState, events: GameEvents): void {
+  if (state.shieldDrops.length === 0) return
+  const henRect: Rect = { x: state.hen.x, y: HEN_TOP, width: HEN.width, height: HEN.height }
+  const left = []
+  for (const drop of state.shieldDrops) {
+    if (overlaps(henRect, { x: drop.x, y: drop.y, width: SHIELD.width, height: SHIELD.height })) {
+      state.shield = { hits: SHIELD.hits }
+      events.onShieldGained?.()
+      continue
+    }
+    left.push(drop)
+  }
+  state.shieldDrops = left
+}
+
+/** The shield taking `hits` hits, and going when it has none left. */
+function hitShield(state: GameState, hits: number, events: GameEvents): void {
+  if (state.shield === null) return
+  state.shield.hits = Math.max(0, state.shield.hits - hits)
+  events.onShieldHit?.(state.shield.hits)
+  if (state.shield.hits === 0) state.shield = null
+}
+
+/** Switches the black hole kept in hand on or off. */
+export function toggleCheat(state: GameState): void {
+  state.cheat = !state.cheat
+  if (!state.cheat && state.power.kind === 'blackHole') state.power = { kind: 'none' }
 }
 
 // --- the formation ---------------------------------------------------------
@@ -1433,10 +1542,10 @@ function tickPickup(state: GameState, dt: number): void {
   }
 }
 
-/** The ten upgrades are equally likely. Which one you get is the joke; being
+/** The nine upgrades are equally likely. Which one you get is the joke; being
  *  able to plan around it would spoil it. */
-function rollPower(state: GameState): Gained {
-  switch (Math.floor(Math.random() * 10)) {
+function rollPower(state: GameState): Power {
+  switch (Math.floor(Math.random() * 9)) {
     case 0: {
       const spread = POWER.multishotMax - POWER.multishotMin
       return {
@@ -1450,7 +1559,7 @@ function rollPower(state: GameState): Gained {
     case 2:
       return { kind: 'beam', ...clock(POWER.beamDuration) }
     case 3:
-      return { kind: 'shield', ...clock(POWER.shieldDuration) }
+      return wingmanPower(state)
     case 4:
       return { kind: 'heart', ...clock(POWER.holdDuration) }
     case 5:
@@ -1459,8 +1568,6 @@ function rollPower(state: GameState): Gained {
       return { kind: 'blackHole', ...clock(POWER.holdDuration) }
     case 7:
       return { kind: 'burp', ...clock(POWER.holdDuration) }
-    case 8:
-      return wingmanPower(state)
     default:
       return { kind: 'gramophone', ...clock(POWER.holdDuration) }
   }
@@ -1536,7 +1643,6 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
   // into one costing a life would make the freeze a hazard rather than a gift.
   if (frozen) return
 
-  const shielded = state.shield !== null
   const henRect: Rect = { x: state.hen.x, y: HEN_TOP, width: HEN.width, height: HEN.height }
   const wing = state.power.kind === 'wingman' ? state.power : null
   const wingRect: Rect | null = wing === null ? null : { x: wing.x, y: HEN_TOP, width: HEN.width, height: HEN.height }
@@ -1548,9 +1654,12 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
     // simply absorbed.
     if (wingRect !== null && overlaps(rect, wingRect)) continue
     if (overlaps(rect, henRect)) {
-      // The shield eats the shot outright; without it, only the post-hit
-      // invulnerability saves her.
-      if (shielded) continue
+      // The shield eats the shot, and a hit for every width of it; without it,
+      // only the post-hit invulnerability saves her.
+      if (state.shield !== null) {
+        hitShield(state, laser.power ?? 1, events)
+        continue
+      }
       if (state.hen.invulnerable <= 0) {
         hurtHen(state, events)
         return
@@ -1561,10 +1670,16 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
   state.lasers = survivingLasers
 
   // A fox goes through toys and past the wingman, and eggs go through it. The
-  // shield is the one thing that keeps it off her.
-  if (shielded || state.hen.invulnerable > 0) return
+  // shield is the one thing that keeps it off her: it costs a hit, and gives
+  // her a moment to get past before the fox can cost another.
+  if (state.hen.invulnerable > 0) return
   for (const fox of state.foxes) {
     if (!overlaps(henRect, { x: fox.x, y: fox.y, width: FOX.width, height: FOX.height })) continue
+    if (state.shield !== null) {
+      hitShield(state, 1, events)
+      state.hen.invulnerable = SHIELD.foxGrace
+      return
+    }
     hurtHen(state, events)
     return
   }
@@ -1683,12 +1798,8 @@ function hitsPickup(state: GameState, egg: Rect, events: GameEvents): boolean {
   const rect: Rect = { x: pickup.x, y: pickup.y, width: POWER.width, height: POWER.height }
   if (!overlaps(egg, rect)) return false
   pickupGone(state)
-  const gained = rollPower(state)
-  // The shield runs alongside whatever she is holding; anything else replaces
-  // it.
-  if (gained.kind === 'shield') state.shield = { remaining: gained.remaining, duration: gained.duration }
-  else state.power = gained
-  events.onPowerGained?.(gained)
+  state.power = rollPower(state)
+  events.onPowerGained?.(state.power)
   return true
 }
 

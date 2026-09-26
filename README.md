@@ -18,6 +18,16 @@ puts a tractor beam on the cow and takes it, and the cow has just enough time to
 say **"Moooooooooo"** on the way up. It is happier the rest of the time: every
 round the hen clears gets a **"Moo"**.
 
+**Round 42 is the last.** Clear it and the beaten fleet rises off the screen in
+tears to a sad trombone, the mothership conceding the cow. Then night falls, and
+the cow, the hen and a radioactive fox dance round a campfire under the moon,
+singing *Moo Moo Moo* — an original tune — a line each: *"They came for the
+cow, and we said moo moo moo. Moo moo moo we said, and they run moooway!"*
+
+**The hen throws more eggs as the rounds go on:** one at a time in rounds 1–10,
+two side by side in 11–20, three in 21–30 and four from round 31, all straight
+up. She can still have three throws in the air at once.
+
 An egg does not shoot a saucer down. One that connects bursts across the canopy
 and blinds the pilot: the saucer drops out of the formation, hangs there reeling
 for a moment, then banks over and limps off whichever side of the screen is
@@ -56,7 +66,7 @@ round. Eggs go straight through it, toys do not stop it and the black hole does
 not take it. It falls to the ground and sits where it lands, for a second in
 round 1 and up to ten seconds from round 19. Then it runs off the side *away*
 from the hen. If it touches her she loses a life. The shield is the one thing
-that keeps it off her.
+that keeps it off her, at the cost of one of its hits.
 
 From round 11, when a fox will sit for more than five seconds, it **glows
 brighter** — and when it gets up it **chases the hen** instead. The chase is
@@ -71,7 +81,16 @@ of feathers come off her and drift down.
 decides it has had enough, says **make ❤️ not war** and flies home. They leave
 unscored: talking somebody out of a fight is not the same as winning it.
 
-**Every 2000 points is another hen**, awarded for each threshold crossed rather
+**Every other deserter drops a shield** on its way out — the heart's deserters
+too. It falls to the ground and lies there for four seconds; the hen gets it by
+walking over it, or by standing where it lands. The shield takes **three hits**
+and does not run out with time: a double laser counts as two hits and a triple
+as three, and each fox that touches her costs one (and gives her a moment to get
+past). It grows fainter with every hit, and the HUD shows what it has left.
+Picking up another tops it back up. It runs alongside whatever upgrade she is
+holding.
+
+**Every 4000 points is another hen**, awarded for each threshold crossed rather
 than one per payout, so a single screen-clearing upgrade can hand back two.
 
 **On about one round in three, Einstein turns up**, says **time freeze mate**,
@@ -92,7 +111,6 @@ come one at a time, a few seconds apart. Which upgrade is not up to her:
 | Multishot | Every shot becomes a fan of 5–20 eggs, for six seconds. |
 | Super egg | One shot. It bursts at mid-screen and clears the sky outright. |
 | Beam | A continuous beam for six seconds. It burns whatever it touches, and needs one second on the mothership per egg the mothership would have cost. |
-| Shield | Ten seconds during which lasers and foxes simply do not land. It runs alongside whatever upgrade she already holds. |
 | Exploding heart | One shot. The whole fleet deserts. The mothership declines — *"no xmas truce. This aint 1914. I'm da central command!"* — and the hen gets a super egg for her trouble. |
 | Gravity waves | Five seconds of expanding rings. Anything a ring washes over loses attitude control, tumbles off at random, and detonates against whatever it blunders into, itself included. |
 | Black hole | One shot. It opens at a random spot in the sky, and every saucer on the board — the mothership too — spirals into it and is swallowed, the nearer ones first. |
@@ -105,8 +123,8 @@ not something you chose — and every one of them carries a clock, shown in the
 HUD as a name, the seconds left and a bar that drains, turning red over the last
 three seconds. The single-shot upgrades are spent by firing them; their clock is
 how long they can be carried unfired. A new upgrade replaces the one she is
-holding — except the shield, which runs beside it with its own clock on the
-right of the HUD.
+holding. While the beam burns, the fire key does nothing: it is not a gun. Only
+one black hole can be open at a time.
 
 ## Running it
 
@@ -305,8 +323,9 @@ the obstacles standing, because the best thing in the game should not also be th
 thing that strips your cover.
 
 **An upgrade survives the round it was won in.** Timers keep running across the
-round break rather than being reset by `startRound`, so a shield picked up in the
-last second of a round is not confiscated for clearing it.
+round break rather than being reset by `startRound`, so an upgrade picked up in
+the last second of a round is not confiscated for clearing it. The shield carries
+over too, with however many hits it has left.
 
 **The freeze exempts the hen, not the player.** `update` runs the hen, her
 shots, her waves and her beam every frame and skips the rest of the board's
@@ -375,9 +394,9 @@ of the heart being the most spectacular thing in the game.
 **Three upgrades take the mothership outright** (super egg, black hole,
 gramophone), three grind it down (the beam at one hit point per second, gravity
 waves at one per wave, the burp at one per bubble that lands), the heart is
-refused, and multishot, the shield and the wingman do what they always do. That
-spread is deliberate: a boss round should sometimes be stolen by a lucky pickup,
-but three of the ten have to be earned and three are no help beyond the usual.
+refused, and multishot and the wingman do what they always do. That spread is
+deliberate: a boss round should sometimes be stolen by a lucky pickup, but three
+of the nine have to be earned and two are no help beyond the usual.
 
 **Lasers travel at half the speed they once did.** That has a second effect
 worth knowing about: a slower shot is on screen for longer, so the cap on lasers
@@ -431,7 +450,7 @@ canopies can share one hull. Swapping to emoji or PNGs means rewriting
 - **Einstein cannot be missed, or sought.** The visit is on a timer, not a
   pickup: there is nothing to shoot and nothing to steer towards, so a round
   either gets one or does not.
-- **Upgrades are not chosen.** Which of the ten a Rambo egg grants is random and
+- **Upgrades are not chosen.** Which of the nine a Rambo egg grants is random and
   cannot be influenced. That is deliberate — being able to plan around it would
   spoil the joke — but it does mean a run can be decided by a coin flip.
 - **The obstacles are mostly nursery toys.** They are carried over from the

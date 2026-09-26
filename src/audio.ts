@@ -1,3 +1,5 @@
+import { SONG_EIGHTH, SONG_LENGTH, SONG_LINES, SONG_ROOTS, type SongLine, type SongNote, type Vowel } from './song'
+
 /**
  * Every sound in the game, and the music, synthesised at run time with the
  * browser's Web Audio API. There are no audio files, for the same reasons there
@@ -35,10 +37,12 @@ export type Sfx =
   | 'wipe'
   | 'bossDemand'
   | 'henNever'
+  | 'shieldHit'
+  | 'sadTrombone'
 
-/** The two background tunes: the theme, and the mothership's march on boss
- *  rounds. */
-export type Track = 'theme' | 'boss'
+/** The background tunes: the theme, the mothership's march on boss rounds, the
+ *  campfire song at the end, and nothing at all. */
+export type Track = 'theme' | 'boss' | 'song' | 'silence'
 
 export interface Sound {
   /** Starts the audio context. Must be called from a user gesture. */
@@ -554,6 +558,34 @@ export const EFFECTS: Record<Sfx, (v: Voice) => void> = {
     )
   },
 
+  // The shield taking a hit: a glassy ping.
+  shieldHit: (v) => {
+    tone(v, 'sine', 1500, 900, 0.25, envelope(v, 0.3, 0.28, 0.003))
+    tone(v, 'triangle', 2250, 1500, 0.18, envelope(v, 0.12, 0.2, 0.003))
+  },
+
+  // The beaten fleet leaving: "wah, wah, wah, waaah" on a muted trombone.
+  sadTrombone: (v) => {
+    const notes = [
+      [58, 0, 0.42],
+      [57, 0.48, 0.42],
+      [56, 0.96, 0.42],
+      [55, 1.44, 1.3],
+    ] as const
+    for (const [note, start, length] of notes) {
+      const at = { ...v, t: v.t + start }
+      const wah = at.ctx.createBiquadFilter()
+      wah.type = 'lowpass'
+      wah.Q.value = 5
+      wah.frequency.setValueAtTime(350, at.t)
+      wah.frequency.linearRampToValueAtTime(1300, at.t + Math.min(0.2, length / 2))
+      wah.frequency.linearRampToValueAtTime(500, at.t + length)
+      wah.connect(envelope(at, 0.5, length, 0.04))
+      const osc = tone(at, 'sawtooth', hz(note), hz(note) * (length > 1 ? 0.97 : 1), length, wah)
+      if (length > 1) vibrato(at, osc, 6, 4, length)
+    }
+  },
+
   // The gramophone plays its three seconds: a scratchy little waltz.
   gramophone: (v) => {
     const tune = [67, 72, 76, 74, 72, 71, 72, 76, 79, 77, 76, 74]
@@ -624,6 +656,68 @@ const BOSS_BASS: number[] = [
   38, 33, 38, 0,
 ]
 
+/** Formants for the singing voice: where each vowel starts and ends. */
+const VOWELS: Record<Vowel, { f1: [number, number]; f2: [number, number] }> = {
+  ay: { f1: [500, 350], f2: [1800, 2300] },
+  or: { f1: [550, 450], f2: [900, 800] },
+  uh: { f1: [550, 550], f2: [1300, 1300] },
+  ow: { f1: [750, 380], f2: [1300, 850] },
+  a: { f1: [750, 700], f2: [1700, 1600] },
+  ee: { f1: [300, 300], f2: [2300, 2300] },
+  eh: { f1: [550, 500], f2: [1800, 1850] },
+  oo: { f1: [340, 320], f2: [850, 800] },
+}
+
+/** Who sings in what register and on what source: the hen high and buzzy, the
+ *  cow low and reedy, the fox in between. "All" is the three at once. */
+const VOICES: Record<'hen' | 'cow' | 'fox', { shift: number; source: OscillatorType; peak: number }> = {
+  hen: { shift: 12, source: 'square', peak: 0.35 },
+  cow: { shift: -12, source: 'sawtooth', peak: 0.6 },
+  fox: { shift: 0, source: 'sawtooth', peak: 0.45 },
+}
+
+/** Which note, if any, starts on each eighth of the song, and who sings it. */
+const SONG_NOTES = new Map<number, { note: SongNote; line: SongLine }>()
+for (const line of SONG_LINES) {
+  let at = line.start
+  for (const note of line.notes) {
+    SONG_NOTES.set(at, { note, line })
+    at += note.eighths
+  }
+}
+
+/** One eighth of "Moo Moo Moo". Exported to be rendered offline and measured. */
+export function playSongStep(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, step: number, t: number, eighth: number): void {
+  const v: Voice = { ctx, out, noise, t }
+
+  const sung = SONG_NOTES.get(step)
+  if (sung !== undefined) {
+    const { note, line } = sung
+    const length = note.eighths * eighth * 0.92
+    const vowel = VOWELS[note.vowel]
+    const singers = line.singer === 'all' ? (['hen', 'cow', 'fox'] as const) : [line.singer]
+    for (const singer of singers) {
+      const voice = VOICES[singer]
+      const pitch = hz(note.midi + voice.shift)
+      speak(v, [{ at: 0, length, from: pitch, to: pitch, f1: vowel.f1, f2: vowel.f2 }], voice.source, voice.peak / singers.length)
+    }
+    // A plucked doubling, so the tune is clear under the vowels.
+    tone(v, 'triangle', hz(note.midi), hz(note.midi), 0.18, envelope(v, 0.16, 0.22, 0.003))
+  }
+
+  // Oom-pah: the root on one and three, a stab of the chord on two and four,
+  // and a shaker on every eighth.
+  const root = SONG_ROOTS[Math.floor(step / 8)] ?? 48
+  const beat = step % 8
+  if (beat === 0 || beat === 4) tone(v, 'triangle', hz(root - 12), hz(root - 12), eighth * 1.6, envelope(v, 0.55, eighth * 1.8, 0.01))
+  if (beat === 2 || beat === 6) {
+    for (const interval of [12, 16, 19]) {
+      tone(v, 'triangle', hz(root + interval), hz(root + interval), eighth * 0.8, envelope(v, 0.07, eighth * 0.9, 0.005))
+    }
+  }
+  hiss(v, 'highpass', 7000, 6000, 0.03, envelope(v, beat % 2 === 0 ? 0.06 : 0.1, 0.04), 0.7)
+}
+
 /**
  * Schedules the music a little ahead of the audio clock, the standard way to
  * keep Web Audio in time: a timer wakes up often and books every note that
@@ -644,10 +738,15 @@ function startMusic(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, music
       next = ctx.currentTime + 0.05
     }
     if (next < ctx.currentTime - 0.05) next = ctx.currentTime + 0.05
-    const eighth = 60 / (music.track === 'boss' ? BOSS_TEMPO : TEMPO) / 2
-    const length = music.track === 'boss' ? BOSS_LEAD.length : LEAD.length
+    if (music.track === 'silence') {
+      next = ctx.currentTime + 0.05
+      return
+    }
+    const eighth = music.track === 'boss' ? 60 / BOSS_TEMPO / 2 : music.track === 'song' ? SONG_EIGHTH : 60 / TEMPO / 2
+    const length = music.track === 'boss' ? BOSS_LEAD.length : music.track === 'song' ? SONG_LENGTH : LEAD.length
     while (next < ctx.currentTime + lookahead) {
       if (music.track === 'boss') playBossStep(ctx, out, noise, step, next, eighth)
+      else if (music.track === 'song') playSongStep(ctx, out, noise, step, next, eighth)
       else playStep(ctx, out, noise, step, next, eighth)
       step = (step + 1) % length
       next += eighth
