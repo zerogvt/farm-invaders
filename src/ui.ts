@@ -33,24 +33,8 @@ export function createUi(root: HTMLElement): Ui {
     panel.innerHTML = ''
     panel.append(
       heading('Farm Invaders'),
-      paragraph('The saucers want the cow. You are a chicken in a space helmet. Good luck.'),
+      paragraph('The saucers want the cow. You are a chicken in a space helmet. Defend the cow. Good luck.'),
       controlsList(),
-      paragraph(
-        'An egg does not shoot a saucer down — it bursts on the windscreen. The pilot ' +
-          'reels, drops out of the formation, and limps off the nearest edge of the screen. ' +
-          'Toys on the floor soak up anything that hits them, from either side — and an egg ' +
-          'that meets a laser shoots it down.',
-      ),
-      paragraph(
-        'Every second round sends one mothership instead of a fleet: it takes as many eggs ' +
-          'as the round number, answers with that many lasers at a time, and is the only ' +
-          'thing out there that shoots at an angle. A tenth of every fleet loses its nerve ' +
-          'and goes home on its own.',
-      ),
-      paragraph(
-        'Watch the corners for a Rambo egg — shoot it and your eggs are upgraded to one of ' +
-          'ten things you do not get to choose. Every 2000 points is another hen.',
-      ),
       scoreBoard(loadScores()),
     )
     const start = button('Start', () => {
