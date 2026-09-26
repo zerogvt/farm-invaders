@@ -118,7 +118,7 @@ function main(): void {
   })
 
   window.addEventListener('keydown', (event) => {
-    if (event.code !== 'KeyI' || !event.ctrlKey || !event.shiftKey || event.repeat) return
+    if (event.code !== 'KeyE' || !event.ctrlKey || !event.shiftKey || event.repeat) return
     event.preventDefault()
     toggleCheat(game)
   })

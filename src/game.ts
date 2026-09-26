@@ -252,7 +252,7 @@ export function restart(state: GameState): void {
   state.power = { kind: 'none' }
   state.shield = null
   state.nextLifeAt = HEN.extraLifeEvery
-  startRound(state, 1)
+  startRound(state, state.cheat ? VICTORY.finalRound : 1)
 }
 
 /**
@@ -1118,7 +1118,13 @@ function hitShield(state: GameState, hits: number, events: GameEvents): void {
 /** Switches the black hole kept in hand on or off. */
 export function toggleCheat(state: GameState): void {
   state.cheat = !state.cheat
-  if (!state.cheat && state.power.kind === 'blackHole') state.power = { kind: 'none' }
+  if (!state.cheat) {
+    if (state.power.kind === 'blackHole') state.power = { kind: 'none' }
+    return
+  }
+  state.power = { kind: 'blackHole', ...clock(POWER.holdDuration) }
+  const phase = state.phase.kind
+  if (phase !== 'over' && phase !== 'abduction' && phase !== 'victory') startRound(state, VICTORY.finalRound)
 }
 
 // --- the formation ---------------------------------------------------------
