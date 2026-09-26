@@ -237,8 +237,8 @@ export const SHIELD = {
   fallSpeed: 110,
   /** Seconds it lies on the ground before it is gone. */
   groundTime: 4,
-  /** A fox touching a shielded hen costs a hit, and gives her this long to get
-   *  past it before it can cost another. */
+  /** A fox touching a shielded hen breaks the shield outright, and gives her
+   *  this long to get past it before it can cost her a life. */
   foxGrace: 1,
 } as const
 

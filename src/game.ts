@@ -206,8 +206,9 @@ export function startRound(state: GameState, round: number): void {
   state.foxes = []
   state.shieldDrops = []
   state.foxesThrown = 0
-  // Foxes come from the formation, so a mothership round has none.
-  state.foxTimer = boss ? null : rollFox(round)
+  // Foxes come from the fleet's front rank, or from the mothership on its
+  // rounds, on the same schedule either way.
+  state.foxTimer = rollFox(round)
   state.vortex = null
   state.blasts = []
   state.pickup = null
@@ -1251,12 +1252,11 @@ function tickFoxTimer(state: GameState, dt: number, events: GameEvents): void {
   state.foxTimer -= dt
   if (state.foxTimer > 0) return
 
-  const throwers = frontLineUfos(state)
-  const thrower = throwers[Math.floor(Math.random() * throwers.length)]
-  if (thrower !== undefined) {
+  const hatch = foxHatch(state)
+  if (hatch !== null) {
     state.foxes.push({
-      x: thrower.x + UFO.width / 2 - FOX.width / 2,
-      y: thrower.y + UFO.height,
+      x: hatch.x - FOX.width / 2,
+      y: hatch.y,
       vx: 0,
       rotation: 0,
       landed: false,
@@ -1268,6 +1268,20 @@ function tickFoxTimer(state: GameState, dt: number, events: GameEvents): void {
     events.onFoxThrown?.()
   }
   state.foxTimer = state.foxesThrown >= FOX.maxPerRound ? null : rollFox(state.round)
+}
+
+/** Where the next fox drops from: under a random front-rank saucer, or out of
+ *  the mothership's belly. Nowhere, if nothing is flying that could drop one. */
+function foxHatch(state: GameState): { x: number; y: number } | null {
+  const boss = state.boss
+  if (boss !== null) {
+    if (boss.state.kind !== 'flying') return null
+    return { x: boss.x + BOSS.width / 2, y: boss.y + BOSS.height * 0.8 }
+  }
+  const throwers = frontLineUfos(state)
+  const thrower = throwers[Math.floor(Math.random() * throwers.length)]
+  if (thrower === undefined) return null
+  return { x: thrower.x + UFO.width / 2, y: thrower.y + UFO.height }
 }
 
 /** Where a round sits on a ramp that starts at round 1 and is complete by
@@ -1670,13 +1684,14 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
   state.lasers = survivingLasers
 
   // A fox goes through toys and past the wingman, and eggs go through it. The
-  // shield is the one thing that keeps it off her: it costs a hit, and gives
-  // her a moment to get past before the fox can cost another.
+  // shield is the one thing that keeps it off her, and it breaks doing so,
+  // however many hits it had left; she gets a moment to get past the fox before
+  // it can cost her a life.
   if (state.hen.invulnerable > 0) return
   for (const fox of state.foxes) {
     if (!overlaps(henRect, { x: fox.x, y: fox.y, width: FOX.width, height: FOX.height })) continue
     if (state.shield !== null) {
-      hitShield(state, 1, events)
+      hitShield(state, state.shield.hits, events)
       state.hen.invulnerable = SHIELD.foxGrace
       return
     }

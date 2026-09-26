@@ -1030,12 +1030,43 @@ const foxStartY = gfx.foxes[0]!.y
 step(gfx, 0.5, idle)
 check('the fox falls', gfx.foxes[0]!.y > foxStartY)
 
-// A round with no timer of its own gets one from startRound; a boss round none.
+// Every round schedules foxes, a mothership round too.
 const gfr = newGame()
 startRound(gfr, 3)
 check('a fleet round schedules foxes', gfr.foxTimer !== null)
 startRound(gfr, 4)
-check('a mothership round has none', gfr.foxTimer === null)
+check('so does a mothership round', gfr.foxTimer !== null)
+
+// The mothership drops them from its belly.
+const gbf = newGame()
+gbf.hen.lives = 99
+enterRound(gbf, 8)
+while (gbf.phase.kind !== 'playing') update(gbf, DT, idle)
+gbf.foxTimer = 0.01
+let bossFoxes = 0
+update(gbf, DT, idle, { onFoxThrown: () => bossFoxes++ })
+const bellyFox = gbf.foxes[0]
+const ship = gbf.boss!
+check(
+  'a mothership drops a fox from under its middle',
+  bossFoxes === 1 &&
+    bellyFox !== undefined &&
+    Math.abs(bellyFox.x + FOX.width / 2 - (ship.x + BOSS.width / 2)) < 5 &&
+    bellyFox.y > ship.y,
+  JSON.stringify(bellyFox),
+)
+check('on the round\'s schedule', gbf.foxTimer !== null && gbf.foxTimer > FOX.lastInterval * (1 - FOX.jitter) - 0.1)
+
+// Not once it is beaten and limping away.
+const gbl = newGame()
+enterRound(gbl, 8)
+while (gbl.phase.kind !== 'playing') update(gbl, DT, idle)
+gbl.boss!.hitPoints = 0.5
+gbl.shots = [egg(gbl.boss!.x + BOSS.width / 2, gbl.boss!.y + BOSS.height / 2)]
+update(gbl, DT, idle)
+gbl.foxTimer = 0.01
+update(gbl, DT, idle)
+check('a beaten mothership drops no fox', gbl.foxes.length === 0)
 
 // Eggs go straight through it.
 const gfe = newGame()
@@ -1145,7 +1176,10 @@ const livesShielded = gfs.hen.lives
 gfs.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
 update(gfs, DT, idle)
 check('the shield keeps a fox off her', gfs.hen.lives === livesShielded)
-check('for one hit, and a moment to get past', gfs.shield?.hits === SHIELD.hits - 1 && gfs.hen.invulnerable > 0)
+check('and the shield breaks doing it, full as it was', gfs.shield === null)
+check('with a moment for her to get past', gfs.hen.invulnerable > 0)
+step(gfs, 0.2, idle)
+check('so the same fox does not then cost a life', gfs.hen.lives === livesShielded)
 
 const gfz = newGame()
 intoPlay(gfz)
