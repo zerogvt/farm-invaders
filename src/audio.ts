@@ -33,6 +33,12 @@ export type Sfx =
   | 'fox'
   | 'blackHole'
   | 'wipe'
+  | 'bossDemand'
+  | 'henNever'
+
+/** The two background tunes: the theme, and the mothership's march on boss
+ *  rounds. */
+export type Track = 'theme' | 'boss'
 
 export interface Sound {
   /** Starts the audio context. Must be called from a user gesture. */
@@ -41,6 +47,8 @@ export interface Sound {
   play(name: Sfx, delay?: number): void
   readonly muted: boolean
   setMuted(muted: boolean): void
+  /** Switches the background tune. The new one starts from its top. */
+  setTrack(track: Track): void
 }
 
 const MASTER_VOLUME = 0.7
@@ -68,6 +76,8 @@ export function createSound(startMuted: boolean): Sound {
   let noise: AudioBuffer | null = null
   let muted = startMuted
   const lastPlayed = new Map<Sfx, number>()
+  // Shared with the music scheduler, which reads it on every tick.
+  const music = { track: 'theme' as Track, changed: false }
 
   function unlock(): void {
     if (ctx === null) {
@@ -84,7 +94,7 @@ export function createSound(startMuted: boolean): Sound {
       musicBus.gain.value = MUSIC_VOLUME
       musicBus.connect(master)
       noise = whiteNoise(ctx)
-      startMusic(ctx, musicBus, noise)
+      startMusic(ctx, musicBus, noise, music)
     }
     // Muted means suspended: the music scheduler runs off the context's clock,
     // so a stopped clock pauses the tune in place rather than piling notes up.
@@ -109,6 +119,12 @@ export function createSound(startMuted: boolean): Sound {
     else void ctx.resume()
   }
 
+  function setTrack(track: Track): void {
+    if (music.track === track) return
+    music.track = track
+    music.changed = true
+  }
+
   return {
     unlock,
     play,
@@ -116,6 +132,7 @@ export function createSound(startMuted: boolean): Sound {
       return muted
     },
     setMuted,
+    setTrack,
   }
 }
 
@@ -256,6 +273,47 @@ function cluck(v: Voice, start: number, length: number, from: number, to: number
   osc.stop(at.t + length + 0.05)
 
   hiss(at, 'bandpass', 3000, 1500, Math.min(0.05, length), envelope(at, peak * 0.4, Math.min(0.06, length)), 1.5)
+}
+
+/**
+ * A voice saying something: a buzzing source pushed through two formant
+ * filters that glide from vowel to vowel, one syllable at a time, with a burst
+ * of noise for each consonant. It says nothing a listener could transcribe, but
+ * the rhythm and the vowels carry the line well enough next to its bubble.
+ */
+interface Syllable {
+  /** Seconds from the start of the line, and how long the vowel is held. */
+  at: number
+  length: number
+  /** Pitch at the start and end of the syllable, in Hz. */
+  from: number
+  to: number
+  /** First and second formants of the vowel, at its start and its end. */
+  f1: [number, number]
+  f2: [number, number]
+  /** A consonant ahead of the vowel: a noise burst through this filter, or none. */
+  consonant?: { type: BiquadFilterType; freq: number; length: number }
+}
+
+function speak(v: Voice, syllables: Syllable[], source: OscillatorType, peak: number, into: AudioNode = v.out): void {
+  for (const s of syllables) {
+    const at = { ...v, t: v.t + s.at, out: into }
+    if (s.consonant !== undefined) {
+      hiss(at, s.consonant.type, s.consonant.freq, s.consonant.freq * 0.8, s.consonant.length, envelope(at, peak * 0.5, s.consonant.length + 0.01, 0.003), 2)
+    }
+    const vowel = { ...at, t: at.t + (s.consonant?.length ?? 0) }
+    const out = envelope(vowel, peak, s.length, 0.02)
+    for (const [start, end] of [s.f1, s.f2]) {
+      const formant = vowel.ctx.createBiquadFilter()
+      formant.type = 'bandpass'
+      formant.Q.value = 6
+      formant.frequency.setValueAtTime(start, vowel.t)
+      formant.frequency.linearRampToValueAtTime(end, vowel.t + s.length)
+      formant.connect(out)
+      const osc = tone(vowel, source, s.from, s.to, s.length, formant)
+      vibrato(vowel, osc, 5, s.from * 0.02, s.length)
+    }
+  }
 }
 
 /** Notes as MIDI numbers, so a tune can be written as a list of small integers. */
@@ -448,6 +506,54 @@ export const EFFECTS: Record<Sfx, (v: Voice) => void> = {
     vibrato(back, two, 40, 70, 0.2)
   },
 
+  // The mothership's opening demand, "Give us the cow now!": a deep, slow voice
+  // run through a ring modulator, which is what makes it an alien one.
+  bossDemand: (v) => {
+    const ring = v.ctx.createGain()
+    ring.gain.value = 0
+    const carrier = v.ctx.createOscillator()
+    carrier.frequency.value = 38
+    carrier.connect(ring.gain)
+    carrier.start(v.t)
+    carrier.stop(v.t + 2.2)
+    ring.connect(v.out)
+    const dry = v.ctx.createGain()
+    dry.gain.value = 0.6
+    dry.connect(v.out)
+    const both = v.ctx.createGain()
+    both.connect(ring)
+    both.connect(dry)
+    speak(
+      v,
+      [
+        { at: 0, length: 0.2, from: 96, to: 92, f1: [300, 320], f2: [2200, 2000], consonant: { type: 'lowpass', freq: 500, length: 0.04 } },
+        { at: 0.28, length: 0.18, from: 92, to: 88, f1: [640, 600], f2: [1200, 1300], consonant: undefined },
+        { at: 0.5, length: 0.12, from: 90, to: 88, f1: [500, 500], f2: [1500, 1500], consonant: { type: 'highpass', freq: 3500, length: 0.07 } },
+        { at: 0.74, length: 0.42, from: 100, to: 84, f1: [800, 380], f2: [1400, 900], consonant: { type: 'bandpass', freq: 1800, length: 0.05 } },
+        { at: 1.28, length: 0.62, from: 94, to: 66, f1: [800, 380], f2: [1500, 900], consonant: { type: 'lowpass', freq: 300, length: 0.06 } },
+      ],
+      'sawtooth',
+      0.5,
+      both,
+    )
+  },
+
+  // The hen's answer, "Never!": two clucky syllables, the second a squawk that
+  // rises before it breaks.
+  henNever: (v) => {
+    speak(
+      v,
+      [
+        { at: 0, length: 0.14, from: 560, to: 620, f1: [450, 480], f2: [1900, 1800], consonant: { type: 'lowpass', freq: 600, length: 0.04 } },
+        { at: 0.22, length: 0.36, from: 700, to: 520, f1: [520, 460], f2: [1500, 1300], consonant: { type: 'bandpass', freq: 2500, length: 0.04 } },
+      ],
+      'sawtooth',
+      // Loud next to the other effects' peaks, because the narrow formants throw
+      // most of the sawtooth away: this comes out at about a quarter.
+      0.9,
+    )
+  },
+
   // The gramophone plays its three seconds: a scratchy little waltz.
   gramophone: (v) => {
     const tune = [67, 72, 76, 74, 72, 71, 72, 76, 79, 77, 76, 74]
@@ -491,23 +597,59 @@ const BASS: number[] = [
 ]
 
 /**
- * Schedules the theme a little ahead of the audio clock, the standard way to
+ * "Mothership March", for boss rounds: an original eight-bar loop in D minor,
+ * slower than the theme. A villain's three-note motif, a chromatic slide down
+ * in bar four that is doing its best to be menacing, an oom-pah tuba bass, a
+ * timpani on the one, and a woodblock that gives the game away.
+ */
+const BOSS_TEMPO = 108
+const BOSS_LEAD: number[] = [
+  62, 0, 62, 65, 64, 0, 61, 0,
+  62, 0, 0, 0, 57, 0, 58, 57,
+  62, 0, 62, 65, 64, 0, 61, 0,
+  69, 0, 68, 0, 67, 0, 66, 0,
+  65, 0, 65, 69, 67, 0, 64, 0,
+  65, 0, 0, 0, 60, 0, 61, 62,
+  70, 0, 69, 0, 67, 65, 64, 61,
+  62, 0, 57, 0, 50, 0, 0, 0,
+]
+const BOSS_BASS: number[] = [
+  38, 45, 38, 45,
+  34, 41, 33, 40,
+  38, 45, 38, 45,
+  33, 40, 33, 40,
+  41, 48, 41, 48,
+  36, 43, 37, 44,
+  43, 38, 45, 40,
+  38, 33, 38, 0,
+]
+
+/**
+ * Schedules the music a little ahead of the audio clock, the standard way to
  * keep Web Audio in time: a timer wakes up often and books every note that
  * falls inside the next slice. If the tab was throttled and the clock has run
- * past the next note, it skips ahead instead of firing the backlog at once.
+ * past the next note, it skips ahead instead of firing the backlog at once. A
+ * change of tune starts the new one from its top on the next slice.
  */
-function startMusic(ctx: AudioContext, out: AudioNode, noise: AudioBuffer): void {
-  const eighth = 60 / TEMPO / 2
+function startMusic(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, music: { track: Track; changed: boolean }): void {
   const lookahead = 0.15
   let step = 0
   let next = ctx.currentTime + 0.1
 
   const tick = (): void => {
     if (ctx.state !== 'running') return
+    if (music.changed) {
+      music.changed = false
+      step = 0
+      next = ctx.currentTime + 0.05
+    }
     if (next < ctx.currentTime - 0.05) next = ctx.currentTime + 0.05
+    const eighth = 60 / (music.track === 'boss' ? BOSS_TEMPO : TEMPO) / 2
+    const length = music.track === 'boss' ? BOSS_LEAD.length : LEAD.length
     while (next < ctx.currentTime + lookahead) {
-      playStep(ctx, out, noise, step, next, eighth)
-      step = (step + 1) % LEAD.length
+      if (music.track === 'boss') playBossStep(ctx, out, noise, step, next, eighth)
+      else playStep(ctx, out, noise, step, next, eighth)
+      step = (step + 1) % length
       next += eighth
     }
   }
@@ -534,4 +676,41 @@ export function playStep(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, 
   if (beat === 0 || beat === 4) tone(v, 'sine', 140, 45, 0.12, envelope(v, 0.7, 0.14))
   if (beat === 2 || beat === 6) hiss(v, 'bandpass', 1800, 1200, 0.1, envelope(v, 0.25, 0.11), 0.8)
   if (step % 2 === 1) hiss(v, 'highpass', 8000, 7000, 0.03, envelope(v, 0.09, 0.035), 0.7)
+}
+
+/** One eighth of "Mothership March". Exported, like `playStep`, to be rendered
+ *  offline and measured. */
+export function playBossStep(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, step: number, t: number, eighth: number): void {
+  const v: Voice = { ctx, out, noise, t }
+
+  // The lead doubled an octave down on a sawtooth, which is the ominous half.
+  const lead = BOSS_LEAD[step] ?? 0
+  if (lead !== 0) {
+    const osc = tone(v, 'square', hz(lead), hz(lead), eighth * 0.85, envelope(v, 0.13, eighth * 0.95, 0.01))
+    vibrato(v, osc, 4.5, 3, eighth)
+    const low = v.ctx.createBiquadFilter()
+    low.type = 'lowpass'
+    low.frequency.value = 900
+    low.connect(envelope(v, 0.14, eighth * 0.95, 0.02))
+    tone(v, 'sawtooth', hz(lead - 12), hz(lead - 12), eighth * 0.9, low)
+  }
+
+  // Tuba: a stubby, muffled sawtooth, oom on the beat and pah on the next.
+  if (step % 2 === 0) {
+    const bass = BOSS_BASS[step / 2] ?? 0
+    if (bass !== 0) {
+      const muffle = v.ctx.createBiquadFilter()
+      muffle.type = 'lowpass'
+      muffle.frequency.value = 420
+      muffle.Q.value = 3
+      muffle.connect(envelope(v, 0.55, eighth * 1.1, 0.015))
+      tone(v, 'sawtooth', hz(bass) * 0.98, hz(bass), eighth, muffle)
+    }
+  }
+
+  // Timpani on the one, a thud on the three, and the woodblock on the offbeats.
+  const beat = step % 8
+  if (beat === 0) tone(v, 'sine', 110, 48, 0.4, envelope(v, 0.75, 0.45, 0.005))
+  if (beat === 4) tone(v, 'sine', 90, 45, 0.18, envelope(v, 0.45, 0.2))
+  if (beat === 3 || beat === 7) tone(v, 'triangle', 1250, 1150, 0.04, envelope(v, 0.18, 0.05, 0.002))
 }
