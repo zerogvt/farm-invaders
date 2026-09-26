@@ -31,6 +31,7 @@ import { placeObstacles } from './obstacles'
 import type {
   Boss,
   Bubble,
+  Gained,
   GameState,
   Laser as LaserShot,
   Power,
@@ -102,7 +103,7 @@ export interface GameEvents {
   onBossDowned?: (points: number) => void
   /** The mothership has declined a heart, and the hen has a super egg instead. */
   onBossTaunt?: () => void
-  onPowerGained?: (power: Power) => void
+  onPowerGained?: (power: Gained) => void
   onExtraLife?: (lives: number) => void
   onHenHurt?: () => void
   onRoundCleared?: (round: number) => void
@@ -154,8 +155,10 @@ export function createGame(): GameState {
     vortex: null,
     obstacles: [],
     power: { kind: 'none' },
+    shield: null,
     pickup: null,
     pickupTimer: null,
+    pickupsLeft: 0,
     blasts: [],
     desertions: [],
     bossTaunt: null,
@@ -197,7 +200,9 @@ export function startRound(state: GameState, round: number): void {
   state.vortex = null
   state.blasts = []
   state.pickup = null
-  state.pickupTimer = rollPickup()
+  const pickups = pickupsFor(round)
+  state.pickupsLeft = Math.max(0, pickups - 1)
+  state.pickupTimer = pickups > 0 ? between(POWER.minDelay, POWER.maxDelay) : null
   state.desertions = rollDesertions(state.ufos.length)
   state.bossTaunt = null
   state.freeze = null
@@ -233,6 +238,7 @@ export function restart(state: GameState): void {
   state.hen.lives = HEN.lives
   state.hen.x = VIEW.width / 2 - HEN.width / 2
   state.power = { kind: 'none' }
+  state.shield = null
   state.nextLifeAt = HEN.extraLifeEvery
   startRound(state, 1)
 }
@@ -377,6 +383,10 @@ function tickTimers(state: GameState, dt: number): void {
   if (power.kind !== 'none') {
     power.remaining -= dt
     if (power.remaining <= 0) state.power = { kind: 'none' }
+  }
+  if (state.shield !== null) {
+    state.shield.remaining -= dt
+    if (state.shield.remaining <= 0) state.shield = null
   }
 
   const blasts = []
@@ -1142,6 +1152,8 @@ function tickFoxTimer(state: GameState, dt: number, events: GameEvents): void {
       rotation: 0,
       landed: false,
       wait: 0,
+      chaser: foxWait(state.round) > FOX.chaseAfterWait,
+      chase: 0,
     })
     state.foxesThrown += 1
     events.onFoxThrown?.()
@@ -1169,8 +1181,10 @@ export function foxWait(round: number): number {
 /**
  * Foxes tumble down to the ground and land on their feet. Each then sits where
  * it landed for a while — still deadly to touch — and runs off the side away
- * from the hen, never towards her: a fox that came for her would be a certain
- * loss, not a hazard. Nothing stops them on the way.
+ * from the hen. A long sitter chases her instead when it gets up, but slower
+ * than she can run and only for a few seconds before it too runs off: one that
+ * kept coming would be a certain loss, since she cannot get past it. Nothing
+ * stops them on the way.
  */
 function advanceFoxes(state: GameState, dt: number): void {
   if (state.foxes.length === 0) return
@@ -1186,17 +1200,31 @@ function advanceFoxes(state: GameState, dt: number): void {
         fox.landed = true
         fox.wait = foxWait(state.round)
       }
+    } else if (fox.chase > 0) {
+      const toHen = state.hen.x + HEN.width / 2 - (fox.x + FOX.width / 2)
+      fox.vx = Math.sign(toHen) * FOX.chaseSpeed
+      // Never past her: it closes on where she is, not beyond.
+      if (Math.abs(toHen) < Math.abs(fox.vx * dt)) fox.vx = toHen / dt
+      fox.chase -= dt
+      if (fox.chase <= 0) {
+        fox.chase = 0
+        fox.vx = awayFromHen(state, fox) * FOX.runSpeed
+      }
     } else if (fox.vx === 0) {
       fox.wait -= dt
       if (fox.wait <= 0) {
-        const henCentre = state.hen.x + HEN.width / 2
-        fox.vx = (fox.x + FOX.width / 2 < henCentre ? -1 : 1) * FOX.runSpeed
+        if (fox.chaser) fox.chase = FOX.chaseDuration
+        else fox.vx = awayFromHen(state, fox) * FOX.runSpeed
       }
     }
     fox.x += fox.vx * dt
     if (fox.x + FOX.width > 0 && fox.x < VIEW.width) running.push(fox)
   }
   state.foxes = running
+}
+
+function awayFromHen(state: GameState, fox: GameState['foxes'][number]): -1 | 1 {
+  return fox.x + FOX.width / 2 < state.hen.x + HEN.width / 2 ? -1 : 1
 }
 
 /** The lowest still-flying saucer in each occupied column. Anything leaving or
@@ -1333,7 +1361,7 @@ function fireVolley(state: GameState, dt: number, events: GameEvents): void {
     const across = shots === 1 ? 0.5 : i / (shots - 1)
     const angle = (across - 0.5) * BOSS.volleySpread + (Math.random() - 0.5) * BOSS.volleyJitter
     const x = boss.x + BOSS.width * (0.2 + 0.6 * across)
-    state.lasers.push(shoot(x, boss.y + BOSS.height * 0.82, angle, state.round))
+    state.lasers.push(shoot(x, boss.y + BOSS.height * 0.82, angle, state.round, rollLaserPower(state.round)))
   }
   events.onLaserFired?.()
 }
@@ -1364,17 +1392,31 @@ function downBoss(state: GameState, events: GameEvents): void {
 
 // --- the Rambo egg and its upgrades ----------------------------------------
 
-/** Decides at the start of a round whether a Rambo egg turns up in it, and if
- *  so how long into the round. */
-function rollPickup(): number | null {
-  if (Math.random() >= POWER.chance) return null
-  return POWER.minDelay + Math.random() * (POWER.maxDelay - POWER.minDelay)
+/** How many Rambo eggs a round brings: none or one up to round 19, one or two
+ *  in the twenties, two or three in the thirties, and so on, with the higher
+ *  count the likelier. Exported for the tests. */
+export function pickupsFor(round: number): number {
+  const band = Math.max(0, Math.floor(round / POWER.roundsPerBand) - 1)
+  return band + (Math.random() < POWER.upperChance ? 1 : 0)
+}
+
+function between(min: number, max: number): number {
+  return min + Math.random() * (max - min)
+}
+
+/** A Rambo egg has gone, shot or not: the next one, if the round owes one, is
+ *  on its way. They come one at a time. */
+function pickupGone(state: GameState): void {
+  state.pickup = null
+  if (state.pickupsLeft <= 0) return
+  state.pickupsLeft -= 1
+  state.pickupTimer = between(POWER.nextMinDelay, POWER.nextMaxDelay)
 }
 
 function tickPickup(state: GameState, dt: number): void {
   if (state.pickup !== null) {
     state.pickup.remaining -= dt
-    if (state.pickup.remaining <= 0) state.pickup = null
+    if (state.pickup.remaining <= 0) pickupGone(state)
     return
   }
 
@@ -1393,7 +1435,7 @@ function tickPickup(state: GameState, dt: number): void {
 
 /** The ten upgrades are equally likely. Which one you get is the joke; being
  *  able to plan around it would spoil it. */
-function rollPower(state: GameState): Power {
+function rollPower(state: GameState): Gained {
   switch (Math.floor(Math.random() * 10)) {
     case 0: {
       const spread = POWER.multishotMax - POWER.multishotMin
@@ -1494,7 +1536,7 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
   // into one costing a life would make the freeze a hazard rather than a gift.
   if (frozen) return
 
-  const shielded = state.power.kind === 'shield'
+  const shielded = state.shield !== null
   const henRect: Rect = { x: state.hen.x, y: HEN_TOP, width: HEN.width, height: HEN.height }
   const wing = state.power.kind === 'wingman' ? state.power : null
   const wingRect: Rect | null = wing === null ? null : { x: wing.x, y: HEN_TOP, width: HEN.width, height: HEN.height }
@@ -1640,9 +1682,13 @@ function hitsPickup(state: GameState, egg: Rect, events: GameEvents): boolean {
   if (pickup === null) return false
   const rect: Rect = { x: pickup.x, y: pickup.y, width: POWER.width, height: POWER.height }
   if (!overlaps(egg, rect)) return false
-  state.pickup = null
-  state.power = rollPower(state)
-  events.onPowerGained?.(state.power)
+  pickupGone(state)
+  const gained = rollPower(state)
+  // The shield runs alongside whatever she is holding; anything else replaces
+  // it.
+  if (gained.kind === 'shield') state.shield = { remaining: gained.remaining, duration: gained.duration }
+  else state.power = gained
+  events.onPowerGained?.(gained)
   return true
 }
 

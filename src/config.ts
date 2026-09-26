@@ -159,15 +159,23 @@ export const TAUNT = {
 } as const
 
 /**
- * The Rambo egg: a bandana-wearing pickup that turns up in a top corner on
- * random rounds and upgrades the hen's eggs if she can hit it before it leaves.
+ * The Rambo egg: a bandana-wearing pickup that turns up in a top corner and
+ * upgrades the hen's eggs if she can hit it before it leaves. Later rounds
+ * bring more than one, one at a time.
  */
 export const POWER = {
-  /** Chance a round shows one at all. Never set below one round in three. */
-  chance: 0.4,
-  /** Seconds into the round it turns up. */
+  /** How many a round brings. Rounds 1–19 get none or one, rounds 20–29 one or
+   *  two, rounds 30–39 two or three, and so on: a new band every
+   *  `roundsPerBand` rounds from round 20. Within a band the higher count
+   *  comes up with chance `upperChance`. */
+  roundsPerBand: 10,
+  upperChance: 0.7,
+  /** Seconds into the round the first one turns up... */
   minDelay: 1.5,
   maxDelay: 5,
+  /** ...and after one has gone, before the next. */
+  nextMinDelay: 3,
+  nextMaxDelay: 8,
   /** Seconds it stays before giving up and leaving. */
   linger: 10,
   width: 44,
@@ -289,6 +297,13 @@ export const FOX = {
   minWait: 1,
   maxWait: 10,
   waitRampRounds: 19,
+  /** A fox that will sit longer than this glows brighter, and when it gets up it
+   *  chases the hen instead of running off. The chase is slower than she is
+   *  and gives up after `chaseDuration`, when it runs off the side away from
+   *  her: a hen that used the long sit to get clear gets away. */
+  chaseAfterWait: 5,
+  chaseSpeed: 190,
+  chaseDuration: 3,
   fallSpeed: 150,
   runSpeed: 260,
   /** Radians per second it tumbles at on the way down. */

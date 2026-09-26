@@ -770,8 +770,15 @@ function drawFoxes(ctx: CanvasRenderingContext2D, state: GameState, sprites: Spr
   for (const fox of state.foxes) {
     const cx = fox.x + FOX.width / 2
     const cy = fox.y + FOX.height / 2
-    const pulse = 0.4 + Math.sin(time * 9) * 0.12
-    glow(ctx, cx, cy, FOX.width * 1.1, `rgba(150,255,90,${pulse})`, 'rgba(90,220,40,0)')
+    // A long sitter, which will chase her, burns brighter, wider and faster.
+    if (fox.chaser) {
+      const pulse = 0.7 + Math.sin(time * 14) * 0.2
+      glow(ctx, cx, cy, FOX.width * 1.7, `rgba(190,255,110,${pulse})`, 'rgba(120,255,40,0)')
+      glow(ctx, cx, cy, FOX.width * 0.8, `rgba(235,255,200,${pulse * 0.6})`, 'rgba(160,255,90,0)')
+    } else {
+      const pulse = 0.4 + Math.sin(time * 9) * 0.12
+      glow(ctx, cx, cy, FOX.width * 1.1, `rgba(150,255,90,${pulse})`, 'rgba(90,220,40,0)')
+    }
     ctx.save()
     ctx.translate(cx, cy)
     ctx.rotate(fox.rotation)
@@ -924,13 +931,14 @@ function drawHen(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
 /** The shield bubble. Drawn over the hen rather than under her, so it stays
  *  legible on the frames where the hurt blink has hidden her. */
 function drawShield(ctx: CanvasRenderingContext2D, state: GameState, time: number): void {
-  if (state.power.kind !== 'shield') return
+  const shield = state.shield
+  if (shield === null) return
 
   const centreX = state.hen.x + HEN.width / 2
   const centreY = HEN_TOP + HEN.height * 0.55
   const radius = HEN.width * 0.78
   // Pulse faster as it runs out, which is the only warning the player gets.
-  const urgency = state.power.remaining < 3 ? 9 : 3
+  const urgency = shield.remaining < 3 ? 9 : 3
   const pulse = 0.55 + Math.sin(time * urgency) * 0.2
 
   ctx.save()
@@ -1005,8 +1013,6 @@ function powerName(power: GameState['power']): string | null {
       return 'SUPER EGG'
     case 'beam':
       return 'BEAM'
-    case 'shield':
-      return 'SHIELD'
     case 'heart':
       return 'EXPLODING HEART'
     case 'gravity':
@@ -1023,17 +1029,20 @@ function powerName(power: GameState['power']): string | null {
 }
 
 /**
- * The upgrade panel: name, seconds left, and a bar draining towards zero. Every
+ * The upgrade panels: name, seconds left, and a bar draining towards zero. Every
  * upgrade carries a clock, so every upgrade gets the same three things — a
  * one-shot that reads "ONE SHOT" tells the player nothing about how long they
- * have to line it up.
+ * have to line it up. The upgrade goes on the left under the score; the
+ * shield, which can run alongside it, on the right under the lives.
  */
 function drawPowerPanel(ctx: CanvasRenderingContext2D, state: GameState): void {
   const power = state.power
   const name = powerName(power)
-  if (power.kind === 'none' || name === null) return
+  if (power.kind !== 'none' && name !== null) drawClock(ctx, name, power, 16)
+  if (state.shield !== null) drawClock(ctx, 'SHIELD', state.shield, VIEW.width - 16 - 168)
+}
 
-  const left = 16
+function drawClock(ctx: CanvasRenderingContext2D, name: string, power: { remaining: number; duration: number }, left: number): void {
   const width = 168
   const fraction = Math.max(0, Math.min(1, power.remaining / power.duration))
 

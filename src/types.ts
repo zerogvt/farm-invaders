@@ -177,7 +177,6 @@ export type Power =
   | ({ kind: 'multishot'; eggs: number } & Timed)
   | ({ kind: 'superEgg' } & Timed)
   | ({ kind: 'beam' } & Timed)
-  | ({ kind: 'shield' } & Timed)
   | ({ kind: 'heart' } & Timed)
   | ({ kind: 'gravity' } & Timed)
   | ({ kind: 'blackHole' } & Timed)
@@ -191,6 +190,11 @@ export type Power =
       /** Seconds until her next volley. */
       cooldown: number
     } & Timed)
+
+/** What a Rambo egg can turn into: any of the upgrades above, or the shield.
+ *  The shield is kept apart because it runs alongside whatever else the hen
+ *  holds; every other upgrade replaces the one before. */
+export type Gained = Power | ({ kind: 'shield' } & Timed)
 
 /** Einstein, mid-sentence, with the board stopped behind him. */
 export interface Freeze {
@@ -246,6 +250,10 @@ export interface Fox {
   landed: boolean
   /** Seconds left sitting on the ground before it runs. */
   wait: number
+  /** A long sitter, which glows brighter and chases the hen when it gets up. */
+  chaser: boolean
+  /** Seconds left of its chase; 0 when it is not chasing. */
+  chase: number
 }
 
 /** A feather knocked off the hen. Purely decorative, like a blast. */
@@ -318,9 +326,13 @@ export interface GameState {
   vortex: Vortex | null
   obstacles: Obstacle[]
   power: Power
+  /** The shield, which can run alongside any other upgrade. */
+  shield: Timed | null
   pickup: Pickup | null
-  /** Seconds until the Rambo egg turns up, or null if this round has none. */
+  /** Seconds until the next Rambo egg turns up, or null if none is due. */
   pickupTimer: number | null
+  /** Rambo eggs this round still has to bring after the one that is due. */
+  pickupsLeft: number
   blasts: Blast[]
   /** Countdowns to the next saucer losing its nerve; one entry per desertion
    *  the round still owes. */

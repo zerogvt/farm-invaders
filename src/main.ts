@@ -4,7 +4,7 @@ import { bossHitPoints, createGame, isBossRound, restart, update, type GameEvent
 import { createInput } from './input'
 import { render } from './render'
 import { buildSprites } from './sprites'
-import type { GameState, Power } from './types'
+import type { Gained, GameState } from './types'
 import { createSoundToggle, loadMuted } from './soundToggle'
 import { telemetry } from './telemetry'
 import { createUi } from './ui'
@@ -189,7 +189,7 @@ function bannerFor(game: GameState): string | null {
 
 /** Every upgrade announces itself: which of the ten a Rambo egg turns into is
  *  random, so the player has no way of knowing what they are holding otherwise. */
-function noticeFor(power: Power): string {
+function noticeFor(power: Gained): string {
   switch (power.kind) {
     case 'multishot':
       return `Multishot ×${power.eggs}`
