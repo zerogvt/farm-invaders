@@ -119,6 +119,9 @@ export interface Laser {
   /** Velocity, so a shot can be aimed off the vertical. */
   vx: number
   vy: number
+  /** Width in ordinary lasers, and eggs needed to shoot it down. Absent for an
+   *  ordinary one; each egg that meets a wide one takes it down a size. */
+  power?: 2 | 3
 }
 
 /** One egg mark on a hull, placed when the round starts so a mothership's
@@ -237,10 +240,12 @@ export interface Obstacle {
 export interface Fox {
   x: number
   y: number
-  /** Zero while it falls; its running speed once it has landed. */
+  /** Zero while it falls and while it sits; its running speed after that. */
   vx: number
   rotation: number
   landed: boolean
+  /** Seconds left sitting on the ground before it runs. */
+  wait: number
 }
 
 /** A feather knocked off the hen. Purely decorative, like a blast. */
@@ -272,13 +277,15 @@ export interface Hen {
 }
 
 /**
- * Top-level phase. `parley` is the opening exchange, which only round 1 gets;
+ * Top-level phase. `parley` is the opening exchange, which only round 1 gets:
+ * line 0 is the mothership arriving and making its demand, line 1 the hen's
+ * answer, and line 2 the mothership leaving;
  * `intro` shows the round banner; `playing` runs the simulation; `cleared`
  * pauses briefly between rounds; `abduction` is the closing scene after the
  * last hen falls; and `over` waits for the player to start again.
  */
 export type Phase =
-  | { kind: 'parley'; line: 0 | 1; remaining: number }
+  | { kind: 'parley'; line: 0 | 1 | 2; remaining: number }
   | { kind: 'intro'; remaining: number }
   | { kind: 'playing' }
   | { kind: 'cleared'; remaining: number }
@@ -301,8 +308,11 @@ export interface GameState {
   burpLine: number | null
   lasers: Laser[]
   foxes: Fox[]
-  /** Seconds until a saucer next drops a fox, or null if this round has none. */
+  /** Seconds until a saucer next drops a fox, or null if this round has none
+   *  (or no more). */
   foxTimer: number | null
+  /** Foxes dropped so far this round, which is capped. */
+  foxesThrown: number
   feathers: Feather[]
   /** Set while a black hole is open. */
   vortex: Vortex | null

@@ -15,6 +15,7 @@ import {
   OBSTACLE,
   PALETTE,
   PARLEY,
+  PARLEY_SHIP,
   POWER,
   SPLAT,
   TAUNT,
@@ -22,7 +23,7 @@ import {
   VIEW,
   WIPER,
 } from './config'
-import { bubbleCentre, featherSway, HEN_TOP, shotSize } from './game'
+import { bubbleCentre, featherSway, HEN_TOP, laserWidth, parleyDuration, shotSize } from './game'
 import { FEATHER_SIZE, rowVariant, type SpriteSet } from './sprites'
 import type { GameState } from './types'
 
@@ -51,7 +52,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawFeathers(ctx, state, sprites)
   drawCowSpeech(ctx, state)
   drawBlasts(ctx, state)
-  drawParley(ctx, state)
+  drawParley(ctx, state, sprites, time)
   drawAbduction(ctx, state, sprites, time)
   drawHud(ctx, state, sprites)
 }
@@ -109,26 +110,40 @@ function drawBubbles(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
 }
 
-/** The opening exchange. The fleet speaks from above its own back rank, so the
- *  bubble never covers the saucers it belongs to. */
-function drawParley(ctx: CanvasRenderingContext2D, state: GameState): void {
-  if (state.phase.kind !== 'parley') return
+/**
+ * The opening exchange. A mothership slides in from the right below the fleet,
+ * makes its demand once it has stopped, hovers through the hen's answer, and
+ * then leaves the way it came, engines lit.
+ */
+function drawParley(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  const phase = state.phase
+  if (phase.kind !== 'parley') return
 
-  if (state.phase.line === 1) {
-    drawBubble(ctx, state.hen.x + HEN.width / 2, HEN_TOP - 2, PARLEY.refusal, 160)
-    return
+  const elapsed = parleyDuration(phase.line) - phase.remaining
+  const centreX = VIEW.width / 2
+  let x = centreX
+  let y = PARLEY_SHIP.y + Math.sin(time * 2.2) * 3
+  let tilt = 0
+  if (phase.line === 0) {
+    const arriving = ease(clamp01(elapsed / PARLEY_SHIP.arrive))
+    x = VIEW.width + BOSS.width / 2 + (centreX - VIEW.width - BOSS.width / 2) * arriving
+  } else if (phase.line === 2) {
+    const leaving = clamp01(elapsed / PARLEY_SHIP.leave)
+    // Out the way it came, rising a little, so it never crosses the fleet.
+    x = centreX + leaving * leaving * (VIEW.width * 0.75)
+    y -= leaving * leaving * 50
+    tilt = -0.15 * leaving
   }
 
-  let left = Infinity
-  let right = -Infinity
-  let top = Infinity
-  for (const ufo of state.ufos) {
-    left = Math.min(left, ufo.x)
-    right = Math.max(right, ufo.x + UFO.width)
-    top = Math.min(top, ufo.y)
-  }
-  if (left === Infinity) return
-  drawBubble(ctx, (left + right) / 2, top - 2, PARLEY.demand, 220)
+  ctx.save()
+  ctx.translate(x, y + BOSS.height / 2)
+  if (phase.line === 2) drawExhaust(ctx, 1, SPLAT.fleeMaxSpeed * clamp01(elapsed / 0.4), time, 0, BOSS.width)
+  ctx.rotate(tilt)
+  ctx.drawImage(sprites.boss, -BOSS.width / 2, -BOSS.height / 2, BOSS.width, BOSS.height)
+  ctx.restore()
+
+  if (phase.line === 0 && elapsed >= PARLEY_SHIP.arrive) drawBubble(ctx, x, y - 2, PARLEY.demand, 220)
+  if (phase.line === 1) drawBubble(ctx, state.hen.x + HEN.width / 2, HEN_TOP - 2, PARLEY.refusal, 160)
 }
 
 /**
@@ -721,12 +736,17 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, state: GameState, sprite
   }
 
   for (const laser of state.lasers) {
+    const width = laserWidth(laser)
+    const cx = laser.x + width / 2
+    const cy = laser.y + LASER.height / 2
+    // A wide one runs hotter, so it reads as needing more than one egg.
+    if (laser.power !== undefined) glow(ctx, cx, cy, LASER.height * 0.9, 'rgba(255,90,140,0.45)', 'rgba(255,40,100,0)')
     ctx.save()
-    ctx.translate(laser.x + LASER.width / 2, laser.y + LASER.height / 2)
+    ctx.translate(cx, cy)
     // The sprite is drawn pointing down the +y axis, so this turns it to face
     // wherever the shot is actually travelling.
     ctx.rotate(Math.atan2(-laser.vx, laser.vy))
-    ctx.drawImage(sprites.laser, -LASER.width / 2, -LASER.height / 2, LASER.width, LASER.height)
+    ctx.drawImage(sprites.laser, -width / 2, -LASER.height / 2, width, LASER.height)
     ctx.restore()
   }
 }

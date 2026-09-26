@@ -16,6 +16,7 @@ import {
   LASER,
   OBSTACLE,
   PARLEY,
+  PARLEY_SHIP,
   POWER,
   ROUND,
   SPLAT,
@@ -148,6 +149,7 @@ export function createGame(): GameState {
     lasers: [],
     foxes: [],
     foxTimer: null,
+    foxesThrown: 0,
     feathers: [],
     vortex: null,
     obstacles: [],
@@ -189,8 +191,9 @@ export function startRound(state: GameState, round: number): void {
   state.burpLine = null
   state.lasers = []
   state.foxes = []
+  state.foxesThrown = 0
   // Foxes come from the formation, so a mothership round has none.
-  state.foxTimer = boss ? null : rollFox()
+  state.foxTimer = boss ? null : rollFox(round)
   state.vortex = null
   state.blasts = []
   state.pickup = null
@@ -208,8 +211,21 @@ export function startRound(state: GameState, round: number): void {
   // has nothing left to say.
   state.phase =
     round === 1
-      ? { kind: 'parley', line: 0, remaining: PARLEY.demandDuration }
+      ? { kind: 'parley', line: 0, remaining: parleyDuration(0) }
       : { kind: 'intro', remaining: boss ? ROUND.bossIntroDuration : ROUND.introDuration }
+}
+
+/** How long each beat of the opening exchange lasts: the mothership arriving
+ *  and demanding, the hen refusing, and the mothership leaving. */
+export function parleyDuration(line: 0 | 1 | 2): number {
+  switch (line) {
+    case 0:
+      return PARLEY_SHIP.arrive + PARLEY.demandDuration
+    case 1:
+      return PARLEY.refusalDuration
+    case 2:
+      return PARLEY_SHIP.leave
+  }
 }
 
 export function restart(state: GameState): void {
@@ -237,9 +253,9 @@ export function update(state: GameState, dt: number, input: InputState, events: 
       tickTimers(state, dt)
       if (parley.remaining > 0) return
       state.phase =
-        parley.line === 0
-          ? { kind: 'parley', line: 1, remaining: PARLEY.refusalDuration }
-          : { kind: 'playing' }
+        parley.line === 2
+          ? { kind: 'playing' }
+          : { kind: 'parley', line: parley.line === 0 ? 1 : 2, remaining: parleyDuration(parley.line === 0 ? 1 : 2) }
       return
     }
 
@@ -603,7 +619,7 @@ function advanceLasers(state: GameState, dt: number): void {
   for (const laser of state.lasers) {
     laser.x += laser.vx * dt
     laser.y += laser.vy * dt
-    if (laser.y < VIEW.height && laser.x + LASER.width > 0 && laser.x < VIEW.width) flying.push(laser)
+    if (laser.y < VIEW.height && laser.x + laserWidth(laser) > 0 && laser.x < VIEW.width) flying.push(laser)
   }
   state.lasers = flying
 }
@@ -1084,36 +1100,78 @@ function fireLasers(state: GameState, dt: number, events: GameEvents): void {
   const shooter = shooters[Math.floor(Math.random() * shooters.length)]
   if (shooter === undefined) return
 
-  state.lasers.push(shoot(shooter.x + UFO.width / 2, shooter.y + UFO.height, 0, state.round))
+  state.lasers.push(shoot(shooter.x + UFO.width / 2, shooter.y + UFO.height, 0, state.round, rollLaserPower(state.round)))
   events.onLaserFired?.()
 }
 
-/** Now and then a front-rank saucer drops a radioactive fox instead of firing. */
+/** How wide a fleet laser comes out. Later rounds put out some double and
+ *  triple ones, each taking that many eggs to shoot down. */
+function rollLaserPower(round: number): 1 | 2 | 3 {
+  const triple = Math.min(LASER.tripleMax, Math.max(0, (round - LASER.tripleFrom + 1) * LASER.triplePerRound))
+  const double = Math.min(LASER.doubleMax, Math.max(0, (round - LASER.doubleFrom + 1) * LASER.doublePerRound))
+  const roll = Math.random()
+  if (roll < triple) return 3
+  if (roll < triple + double) return 2
+  return 1
+}
+
+/** A laser's width: an ordinary one's, times its power. Exported for the
+ *  renderer, which must draw it the width it hits. */
+export function laserWidth(laser: LaserShot): number {
+  return LASER.width * (laser.power ?? 1)
+}
+
+function laserRect(laser: LaserShot): Rect {
+  return { x: laser.x, y: laser.y, width: laserWidth(laser), height: LASER.height }
+}
+
+/** Now and then a front-rank saucer drops a radioactive fox instead of firing,
+ *  more often as the rounds go on, and never more than a few in one round. */
 function tickFoxTimer(state: GameState, dt: number, events: GameEvents): void {
   if (state.foxTimer === null) return
   state.foxTimer -= dt
   if (state.foxTimer > 0) return
-  state.foxTimer = rollFox()
 
   const throwers = frontLineUfos(state)
   const thrower = throwers[Math.floor(Math.random() * throwers.length)]
-  if (thrower === undefined) return
-  state.foxes.push({
-    x: thrower.x + UFO.width / 2 - FOX.width / 2,
-    y: thrower.y + UFO.height,
-    vx: 0,
-    rotation: 0,
-    landed: false,
-  })
-  events.onFoxThrown?.()
+  if (thrower !== undefined) {
+    state.foxes.push({
+      x: thrower.x + UFO.width / 2 - FOX.width / 2,
+      y: thrower.y + UFO.height,
+      vx: 0,
+      rotation: 0,
+      landed: false,
+      wait: 0,
+    })
+    state.foxesThrown += 1
+    events.onFoxThrown?.()
+  }
+  state.foxTimer = state.foxesThrown >= FOX.maxPerRound ? null : rollFox(state.round)
 }
 
-function rollFox(): number {
-  return FOX.minInterval + Math.random() * (FOX.maxInterval - FOX.minInterval)
+/** Where a round sits on a ramp that starts at round 1 and is complete by
+ *  round `rounds`: 0 at the start, 1 from then on. */
+function ramp(round: number, rounds: number): number {
+  return Math.min(1, Math.max(0, (round - 1) / Math.max(1, rounds - 1)))
 }
 
-/** Foxes tumble down to the ground, land on their feet, and run for the nearer
- *  wall. Nothing stops them on the way. */
+function rollFox(round: number): number {
+  const base = FOX.firstInterval + (FOX.lastInterval - FOX.firstInterval) * ramp(round, FOX.rampRounds)
+  return base * (1 + (Math.random() * 2 - 1) * FOX.jitter)
+}
+
+/** Seconds a fox sits on the ground after landing: short early on, longer as
+ *  the rounds go up. Exported for the tests. */
+export function foxWait(round: number): number {
+  return FOX.minWait + (FOX.maxWait - FOX.minWait) * ramp(round, FOX.waitRampRounds)
+}
+
+/**
+ * Foxes tumble down to the ground and land on their feet. Each then sits where
+ * it landed for a while — still deadly to touch — and runs off the side away
+ * from the hen, never towards her: a fox that came for her would be a certain
+ * loss, not a hazard. Nothing stops them on the way.
+ */
 function advanceFoxes(state: GameState, dt: number): void {
   if (state.foxes.length === 0) return
   const ground = HEN_TOP + HEN.height
@@ -1126,7 +1184,13 @@ function advanceFoxes(state: GameState, dt: number): void {
         fox.y = ground - FOX.height
         fox.rotation = 0
         fox.landed = true
-        fox.vx = (fox.x + FOX.width / 2 < VIEW.width / 2 ? -1 : 1) * FOX.runSpeed
+        fox.wait = foxWait(state.round)
+      }
+    } else if (fox.vx === 0) {
+      fox.wait -= dt
+      if (fox.wait <= 0) {
+        const henCentre = state.hen.x + HEN.width / 2
+        fox.vx = (fox.x + FOX.width / 2 < henCentre ? -1 : 1) * FOX.runSpeed
       }
     }
     fox.x += fox.vx * dt
@@ -1147,13 +1211,14 @@ function frontLineUfos(state: GameState): Ufo[] {
   return [...lowestByColumn.values()]
 }
 
-function shoot(x: number, y: number, angle: number, round: number): LaserShot {
+function shoot(x: number, y: number, angle: number, round: number, power: 1 | 2 | 3 = 1): LaserShot {
   const speed = LASER.baseSpeed + (round - 1) * LASER.speedPerRound
   return {
-    x: x - LASER.width / 2,
+    x: x - (LASER.width * power) / 2,
     y,
     vx: Math.sin(angle) * speed,
     vy: Math.cos(angle) * speed,
+    ...(power === 1 ? {} : { power }),
   }
 }
 
@@ -1394,7 +1459,7 @@ function tickBeam(state: GameState, dt: number, events: GameEvents): void {
   }
 
   state.lasers = state.lasers.filter(
-    (laser) => !overlaps(column, { x: laser.x, y: laser.y, width: LASER.width, height: LASER.height }),
+    (laser) => !overlaps(column, laserRect(laser)),
   )
 }
 
@@ -1435,12 +1500,12 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
   const wingRect: Rect | null = wing === null ? null : { x: wing.x, y: HEN_TOP, width: HEN.width, height: HEN.height }
   const survivingLasers = []
   for (const laser of state.lasers) {
-    const laserRect: Rect = { x: laser.x, y: laser.y, width: LASER.width, height: LASER.height }
-    if (hitsObstacle(state, laserRect, null)) continue
+    const rect = laserRect(laser)
+    if (hitsObstacle(state, rect, null)) continue
     // The wingman cannot die while the upgrade lasts; what reaches her is
     // simply absorbed.
-    if (wingRect !== null && overlaps(laserRect, wingRect)) continue
-    if (overlaps(laserRect, henRect)) {
+    if (wingRect !== null && overlaps(rect, wingRect)) continue
+    if (overlaps(rect, henRect)) {
       // The shield eats the shot outright; without it, only the post-hit
       // invulnerability saves her.
       if (shielded) continue
@@ -1463,15 +1528,23 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
   }
 }
 
-/** An egg that meets a laser in mid-air: the two cancel out and both are gone.
- *  Checked whether or not time is stopped — a frozen laser can still be shot
- *  down, it just cannot hurt anybody. */
+/** An egg that meets a laser in mid-air: the egg is spent, and an ordinary
+ *  laser is gone with it. A wide one only loses a size, narrowing about its
+ *  middle, so a double takes two eggs and a triple three. Checked whether or
+ *  not time is stopped — a frozen laser can still be shot down, it just cannot
+ *  hurt anybody. */
 function meetsLaser(state: GameState, egg: Rect): boolean {
-  const index = state.lasers.findIndex((laser) =>
-    overlaps(egg, { x: laser.x, y: laser.y, width: LASER.width, height: LASER.height }),
-  )
-  if (index === -1) return false
-  state.lasers.splice(index, 1)
+  const index = state.lasers.findIndex((laser) => overlaps(egg, laserRect(laser)))
+  const laser = state.lasers[index]
+  if (laser === undefined) return false
+  const power = laser.power ?? 1
+  if (power === 1) {
+    state.lasers.splice(index, 1)
+    return true
+  }
+  laser.x += LASER.width / 2
+  if (power === 3) laser.power = 2
+  else delete laser.power
   return true
 }
 

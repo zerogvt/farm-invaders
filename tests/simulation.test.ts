@@ -1,4 +1,4 @@
-import { bossHitPoints, createGame, isBossRound, startRound, update, HEN_TOP } from '../src/game.ts'
+import { bossHitPoints, createGame, foxWait, isBossRound, parleyDuration, startRound, update, HEN_TOP } from '../src/game.ts'
 import { placeObstacles } from '../src/obstacles.ts'
 import type { InputState } from '../src/input.ts'
 import {
@@ -114,11 +114,15 @@ function check(name: string, ok: boolean, detail = '') {
 const g = newGame()
 const startUfos = g.ufos.length
 const startY = g.ufos[0]!.y
-check('a run opens with the saucers making their demand', g.phase.kind === 'parley' && g.phase.line === 0)
-step(g, PARLEY.demandDuration + 0.1, idle)
+check('a run opens with the mothership making its demand', g.phase.kind === 'parley' && g.phase.line === 0)
+check('after sliding in first', parleyDuration(0) > PARLEY.demandDuration)
+step(g, parleyDuration(0) + 0.1, idle)
 check('then the hen answers', g.phase.kind === 'parley' && g.phase.line === 1, g.phase.kind)
+step(g, parleyDuration(1) + 0.1, idle)
+check('then the mothership leaves', g.phase.kind === 'parley' && g.phase.line === 2, g.phase.kind)
 check('and nothing has marched while they talk', g.ufos[0]!.y === startY && g.ufos[0]!.x === g.ufos[0]!.x)
-step(g, PARLEY.refusalDuration + 0.1, idle)
+check('and no mothership is in the fight', g.boss === null)
+step(g, parleyDuration(2) + 0.1, idle)
 check('and then the battle begins', g.phase.kind === 'playing', g.phase.kind)
 
 // Later rounds have nothing left to say.
@@ -993,8 +997,10 @@ let foxesThrown = 0
 update(gfx, DT, idle, { onFoxThrown: () => foxesThrown++ })
 check('a saucer drops a radioactive fox', gfx.foxes.length === 1 && foxesThrown === 1, `${gfx.foxes.length}`)
 check(
-  'and another is on its way',
-  gfx.foxTimer !== null && gfx.foxTimer >= FOX.minInterval - 0.1 && gfx.foxTimer <= FOX.maxInterval,
+  'and another is on its way, slowly in round 1',
+  gfx.foxTimer !== null &&
+    gfx.foxTimer >= FOX.firstInterval * (1 - FOX.jitter) - 0.1 &&
+    gfx.foxTimer <= FOX.firstInterval * (1 + FOX.jitter),
   `${gfx.foxTimer}`,
 )
 const foxStartY = gfx.foxes[0]!.y
@@ -1015,25 +1021,75 @@ gfe.ufos = []
 gfe.boss = null
 gfe.obstacles = []
 gfe.ufos = [{ column: 0, row: 0, x: 10, y: 60, state: { kind: 'flying' }, wobblePhase: 0 }]
-gfe.foxes = [{ x: 400, y: 280, vx: 0, rotation: 0, landed: false }]
+gfe.foxes = [{ x: 400, y: 280, vx: 0, rotation: 0, landed: false, wait: 0 }]
 gfe.shots = [egg(410, 290)]
 update(gfe, DT, idle)
 check('an egg goes straight through a fox', gfe.foxes.length === 1 && gfe.shots.length === 1)
 
-// It lands and runs for the nearer wall, and leaves.
+// It lands, sits a while, then runs off the side away from the hen.
 const gfl = newGame()
 gfl.hen.lives = 99
 intoPlay(gfl)
 gfl.hen.x = 700
 gfl.obstacles = []
-gfl.foxes = [{ x: 150, y: 300, vx: 0, rotation: 1, landed: false }]
+gfl.foxes = [{ x: 150, y: 300, vx: 0, rotation: 1, landed: false, wait: 0 }]
 // From 300 it is about 1.7s to the ground.
-step(gfl, 1.85, idle)
-const ranFox = gfl.foxes[0]
-check('a fox lands on its feet', ranFox === undefined || (ranFox.landed && ranFox.rotation === 0))
-check('and runs for the nearer wall', ranFox === undefined || ranFox.vx < 0, `${ranFox?.vx}`)
+step(gfl, 1.75, idle)
+const ranFox = gfl.foxes[0]!
+check('a fox lands on its feet', ranFox.landed && ranFox.rotation === 0)
+check('and sits there', ranFox.vx === 0 && ranFox.wait > 0, `vx ${ranFox.vx}, wait ${ranFox.wait.toFixed(2)}`)
+const satAt = ranFox.x
+step(gfl, foxWait(1) * 0.8, idle)
+check('without moving', ranFox.x === satAt && ranFox.vx === 0)
+step(gfl, foxWait(1) * 0.3, idle)
+check('then runs away from the hen', ranFox.vx < 0, `${ranFox.vx}`)
 step(gfl, 2, idle)
 check('and is gone once it gets there', gfl.foxes.length === 0, `${gfl.foxes.length}`)
+
+// Away from her even when that is the far wall.
+const gfa = newGame()
+gfa.hen.lives = 99
+intoPlay(gfa)
+gfa.hen.x = 60
+gfa.foxes = [{ x: 250, y: HEN_TOP + HEN.height - FOX.height, vx: 0, rotation: 0, landed: true, wait: 0.01 }]
+update(gfa, DT, idle)
+check('a fox nearer the left wall still runs right when the hen is on its left', gfa.foxes[0]!.vx > 0, `${gfa.foxes[0]!.vx}`)
+
+// It sits longer as the rounds go up: a second early on, ten later.
+check('a fox sits one second in round 1', foxWait(1) === FOX.minWait, `${foxWait(1)}`)
+check('longer in round 10', foxWait(10) > foxWait(5) && foxWait(5) > foxWait(1), `${foxWait(5).toFixed(1)}, ${foxWait(10).toFixed(1)}`)
+check('and never more than ten', foxWait(19) === FOX.maxWait && foxWait(40) === FOX.maxWait)
+
+// More foxes as the rounds go up, never more than four in one.
+const averageGap = (round: number): number => {
+  let total = 0
+  for (let i = 0; i < 200; i++) {
+    const g = newGame()
+    startRound(g, round)
+    total += g.foxTimer ?? 0
+  }
+  return total / 200
+}
+const gapEarly = averageGap(1)
+const gapMid = averageGap(9)
+const gapLate = averageGap(21)
+check('foxes come more often as the rounds go up', gapEarly > gapMid && gapMid > gapLate, `${gapEarly.toFixed(1)}s, ${gapMid.toFixed(1)}s, ${gapLate.toFixed(1)}s`)
+check('rarely in the first rounds', gapEarly > 20, `${gapEarly.toFixed(1)}s`)
+
+const gfc = newGame()
+gfc.hen.lives = 999
+enterRound(gfc, 21)
+while (gfc.phase.kind !== 'playing') update(gfc, DT, idle)
+gfc.hen.invulnerable = 999
+gfc.foxTimer = 0.01
+let foxesInRound = 0
+for (let i = 0; i < 8; i++) {
+  gfc.foxTimer = gfc.foxTimer === null ? null : 0.01
+  update(gfc, DT, idle, { onFoxThrown: () => foxesInRound++ })
+}
+check('never more than four foxes in a round', foxesInRound === FOX.maxPerRound && gfc.foxTimer === null, `${foxesInRound}`)
+startRound(gfc, 23)
+check('and the count starts again next round', gfc.foxesThrown === 0 && gfc.foxTimer !== null)
 
 // Touching the hen costs her a life.
 const gfh = newGame()
@@ -1042,7 +1098,7 @@ gfh.lasers = []
 gfh.hen.invulnerable = 0
 gfh.hen.x = 400
 const livesBeforeFox = gfh.hen.lives
-gfh.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false }]
+gfh.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0 }]
 update(gfh, DT, idle)
 check('a fox touching the hen costs a life', gfh.hen.lives === livesBeforeFox - 1, `${livesBeforeFox} -> ${gfh.hen.lives}`)
 check('and one life only', gfh.hen.lives === livesBeforeFox - 1)
@@ -1052,7 +1108,7 @@ check('and it is gone with the lasers', gfh.foxes.length === 0)
 const gft = newGame()
 intoPlay(gft)
 const foxToy = gft.obstacles[0]!
-gft.foxes = [{ x: foxToy.x + 4, y: foxToy.y + 2, vx: 0, rotation: 0, landed: false }]
+gft.foxes = [{ x: foxToy.x + 4, y: foxToy.y + 2, vx: 0, rotation: 0, landed: false, wait: 0 }]
 update(gft, DT, idle)
 check('a toy does not stop a fox', gft.foxes.length === 1)
 
@@ -1063,7 +1119,7 @@ gfs.hen.invulnerable = 0
 gfs.hen.x = 400
 grant(gfs, { kind: 'shield', remaining: 5, duration: 5 })
 const livesShielded = gfs.hen.lives
-gfs.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false }]
+gfs.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0 }]
 update(gfs, DT, idle)
 check('the shield keeps a fox off her', gfs.hen.lives === livesShielded)
 
@@ -1074,14 +1130,14 @@ gfz.hen.invulnerable = 0
 gfz.hen.x = 400
 gfz.freeze = { x: 0, remaining: 3 }
 const livesFrozen = gfz.hen.lives
-gfz.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false }]
+gfz.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0 }]
 update(gfz, DT, idle)
 check('a frozen fox cannot hurt her', gfz.hen.lives === livesFrozen)
 
 // The black hole leaves foxes alone: nothing kills one.
 const gfb = newGame()
 intoPlay(gfb)
-gfb.foxes = [{ x: 400, y: 200, vx: 0, rotation: 0, landed: false }]
+gfb.foxes = [{ x: 400, y: 200, vx: 0, rotation: 0, landed: false, wait: 0 }]
 grant(gfb, { kind: 'blackHole', remaining: 12, duration: 12 })
 gfb.shotCooldown = 0
 update(gfb, DT, firing)
@@ -1182,6 +1238,73 @@ while (gwp3.phase.kind !== 'playing') update(gwp3, DT, idle)
 gwp3.boss!.wipeTimer = 0.01
 update(gwp3, DT, idle)
 check('a clean mothership never goes over its hit points', gwp3.boss!.hitPoints === gwp3.boss!.maxHitPoints)
+
+// --- wide lasers ---------------------------------------------------------------
+
+// 48. Later rounds put out double and triple lasers.
+const laserPowers = (round: number): Map<number, number> => {
+  const seen = new Map<number, number>()
+  for (let i = 0; i < 30; i++) {
+    const game = newGame()
+    game.hen.lives = 999
+    enterRound(game, round)
+    while (game.phase.kind !== 'playing') update(game, DT, idle)
+    game.hen.invulnerable = 999
+    const counted = new Set<object>()
+    for (let f = 0; f < 600; f++) {
+      update(game, DT, idle)
+      for (const laser of game.lasers) {
+        if (counted.has(laser)) continue
+        counted.add(laser)
+        const power = laser.power ?? 1
+        seen.set(power, (seen.get(power) ?? 0) + 1)
+      }
+      if (game.phase.kind !== 'playing') break
+    }
+  }
+  return seen
+}
+const early = laserPowers(1)
+check('round 1 lasers are all ordinary', !early.has(2) && !early.has(3), JSON.stringify([...early]))
+const late = laserPowers(15)
+check('by round 15 some are double', (late.get(2) ?? 0) > 0, JSON.stringify([...late]))
+check('and some triple', (late.get(3) ?? 0) > 0, JSON.stringify([...late]))
+check('but most are still ordinary', (late.get(1) ?? 0) > (late.get(2) ?? 0) + (late.get(3) ?? 0), JSON.stringify([...late]))
+
+// A triple takes three eggs, narrowing about its middle each time.
+const gwl = newGame()
+intoPlay(gwl)
+gwl.ufos = [{ column: 0, row: 0, x: 10, y: 60, state: { kind: 'flying' }, wobblePhase: 0 }]
+gwl.obstacles = []
+gwl.lasers = [{ x: 400 - LASER.width * 1.5, y: 290, vx: 0, vy: 0, power: 3 }]
+const tripleCentre = 400
+let zaps = 0
+for (let i = 1; i <= 3; i++) {
+  gwl.shots = [egg(400 - EGG.width / 2, 296)]
+  update(gwl, DT, idle, { onLaserShotDown: () => zaps++ })
+  if (i < 3) {
+    const left = gwl.lasers[0]
+    const width = LASER.width * (left?.power ?? 1)
+    check(
+      `egg ${i} into a triple laser narrows it`,
+      left !== undefined && (left.power ?? 1) === 3 - i && Math.abs(left.x + width / 2 - tripleCentre) < 0.01,
+      JSON.stringify(left),
+    )
+  }
+}
+check('and the third egg finishes it', gwl.lasers.length === 0, `${gwl.lasers.length} left`)
+check('every egg is spent on it', gwl.shots.length === 0 && zaps === 3, `${zaps} zaps`)
+
+// A wide laser still costs one life, and is as wide as it looks.
+const gwh = newGame()
+intoPlay(gwh)
+gwh.hen.invulnerable = 0
+gwh.hen.x = 400
+const livesBeforeWide = gwh.hen.lives
+// An ordinary laser here would miss her by a pixel; a triple reaches.
+gwh.lasers = [{ x: 400 - LASER.width * 3 + 1, y: HEN_TOP + 10, vx: 0, vy: 0, power: 3 }]
+update(gwh, DT, idle)
+check('a wide laser hits across its whole width', gwh.hen.lives === livesBeforeWide - 1, `${livesBeforeWide} -> ${gwh.hen.lives}`)
 
 // --- what the sound hangs off -------------------------------------------------
 

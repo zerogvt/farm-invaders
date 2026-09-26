@@ -10,8 +10,9 @@ and the defender is a chicken in a space helmet, armed with eggs.
 
 ## Longer Explanation [AI recap]
 
-A run opens with the saucers demanding **"give us the cow now!"**, the hen
-answering **"never!"**, and the shooting starting. The cow stands on the ground
+A run opens with a mothership sliding in to demand **"Give us the cow now!"**
+in a deep alien voice, the hen squawking back **"Never!"**, the mothership
+leaving, and the shooting starting. The cow stands on the ground
 behind her the whole time. If she runs out of lives, a mothership comes down,
 puts a tractor beam on the cow and takes it, and the cow has just enough time to
 say **"Moooooooooo"** on the way up. It is happier the rest of the time: every
@@ -25,7 +26,11 @@ anything that hits them — the hen's eggs and the saucers' lasers alike — and
 amount of fire wears them down, or leaves a mark on them.
 
 **Eggs shoot lasers down.** An egg that meets a laser in mid-air takes it out
-and is spent doing it, so a well-aimed egg is a shield as well as a shot.
+and is spent doing it, so a well-aimed egg is a shield as well as a shot. From
+round 3 some saucers fire **double-width lasers**, and from round 6 some fire
+**triple-width** ones; each takes that many eggs, and every egg narrows it by
+one. They grow more common as the rounds go on, but six lasers in ten stay
+ordinary.
 
 **The toys are not nailed down.** An egg comes from below, so it punts the toy it
 hits up into the fleet, and anything a loose toy ploughs into goes up. Every
@@ -43,12 +48,15 @@ its canopy, clearing about a fifth of the egg on it — picked at random — and
 every egg it clears is a hit point back. It needs three eggs up there before a
 fifth comes to one, so a barely touched mothership never bothers.
 
-**Watch out for radioactive foxes.** Every eight to sixteen seconds on a fleet
-round, a saucer in the front rank drops a glowing green fox instead of firing.
-Eggs go straight through it, toys do not stop it and the black hole does not
-take it: it falls to the ground, lands on its feet and runs off the nearer side.
-If it touches the hen on the way she loses a life. The shield is the one thing
-that keeps it off her.
+**Watch out for radioactive foxes.** Now and then on a fleet round, a saucer in
+the front rank drops a glowing green fox instead of firing. It is rare early
+on, about one every 26 seconds in round 1, and grows steadily more common,
+reaching one every 7 seconds by round 20. There are never more than four in a
+round. Eggs go straight through it, toys do not stop it and the black hole does
+not take it. It falls to the ground and sits where it lands, for a second in
+round 1 and up to ten seconds from round 19. Then it runs off the side *away*
+from the hen, never towards her. If it touches her she loses a life. The shield
+is the one thing that keeps it off her.
 
 **When the hen loses a life** she lets out a **"buk-buk-BAWK!"** and a handful
 of feathers come off her and drift down.
@@ -107,13 +115,16 @@ same, and the choice is remembered in the browser.
 
 Everything you hear is synthesised in the browser with the Web Audio API — there
 are no audio files. The theme, *Hoedown in Orbit*, is an eight-bar chiptune loop
-written for this game, so it carries no licence or royalty of any kind. Eggs pip
+written for this game, so it carries no licence or royalty of any kind. Mothership
+rounds switch to a second original tune, *Mothership March*: a slower,
+villainous loop in D minor with an oom-pah tuba, a timpani and a woodblock. Eggs pip
 as they leave, splat on windscreens, and splat enormously as a super egg; saucers
 and toys go up with a bang; lasers buzz; the cow moos at every cleared round,
 burps when told to, and moos at length on its way into the mothership. The hen
 clucks when she loses a life, a fox arrives with a crackle of Geiger clicks and a
 yip, the black hole opens with a long swirling fall, and the mothership's wiper
-squeaks. Browsers
+squeaks. In the opening exchange the mothership speaks in a ring-modulated
+growl and the hen answers in chicken. Browsers
 keep audio off until the page has been clicked or typed at, so the sound starts
 with the Start button.
 

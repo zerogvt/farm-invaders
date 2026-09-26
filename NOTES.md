@@ -225,3 +225,36 @@ Added on 25 September 2026, from one request of six items:
   the theme, it has not been heard by anyone yet; the three new effects (`fox`,
   `blackHole`, `wipe`) have not either.
 
+Added on 26 September 2026, from one request of five items:
+
+- **Fox pacing** is a straight ramp: 26s between foxes in round 1, falling
+  evenly to 7s by round 20, each gap ±30%. There's a cap of 4 a round
+  (`FOX.maxPerRound`). The request gave rounds 1–10 as "less often" and
+  asked for gradual growth; the numbers are mine.
+- **Fox sitting time** ramps from 1s in round 1 to 10s by round 19. It is
+  still deadly while it sits. It runs away from the hen's side of it,
+  whichever wall that is, not to the nearer wall any more.
+- **Wide lasers** start at round 3 (double) and round 6 (triple). The chances
+  grow by 2.5% and 1.5% a round, to caps of 25% and 15%, reached around
+  rounds 13 and 15. My first cut, 35%/25%, made most lasers wide by round 15,
+  which is more than "some". **Only fleet saucers** fire them; the
+  mothership's angled volleys stay single. A wide laser still costs one life.
+  An egg narrows it about its middle. Toys, the beam and the shield treat it
+  like any laser.
+- **The opening mothership is scenery.** It is drawn from the parley phase's
+  timing in `src/render.ts`, not a `Boss` in the state, so nothing can shoot
+  it. The parley is now three beats (arrive and demand, the hen's answer,
+  leaving; `parleyDuration()`). The fleet is on screen throughout but silent.
+- **The voices are formant synthesis**, not recordings: a buzz through two
+  moving bandpass filters, one syllable at a time. The mothership's voice is
+  also ring-modulated at 38 Hz. They carry the rhythm and vowels of the line,
+  not intelligible words. Each boss syllable was rendered offline and is
+  non-silent. The whole line never finished rendering headless, and neither
+  voice nor *Mothership March* has been heard by anyone yet.
+- **Headless offline renders stall at random, not only on long buffers.** A
+  syllable that hung one run rendered on the next. Retry several times before
+  suspecting the effect.
+- **Music switches on `game.boss`**, so the march plays through a boss
+  round's banner and stops when the mothership goes down. The closing scene
+  keeps whatever was playing. A switch restarts the new tune from its top.
+

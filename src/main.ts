@@ -1,5 +1,5 @@
 import { createSound } from './audio'
-import { ABDUCTION, VIEW } from './config'
+import { ABDUCTION, PARLEY_SHIP, VIEW } from './config'
 import { bossHitPoints, createGame, isBossRound, restart, update, type GameEvents } from './game'
 import { createInput } from './input'
 import { render } from './render'
@@ -93,6 +93,7 @@ function main(): void {
       ui.setBanner(null)
       ui.showGameOver(score, round, () => {
         restart(game)
+        sound.setTrack('theme')
         telemetry.gameStarted()
         screen = 'running'
       })
@@ -107,6 +108,9 @@ function main(): void {
 
   fitCanvas(canvas, ctx)
   window.addEventListener('resize', () => fitCanvas(canvas, ctx))
+
+  // Which line of the opening exchange has been voiced, so each is said once.
+  let voicedLine: number | null = null
 
   let previous = performance.now()
   const frame = (now: number): void => {
@@ -123,6 +127,23 @@ function main(): void {
       // It is timed to the cow's speech bubble appearing.
       if (before !== 'abduction' && phaseOf(game) === 'abduction') {
         sound.play('longMoo', ABDUCTION.beamOn + 0.2)
+      }
+      // The opening exchange is voiced line by line: the mothership once it has
+      // slid in and stopped, the hen as soon as it is her turn.
+      if (game.phase.kind === 'parley') {
+        const line = game.phase.line
+        if (line !== voicedLine) {
+          if (line === 0) sound.play('bossDemand', PARLEY_SHIP.arrive)
+          if (line === 1) sound.play('henNever')
+          voicedLine = line
+        }
+      } else {
+        voicedLine = null
+      }
+      // A mothership round gets its own march. The closing scene keeps
+      // whatever was playing when the last hen fell.
+      if (game.phase.kind !== 'abduction' && game.phase.kind !== 'over') {
+        sound.setTrack(game.boss !== null ? 'boss' : 'theme')
       }
       if (notice !== null) {
         notice.remaining -= dt

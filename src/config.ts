@@ -41,6 +41,17 @@ export const LASER = {
   baseSpeed: 105,
   /** Added to baseSpeed for every round beyond the first. */
   speedPerRound: 8,
+  /** From this round on, some fleet lasers come out double width and take two
+   *  eggs to shoot down; the chance grows by `doublePerRound` a round, up to
+   *  `doubleMax`. */
+  doubleFrom: 3,
+  doublePerRound: 0.025,
+  doubleMax: 0.25,
+  /** Likewise triple width, three eggs. At their peaks, from about round 15,
+   *  six lasers in ten are still ordinary. */
+  tripleFrom: 6,
+  triplePerRound: 0.015,
+  tripleMax: 0.15,
 } as const
 
 export const UFO = {
@@ -258,15 +269,26 @@ export const BLACK_HOLE = {
 /**
  * The radioactive fox. Now and then a saucer at the front of the formation
  * drops one instead of firing. Eggs go straight through it and nothing the hen
- * has can stop it: it falls to the ground and runs off the nearer side, and if
- * it touches her on the way she loses a life.
+ * has can stop it: it falls to the ground, sits there a while, then runs off
+ * the side away from the hen. If it touches her she loses a life.
  */
 export const FOX = {
   width: 48,
   height: 36,
-  /** Seconds between foxes on a fleet round, rolled afresh after each one. */
-  minInterval: 8,
-  maxInterval: 16,
+  /** Seconds between foxes: `firstInterval` in round 1, shrinking evenly to
+   *  `lastInterval` by round `rampRounds`, then staying there. Each gap is
+   *  jittered by up to `jitter` either way. */
+  firstInterval: 26,
+  lastInterval: 7,
+  rampRounds: 20,
+  jitter: 0.3,
+  /** Never more than this many in one round. */
+  maxPerRound: 4,
+  /** Seconds it sits on the ground after landing: `minWait` in round 1,
+   *  growing evenly to `maxWait` by round `waitRampRounds`. */
+  minWait: 1,
+  maxWait: 10,
+  waitRampRounds: 19,
   fallSpeed: 150,
   runSpeed: 260,
   /** Radians per second it tumbles at on the way down. */
@@ -346,6 +368,20 @@ export const WINGMAN = {
   speed: 190,
   /** Seconds between her volleys. She does not wait for the fire key. */
   cooldown: 0.3,
+} as const
+
+/**
+ * The mothership that makes the opening demand. It slides in from the right,
+ * says its piece, waits for the hen's answer, and leaves. It is scenery: it
+ * takes no hits and fires nothing.
+ */
+export const PARLEY_SHIP = {
+  /** Seconds to slide in before it speaks, and to leave after the answer. */
+  arrive: 0.8,
+  leave: 1.3,
+  /** Height it hovers at: low enough below the round-1 fleet that its speech
+   *  bubble fits in between, and well above the toys. */
+  y: 200,
 } as const
 
 /** The exchange that opens a run, before the first shot is fired. */
