@@ -117,9 +117,19 @@ function main(): void {
     screen = 'running'
   })
 
+  // Physical keys, so it types the same on any keyboard layout.
+  const word = ['KeyY', 'KeyO', 'KeyL', 'KeyK']
+  const typed: { code: string; at: number }[] = []
   window.addEventListener('keydown', (event) => {
-    if (event.code !== 'KeyI' || !event.ctrlKey || !event.shiftKey || event.repeat) return
-    event.preventDefault()
+    if (event.repeat || event.ctrlKey || event.altKey || event.metaKey) return
+    if (event.target instanceof HTMLInputElement) return
+    typed.push({ code: event.code, at: event.timeStamp })
+    if (typed.length > word.length) typed.shift()
+    const first = typed[0]
+    if (typed.length < word.length || first === undefined) return
+    if (event.timeStamp - first.at > 1500) return
+    if (!typed.every((key, i) => key.code === word[i])) return
+    typed.length = 0
     toggleCheat(game)
   })
 

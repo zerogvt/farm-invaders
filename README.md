@@ -58,15 +58,16 @@ its canopy, clearing about a fifth of the egg on it — picked at random — and
 every egg it clears is a hit point back. It needs three eggs up there before a
 fifth comes to one, so a barely touched mothership never bothers.
 
-**Watch out for radioactive foxes.** Now and then on a fleet round, a saucer in
-the front rank drops a glowing green fox instead of firing. It is rare early
+**Watch out for radioactive foxes.** Now and then a saucer in the front rank — or,
+on its rounds, the mothership — drops a glowing green fox instead of firing. It is rare early
 on, about one every 26 seconds in round 1, and grows steadily more common,
 reaching one every 7 seconds by round 20. There are never more than four in a
 round. Eggs go straight through it, toys do not stop it and the black hole does
 not take it. It falls to the ground and sits where it lands, for a second in
 round 1 and up to ten seconds from round 19. Then it runs off the side *away*
 from the hen. If it touches her she loses a life. The shield is the one thing
-that keeps it off her, at the cost of one of its hits.
+that keeps it off her, and it breaks doing so. Motherships drop foxes too, out
+of their belly, on the same schedule as the fleet.
 
 From round 11, when a fox will sit for more than five seconds, it **glows
 brighter** — and when it gets up it **chases the hen** instead. The chase is
@@ -85,8 +86,8 @@ unscored: talking somebody out of a fight is not the same as winning it.
 too. It falls to the ground and lies there for four seconds; the hen gets it by
 walking over it, or by standing where it lands. The shield takes **three hits**
 and does not run out with time: a double laser counts as two hits and a triple
-as three, and each fox that touches her costs one (and gives her a moment to get
-past). It grows fainter with every hit, and the HUD shows what it has left.
+as three. A fox touching her breaks it outright, however many hits it had left,
+and gives her a moment to get past. It grows fainter with every hit, and the HUD shows what it has left.
 Picking up another tops it back up. It runs alongside whatever upgrade she is
 holding.
 

@@ -314,3 +314,15 @@ Added on 26 September 2026, from one request of nine items:
   sound and no NaNs. The last line, which all three sing at once, never
   finished rendering headless, though it schedules without an exception.
 
+Added on 26 September 2026:
+
+- **A fox breaks the shield outright**, however many hits it had left
+  (`hitShield(state, state.shield.hits)`, so the hit sound still plays). The
+  1s `SHIELD.foxGrace` stays. Without it, the fox that broke the shield would
+  still be touching her on the next frame and cost a life anyway, which would
+  make the shield useless against foxes. My call.
+- **Motherships drop foxes**, from under their middle, on the same schedule
+  and four-a-round cap as the fleet (`foxHatch`), but only while flying: a
+  beaten one limping away drops none. Their foxes chase from round 11 like
+  any other.
+
