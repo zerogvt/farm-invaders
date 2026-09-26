@@ -143,7 +143,7 @@ export const DESERT = {
 
 /** What the mothership has to say when a heart is set off under it. */
 export const TAUNT = {
-  text: "no xmas truce. This aint 1914. I'm da central command!",
+  text: "no xmas truce. I'm central command!",
   duration: 3.4,
 } as const
 
@@ -350,9 +350,9 @@ export const WINGMAN = {
 
 /** The exchange that opens a run, before the first shot is fired. */
 export const PARLEY = {
-  demand: 'give us the cow now!',
+  demand: 'Give us the cow now!',
   demandDuration: 2.4,
-  refusal: 'never!',
+  refusal: 'Never!',
   refusalDuration: 1.6,
 } as const
 
@@ -380,7 +380,7 @@ export const FREEZE = {
   maxDelay: 10,
   /** Seconds the board stays stopped. */
   duration: 5,
-  greeting: 'time freeze mate',
+  greeting: 'Time freeze mate',
   width: 56,
   height: 62,
   /** He stands at one side, clear of both the fleet and the top corners the
