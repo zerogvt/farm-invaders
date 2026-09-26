@@ -18,7 +18,7 @@ export const HEN = {
   hurtInvulnerability: 1.6,
   /** Points between free lives. Awarded in a loop, so a single screen-clearing
    *  upgrade that vaults several thresholds at once pays out for all of them. */
-  extraLifeEvery: 2000,
+  extraLifeEvery: 4000,
 } as const
 
 export const EGG = {
@@ -31,6 +31,13 @@ export const EGG = {
    *  saucer taking its time to limp away, scarce ammo is what makes
    *  double-tapping a real cost. */
   maxInFlight: 3,
+  /** Every ten rounds the hen throws one more egg at a time, side by side and
+   *  straight up: one in rounds 1–10, two in 11–20, three in 21–30, four
+   *  from 31. `maxInFlight` counts throws, so the cap grows with it. */
+  perThrowMax: 4,
+  roundsPerExtraEgg: 10,
+  /** Gap between the eggs of one throw, centre to centre. */
+  spacing: 15,
 } as const
 
 export const LASER = {
@@ -208,11 +215,31 @@ export const POWER = {
   beamDuration: 6,
   beamWidth: 18,
 
-  shieldDuration: 10,
 
   /** Radius of the little burst left where a single saucer goes up. */
   popRadius: 90,
   popDuration: 0.45,
+} as const
+
+/**
+ * The shield. It is no longer a Rambo egg upgrade: every other saucer that
+ * deserts drops one on its way out. It falls to the ground and lies there for a
+ * few seconds; the hen gets it by touching it. It lasts until it has taken
+ * `hits` hits, not for a time — a double laser counts as two and a triple as
+ * three — and it fades a step with each.
+ */
+export const SHIELD = {
+  hits: 3,
+  /** Chance a deserting saucer drops one. */
+  dropChance: 0.5,
+  width: 30,
+  height: 30,
+  fallSpeed: 110,
+  /** Seconds it lies on the ground before it is gone. */
+  groundTime: 4,
+  /** A fox touching a shielded hen costs a hit, and gives her this long to get
+   *  past it before it can cost another. */
+  foxGrace: 1,
 } as const
 
 /** The exploding heart. It talks the fleet out of the war; the mothership is
@@ -473,6 +500,20 @@ export const OBSTACLE = {
   maxSpeed: 500,
   /** Radians per second a loose toy tumbles at. */
   spin: 2.4,
+} as const
+
+/**
+ * The end. Round 42 is the last: once it is cleared the aliens leave, beaten,
+ * and the cow, the hen and a fox dance round a fire under the moon and sing.
+ */
+export const VICTORY = {
+  finalRound: 42,
+  /** Seconds the beaten fleet takes to leave, and when the song starts. */
+  leave: 4,
+  songStart: 4.6,
+  /** Seconds the whole scene runs before the panel: one pass of the song and
+   *  a little after. The song keeps looping behind the panel. */
+  duration: 22,
 } as const
 
 export const ROUND = {

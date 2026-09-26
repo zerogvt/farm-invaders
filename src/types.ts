@@ -191,10 +191,20 @@ export type Power =
       cooldown: number
     } & Timed)
 
-/** What a Rambo egg can turn into: any of the upgrades above, or the shield.
- *  The shield is kept apart because it runs alongside whatever else the hen
- *  holds; every other upgrade replaces the one before. */
-export type Gained = Power | ({ kind: 'shield' } & Timed)
+/** The shield, which runs alongside whatever upgrade the hen holds and lasts
+ *  until it has taken its hits. */
+export interface Shield {
+  hits: number
+}
+
+/** A shield dropped by a deserting saucer, falling or lying on the ground. */
+export interface ShieldDrop {
+  x: number
+  y: number
+  landed: boolean
+  /** Seconds left on the ground once it has landed. */
+  remaining: number
+}
 
 /** Einstein, mid-sentence, with the board stopped behind him. */
 export interface Freeze {
@@ -290,7 +300,8 @@ export interface Hen {
  * answer, and line 2 the mothership leaving;
  * `intro` shows the round banner; `playing` runs the simulation; `cleared`
  * pauses briefly between rounds; `abduction` is the closing scene after the
- * last hen falls; and `over` waits for the player to start again.
+ * last hen falls; `victory` is the ending after the final round; and `over`
+ * waits for the player to start again.
  */
 export type Phase =
   | { kind: 'parley'; line: 0 | 1 | 2; remaining: number }
@@ -298,6 +309,7 @@ export type Phase =
   | { kind: 'playing' }
   | { kind: 'cleared'; remaining: number }
   | { kind: 'abduction'; age: number }
+  | { kind: 'victory'; age: number }
   | { kind: 'over'; scoreSubmitted: boolean }
 
 export interface GameState {
@@ -327,7 +339,10 @@ export interface GameState {
   obstacles: Obstacle[]
   power: Power
   /** The shield, which can run alongside any other upgrade. */
-  shield: Timed | null
+  shield: Shield | null
+  shieldDrops: ShieldDrop[]
+  /** Keeps the black hole in hand for good. */
+  cheat: boolean
   pickup: Pickup | null
   /** Seconds until the next Rambo egg turns up, or null if none is due. */
   pickupTimer: number | null

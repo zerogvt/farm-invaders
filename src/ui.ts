@@ -10,7 +10,8 @@ import type { HighScore } from './types'
 
 export interface Ui {
   showTitle(onStart: () => void): void
-  showGameOver(score: number, round: number, onRestart: () => void): void
+  /** `won` after the final round, when the panel says so instead. */
+  showGameOver(score: number, round: number, onRestart: () => void, won?: boolean): void
   hidePanel(): void
   /** The transient "ROUND 3" / "NURSERY CLEARED" text over the playfield. */
   setBanner(text: string | null): void
@@ -45,17 +46,22 @@ export function createUi(root: HTMLElement): Ui {
     start.focus()
   }
 
-  function showGameOver(score: number, round: number, onRestart: () => void): void {
+  function showGameOver(score: number, round: number, onRestart: () => void, won = false): void {
+    const title = won ? 'The cow is safe' : 'Scrambled'
+    const summary = won
+      ? `You saw off all ${round} rounds with ${score} points.`
+      : `You scored ${score} and made it to round ${round}.`
     panel.hidden = false
     panel.innerHTML = ''
-    panel.append(
-      heading('Scrambled'),
-      paragraph(`You scored ${score} and made it to round ${round}.`),
-    )
+    panel.append(heading(title), paragraph(summary))
 
     const finish = (board: HighScore[]): void => {
       panel.innerHTML = ''
-      panel.append(heading('Scrambled'), paragraph(`You scored ${score} on round ${round}.`), scoreBoard(board))
+      panel.append(
+        heading(title),
+        paragraph(won ? `You scored ${score} and won.` : `You scored ${score} on round ${round}.`),
+        scoreBoard(board),
+      )
       const again = button('Play again', () => {
         panel.hidden = true
         onRestart()

@@ -17,13 +17,16 @@ import {
   PARLEY,
   PARLEY_SHIP,
   POWER,
+  SHIELD,
   SPLAT,
   TAUNT,
   UFO,
+  VICTORY,
   VIEW,
   WIPER,
 } from './config'
 import { bubbleCentre, featherSway, HEN_TOP, laserWidth, parleyDuration, shotSize } from './game'
+import { lineAt, SONG_EIGHTH } from './song'
 import { FEATHER_SIZE, rowVariant, type SpriteSet } from './sprites'
 import type { GameState } from './types'
 
@@ -41,6 +44,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawWaves(ctx, state)
   drawProjectiles(ctx, state, sprites, time)
   drawFoxes(ctx, state, sprites, time)
+  drawShieldDrops(ctx, state, time)
   drawBubbles(ctx, state)
   // The wash goes over everything time has stopped, and under the hen: she is
   // the only warm thing left on the board, which is the whole point of it.
@@ -54,6 +58,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawBlasts(ctx, state)
   drawParley(ctx, state, sprites, time)
   drawAbduction(ctx, state, sprites, time)
+  drawVictory(ctx, state, sprites, time)
   drawHud(ctx, state, sprites)
 }
 
@@ -937,11 +942,12 @@ function drawShield(ctx: CanvasRenderingContext2D, state: GameState, time: numbe
   const centreX = state.hen.x + HEN.width / 2
   const centreY = HEN_TOP + HEN.height * 0.55
   const radius = HEN.width * 0.78
-  // Pulse faster as it runs out, which is the only warning the player gets.
-  const urgency = shield.remaining < 3 ? 9 : 3
-  const pulse = 0.55 + Math.sin(time * urgency) * 0.2
+  const pulse = 0.55 + Math.sin(time * 3) * 0.2
 
   ctx.save()
+  // Fainter with every hit it has taken, which is the only warning the player
+  // gets of how much it has left.
+  ctx.globalAlpha = 0.25 + 0.75 * (shield.hits / SHIELD.hits)
   const fill = ctx.createRadialGradient(centreX, centreY, radius * 0.5, centreX, centreY, radius)
   fill.addColorStop(0, 'rgba(120,220,255,0.05)')
   fill.addColorStop(1, `rgba(120,220,255,${0.22 * pulse})`)
@@ -954,6 +960,30 @@ function drawShield(ctx: CanvasRenderingContext2D, state: GameState, time: numbe
   ctx.lineWidth = 2.5
   ctx.stroke()
   ctx.restore()
+}
+
+/** Shields a deserter has dropped: a small glass bubble, falling or lying on
+ *  the ground. It flickers over its last second there. */
+function drawShieldDrops(ctx: CanvasRenderingContext2D, state: GameState, time: number): void {
+  for (const drop of state.shieldDrops) {
+    if (drop.landed && drop.remaining < 1 && Math.floor(time * 10) % 2 === 0) continue
+    const r = SHIELD.width / 2
+    const cx = drop.x + r
+    const cy = drop.y + SHIELD.height / 2 + (drop.landed ? 0 : Math.sin(time * 6) * 1.5)
+    glow(ctx, cx, cy, r * 2, 'rgba(120,220,255,0.45)', 'rgba(80,180,255,0)')
+    ctx.save()
+    const fill = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r)
+    fill.addColorStop(0, 'rgba(230,250,255,0.9)')
+    fill.addColorStop(1, 'rgba(100,200,255,0.55)')
+    ctx.fillStyle = fill
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(200,245,255,0.95)'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.restore()
+  }
 }
 
 /** A super egg's shockwave: one ring racing outwards, plus a white flash over
@@ -1039,7 +1069,23 @@ function drawPowerPanel(ctx: CanvasRenderingContext2D, state: GameState): void {
   const power = state.power
   const name = powerName(power)
   if (power.kind !== 'none' && name !== null) drawClock(ctx, name, power, 16)
-  if (state.shield !== null) drawClock(ctx, 'SHIELD', state.shield, VIEW.width - 16 - 168)
+  if (state.shield !== null) drawShieldHits(ctx, state.shield.hits)
+}
+
+/** The shield in the HUD: its name and a pip for each hit it can still take. */
+function drawShieldHits(ctx: CanvasRenderingContext2D, hits: number): void {
+  const right = VIEW.width - 16
+  ctx.font = '600 13px system-ui, sans-serif'
+  ctx.textAlign = 'right'
+  ctx.fillStyle = PALETTE.accent
+  ctx.fillText('SHIELD', right - SHIELD.hits * 16 - 6, 42)
+  for (let i = 0; i < SHIELD.hits; i++) {
+    ctx.beginPath()
+    ctx.arc(right - 6 - (SHIELD.hits - 1 - i) * 16, 49, 5.5, 0, Math.PI * 2)
+    ctx.fillStyle = i < hits ? 'rgba(150,230,255,0.95)' : 'rgba(255,255,255,0.14)'
+    ctx.fill()
+  }
+  ctx.textAlign = 'left'
 }
 
 function drawClock(ctx: CanvasRenderingContext2D, name: string, power: { remaining: number; duration: number }, left: number): void {
@@ -1101,3 +1147,218 @@ function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
     ctx.drawImage(sprites.hen, x, 13, iconWidth, iconHeight)
   }
 }
+
+/**
+ * The ending, after the final round. The beaten fleet rises off the top of the
+ * screen, the mothership saying its piece and every saucer crying, to a sad
+ * trombone. Then night falls: a moon, a campfire, and the cow, the hen and a
+ * radioactive fox dancing round it, hopping as they go, each singing their line
+ * of the song in a bubble as the audio gets to it.
+ */
+function drawVictory(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  if (state.phase.kind !== 'victory') return
+  const age = state.phase.age
+
+  if (age < VICTORY.leave + 0.6) drawRetreat(ctx, sprites, age, time)
+
+  const night = clamp01((age - VICTORY.leave + 0.6) / 1)
+  if (night <= 0) return
+  ctx.save()
+  ctx.globalAlpha = night
+  drawNight(ctx, time)
+  const fireX = VIEW.width / 2
+  const dancers = dancerPositions(time)
+  for (const dancer of dancers) if (dancer.depth < 0) drawDancer(ctx, sprites, dancer)
+  drawCampfire(ctx, fireX, GROUND - 4, time)
+  for (const dancer of dancers) if (dancer.depth >= 0) drawDancer(ctx, sprites, dancer)
+
+  ctx.font = '700 26px system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.fillStyle = PALETTE.accent
+  ctx.fillText('The cow is safe', VIEW.width / 2, 92)
+  ctx.textAlign = 'left'
+  ctx.restore()
+
+  const songAge = age - VICTORY.songStart
+  if (songAge < 0) return
+  const line = lineAt(Math.floor(songAge / SONG_EIGHTH))
+  if (line === undefined) return
+  const singer = dancers.find((dancer) => dancer.who === line.singer)
+  if (singer === undefined) drawBubble(ctx, fireX, GROUND - 120, line.text, 220)
+  else drawBubble(ctx, singer.x, singer.top - 4, line.text, 190)
+}
+
+/** The fleet leaving in disgrace: saucers in a line under the mothership, all
+ *  rising, each dripping tears. */
+function drawRetreat(ctx: CanvasRenderingContext2D, sprites: SpriteSet, age: number, time: number): void {
+  const rise = ease(clamp01(age / VICTORY.leave)) * 480
+  const shipY = 150 - rise
+  for (let i = 0; i < 6; i++) {
+    const x = 110 + i * 110
+    const y = 270 - rise * 1.1 + Math.sin(time * 3 + i) * 4
+    ctx.drawImage(sprites.ufo[i % sprites.ufo.length] ?? sprites.ufo[0]!, x, y, UFO.width, UFO.height)
+    drawTears(ctx, x + UFO.width / 2, y + UFO.height, time + i)
+  }
+  ctx.drawImage(sprites.boss, VIEW.width / 2 - BOSS.width / 2, shipY, BOSS.width, BOSS.height)
+  drawTears(ctx, VIEW.width / 2, shipY + BOSS.height * 0.8, time)
+  if (age > 0.3 && age < VICTORY.leave - 0.6) {
+    drawBubble(ctx, VIEW.width / 2, shipY - 2, 'Fine. Keep your cow. We are going home.', 240)
+  }
+}
+
+function drawTears(ctx: CanvasRenderingContext2D, x: number, y: number, time: number): void {
+  ctx.fillStyle = 'rgba(140,200,255,0.85)'
+  for (let i = 0; i < 2; i++) {
+    const fall = ((time * 1.4 + i * 0.5) % 1) * 26
+    ctx.beginPath()
+    ctx.ellipse(x + (i === 0 ? -6 : 6), y + fall, 2, 3.2, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+/** Night: a deep sky, the stars, a moon and a dark rise of ground. */
+function drawNight(ctx: CanvasRenderingContext2D, time: number): void {
+  const sky = ctx.createLinearGradient(0, 0, 0, VIEW.height)
+  sky.addColorStop(0, '#060a1c')
+  sky.addColorStop(1, '#101a36')
+  ctx.fillStyle = sky
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height)
+
+  for (const star of STARS) {
+    ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.4 * Math.sin(time * star.speed + star.phase)})`
+    ctx.beginPath()
+    ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  const moonX = 640
+  const moonY = 110
+  const glowRing = ctx.createRadialGradient(moonX, moonY, 30, moonX, moonY, 140)
+  glowRing.addColorStop(0, 'rgba(255,245,200,0.3)')
+  glowRing.addColorStop(1, 'rgba(255,245,200,0)')
+  ctx.fillStyle = glowRing
+  ctx.fillRect(moonX - 140, moonY - 140, 280, 280)
+  ctx.fillStyle = '#fbf3d0'
+  ctx.beginPath()
+  ctx.arc(moonX, moonY, 44, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = 'rgba(210,196,150,0.6)'
+  for (const [dx, dy, r] of [
+    [-14, -10, 9],
+    [12, 6, 12],
+    [-4, 20, 6],
+  ] as const) {
+    ctx.beginPath()
+    ctx.arc(moonX + dx, moonY + dy, r, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  ctx.fillStyle = '#0b1a14'
+  ctx.beginPath()
+  ctx.moveTo(0, GROUND - 30)
+  ctx.quadraticCurveTo(VIEW.width / 2, GROUND - 70, VIEW.width, GROUND - 30)
+  ctx.lineTo(VIEW.width, VIEW.height)
+  ctx.lineTo(0, VIEW.height)
+  ctx.closePath()
+  ctx.fill()
+}
+
+/** A campfire: two crossed logs, three layers of flickering flame and a warm
+ *  glow thrown over everything near it. */
+function drawCampfire(ctx: CanvasRenderingContext2D, x: number, base: number, time: number): void {
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  const warmth = ctx.createRadialGradient(x, base - 30, 10, x, base - 30, 240)
+  warmth.addColorStop(0, `rgba(255,150,60,${0.45 + Math.sin(time * 11) * 0.05})`)
+  warmth.addColorStop(1, 'rgba(255,110,30,0)')
+  ctx.fillStyle = warmth
+  ctx.fillRect(x - 240, base - 270, 480, 290)
+  ctx.restore()
+
+  ctx.save()
+  ctx.translate(x, base)
+  ctx.fillStyle = '#5a3620'
+  for (const angle of [-0.35, 0.35]) {
+    ctx.save()
+    ctx.rotate(angle)
+    ctx.beginPath()
+    ctx.roundRect(-34, -7, 68, 12, 5)
+    ctx.fill()
+    ctx.restore()
+  }
+
+  const layers = [
+    { height: 70, width: 30, colour: 'rgba(255,110,40,0.9)', speed: 9 },
+    { height: 50, width: 21, colour: 'rgba(255,190,60,0.95)', speed: 13 },
+    { height: 28, width: 11, colour: 'rgba(255,245,200,0.95)', speed: 17 },
+  ]
+  for (const layer of layers) {
+    const h = layer.height + Math.sin(time * layer.speed) * layer.height * 0.12
+    const sway = Math.sin(time * layer.speed * 0.6) * 5
+    ctx.fillStyle = layer.colour
+    ctx.beginPath()
+    ctx.moveTo(-layer.width, -4)
+    ctx.quadraticCurveTo(-layer.width, -h * 0.55, sway, -h)
+    ctx.quadraticCurveTo(layer.width, -h * 0.55, layer.width, -4)
+    ctx.closePath()
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+interface Dancer {
+  who: 'hen' | 'cow' | 'fox'
+  x: number
+  /** Where the feet are, and the top of the head. */
+  feet: number
+  top: number
+  width: number
+  height: number
+  /** -1 behind the fire to 1 in front of it; decides drawing order and size. */
+  depth: number
+  /** True when it is moving right, which decides which way it faces. */
+  movingRight: boolean
+}
+
+/** The three of them going round the fire on a flattened circle, a third of a
+ *  turn apart, hopping as they go. */
+function dancerPositions(time: number): Dancer[] {
+  const cast = [
+    { who: 'hen', width: HEN.width, height: HEN.height },
+    { who: 'cow', width: COW.width, height: COW.height },
+    { who: 'fox', width: FOX.width, height: FOX.height },
+  ] as const
+  return cast.map((member, i) => {
+    const angle = time * 1.1 + (i * Math.PI * 2) / 3
+    const depth = Math.sin(angle)
+    const scale = 0.88 + 0.12 * depth
+    const width = member.width * scale
+    const height = member.height * scale
+    const hop = Math.abs(Math.sin(time * 7 + i * 1.3)) * 16
+    const feet = GROUND - 12 + depth * 12 - hop
+    return {
+      who: member.who,
+      x: VIEW.width / 2 + Math.cos(angle) * 180,
+      feet,
+      top: feet - height,
+      width,
+      height,
+      depth,
+      movingRight: -Math.sin(angle) > 0,
+    }
+  })
+}
+
+function drawDancer(ctx: CanvasRenderingContext2D, sprites: SpriteSet, dancer: Dancer): void {
+  const sprite = dancer.who === 'hen' ? sprites.hen : dancer.who === 'cow' ? sprites.cow : sprites.fox
+  // The cow is drawn facing right and the fox facing left; each is turned to
+  // face the way it is going.
+  const flip = dancer.who === 'cow' ? !dancer.movingRight : dancer.who === 'fox' ? dancer.movingRight : false
+  if (dancer.who === 'fox') glow(ctx, dancer.x, dancer.feet - dancer.height / 2, dancer.width, 'rgba(150,255,90,0.4)', 'rgba(90,220,40,0)')
+  ctx.save()
+  ctx.translate(dancer.x, dancer.feet - dancer.height / 2)
+  if (flip) ctx.scale(-1, 1)
+  ctx.drawImage(sprite, -dancer.width / 2, -dancer.height / 2, dancer.width, dancer.height)
+  ctx.restore()
+}
+

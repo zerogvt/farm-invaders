@@ -1,10 +1,10 @@
 import { createSound } from './audio'
-import { ABDUCTION, PARLEY_SHIP, VIEW } from './config'
-import { bossHitPoints, createGame, isBossRound, restart, update, type GameEvents } from './game'
+import { ABDUCTION, PARLEY_SHIP, SHIELD, VICTORY, VIEW } from './config'
+import { bossHitPoints, createGame, isBossRound, restart, toggleCheat, update, type GameEvents } from './game'
 import { createInput } from './input'
 import { render } from './render'
 import { buildSprites } from './sprites'
-import type { Gained, GameState } from './types'
+import type { GameState, Power } from './types'
 import { createSoundToggle, loadMuted } from './soundToggle'
 import { telemetry } from './telemetry'
 import { createUi } from './ui'
@@ -52,6 +52,12 @@ function main(): void {
       sound.play('powerUp')
       telemetry.powerGained(power.kind)
     },
+    onShieldGained: () => {
+      notice = { text: `Shield up — ${SHIELD.hits} hits`, remaining: NOTICE_DURATION }
+      sound.play('powerUp')
+    },
+    onShieldHit: () => sound.play('shieldHit'),
+    onVictory: () => sound.play('sadTrombone'),
     onExtraLife: () => {
       notice = { text: 'Extra life', remaining: NOTICE_DURATION }
       sound.play('extraLife')
@@ -86,17 +92,22 @@ function main(): void {
     onBossTaunt: () => {
       notice = { text: 'Super egg — one shot', remaining: NOTICE_DURATION }
     },
-    onGameOver: (score, round) => {
+    onGameOver: (score, round, won) => {
       telemetry.gameOver(score, round, sound.muted)
       screen = 'over'
       notice = null
       ui.setBanner(null)
-      ui.showGameOver(score, round, () => {
-        restart(game)
-        sound.setTrack('theme')
-        telemetry.gameStarted()
-        screen = 'running'
-      })
+      ui.showGameOver(
+        score,
+        round,
+        () => {
+          restart(game)
+          sound.setTrack('theme')
+          telemetry.gameStarted()
+          screen = 'running'
+        },
+        won,
+      )
     },
   }
 
@@ -104,6 +115,12 @@ function main(): void {
     restart(game)
     telemetry.gameStarted()
     screen = 'running'
+  })
+
+  window.addEventListener('keydown', (event) => {
+    if (event.code !== 'KeyI' || !event.ctrlKey || !event.shiftKey || event.repeat) return
+    event.preventDefault()
+    toggleCheat(game)
   })
 
   fitCanvas(canvas, ctx)
@@ -141,8 +158,12 @@ function main(): void {
         voicedLine = null
       }
       // A mothership round gets its own march. The closing scene keeps
-      // whatever was playing when the last hen fell.
-      if (game.phase.kind !== 'abduction' && game.phase.kind !== 'over') {
+      // whatever was playing when the last hen fell. The ending goes quiet
+      // while the fleet leaves — the sad trombone is theirs — and then it is
+      // the campfire song, which keeps going behind the panel.
+      if (game.phase.kind === 'victory') {
+        sound.setTrack(game.phase.age < VICTORY.songStart ? 'silence' : 'song')
+      } else if (game.phase.kind !== 'abduction' && game.phase.kind !== 'over') {
         sound.setTrack(game.boss !== null ? 'boss' : 'theme')
       }
       if (notice !== null) {
@@ -172,6 +193,7 @@ function bannerFor(game: GameState): string | null {
     // on the canvas, in bubbles, so the banner stays out of their way.
     case 'parley':
     case 'abduction':
+    case 'victory':
       return null
     case 'intro':
       // The boss round says what it is going to cost before it starts, because
@@ -187,9 +209,9 @@ function bannerFor(game: GameState): string | null {
   }
 }
 
-/** Every upgrade announces itself: which of the ten a Rambo egg turns into is
+/** Every upgrade announces itself: which of the nine a Rambo egg turns into is
  *  random, so the player has no way of knowing what they are holding otherwise. */
-function noticeFor(power: Gained): string {
+function noticeFor(power: Power): string {
   switch (power.kind) {
     case 'multishot':
       return `Multishot ×${power.eggs}`
@@ -197,8 +219,6 @@ function noticeFor(power: Gained): string {
       return 'Super egg — one shot'
     case 'beam':
       return 'Beam online'
-    case 'shield':
-      return 'Shield up'
     case 'heart':
       return 'Exploding heart — one shot'
     case 'gravity':

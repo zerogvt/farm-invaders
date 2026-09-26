@@ -4,6 +4,7 @@ import {
   foxWait,
   isBossRound,
   parleyDuration,
+  eggsPerThrow,
   pickupsFor,
   startRound,
   update,
@@ -27,11 +28,14 @@ import {
   OBSTACLE,
   PARLEY,
   POWER,
+  SHIELD,
   UFO,
+  VICTORY,
   VIEW,
   WINGMAN,
   WIPER,
 } from '../src/config.ts'
+import { lineAt, SONG_LINES } from '../src/song.ts'
 import type { GameState, Laser, Power, Shot, Ufo } from '../src/types.ts'
 import { createTelemetry, telemetry } from '../src/telemetry.ts'
 
@@ -82,6 +86,12 @@ function egg(x: number, y: number): Shot {
 /** True when a saucer is on its way off the board for the given reason. */
 function leaving(ufo: Ufo, reason: 'splattered' | 'deserted'): boolean {
   return ufo.state.kind === 'leaving' && ufo.state.reason === reason
+}
+
+/** Reads the phase through a call, so a test that has just assigned one is not
+ *  narrowed to it for the rest of the check. */
+function phaseKind(game: GameState): GameState['phase']['kind'] {
+  return game.phase.kind
 }
 
 /** Handing an upgrade over through a call rather than by assigning the field
@@ -359,7 +369,7 @@ const target = gu.pickup!
 gu.shots = [egg(target.x + POWER.width / 2 - 6, target.y + POWER.height / 2)]
 let gained = 0
 update(gu, DT, idle, { onPowerGained: () => gained++ })
-check('shooting it grants an upgrade', gu.power.kind !== 'none' || gu.shield !== null, gu.power.kind)
+check('shooting it grants an upgrade', gu.power.kind !== 'none', gu.power.kind)
 check('the upgrade is announced once', gained === 1, `${gained}`)
 check('and the pickup is consumed', gu.pickup === null && gu.shots.length === 0)
 
@@ -432,11 +442,12 @@ check('two seconds of it is', pinned.state.kind === 'leaving', pinned.state.kind
 const gsh = newGame()
 intoPlay(gsh)
 gsh.hen.invulnerable = 0
-gsh.shield = { remaining: 5, duration: 5 }
+gsh.shield = { hits: SHIELD.hits }
 gsh.lasers = [{ x: gsh.hen.x + 10, y: HEN_TOP - 4, vx: 0, vy: LASER.baseSpeed }]
 update(gsh, 0.05, idle)
 check('the shield eats a laser', gsh.hen.lives === 3, `lives ${gsh.hen.lives}`)
 check('and the laser is gone', gsh.lasers.length === 0)
+check('for one of its hits', gsh.shield?.hits === SHIELD.hits - 1, `${gsh.shield?.hits}`)
 
 // 19. Large dt cannot tunnel a laser through an unshielded hen.
 const g5 = newGame()
@@ -475,27 +486,27 @@ check('talking one out of it scores nothing', gd2.score === 0, `score ${gd2.scor
 
 // --- free lives -------------------------------------------------------------
 
-// 22. Every two thousand points is another hen.
+// 22. Every four thousand points is another hen.
 const gx = newGame()
 intoPlay(gx)
-check('the first free life is two thousand away', gx.nextLifeAt === 2000, `${gx.nextLifeAt}`)
+check('the first free life is four thousand away', gx.nextLifeAt === 4000, `${gx.nextLifeAt}`)
 
-gx.score = 1995
+gx.score = 3995
 const earner = gx.ufos[0]!
 gx.ufos = [earner]
 earner.x = 60
 throwEggAt(gx, earner)
 let extraLives = 0
 step(gx, 2, idle, { onExtraLife: () => extraLives++ })
-check('crossing two thousand is a free life', gx.hen.lives === 4, `lives ${gx.hen.lives}`)
+check('crossing four thousand is a free life', gx.hen.lives === 4, `lives ${gx.hen.lives}`)
 check('and it is announced once', extraLives === 1, `${extraLives}`)
-check('the next one is two thousand further on', gx.nextLifeAt === 4000, `${gx.nextLifeAt}`)
+check('the next one is four thousand further on', gx.nextLifeAt === 8000, `${gx.nextLifeAt}`)
 
 // A single award that vaults more than one threshold pays out for each.
 const gx2 = newGame()
 intoPlay(gx2)
-gx2.score = 5900
-gx2.nextLifeAt = 2000
+gx2.score = 11900
+gx2.nextLifeAt = 4000
 gx2.hen.lives = 1
 const earner2 = gx2.ufos[0]!
 gx2.ufos = [earner2]
@@ -838,8 +849,7 @@ step(gc, 0.2, idle)
 const prize = gc.pickup!
 gc.shots = [egg(prize.x + POWER.width / 2 - 6, prize.y + POWER.height / 2)]
 update(gc, DT, idle)
-// One in ten is the shield, which keeps its clock apart from the upgrade's.
-const prizeClock = gc.shield ?? (gc.power.kind === 'none' ? null : gc.power)
+const prizeClock = gc.power.kind === 'none' ? null : gc.power
 check('an upgrade arrives with a clock on it', prizeClock !== null && prizeClock.remaining > 0, gc.power.kind)
 check(
   'and knows what it started with, so a bar can measure it',
@@ -859,16 +869,17 @@ check('a one-shot that is never fired goes off the boil', gc2.power.kind === 'no
 check('the cow moos at a cleared round', COW.roundLine === 'Moo', COW.roundLine)
 check('and moos at length when it is taken', COW.line === 'Moooooooooo', COW.line)
 
-// --- one egg a throw, whatever the round ------------------------------------
+// --- eggs a throw ---------------------------------------------------------------
 
-// 37. The extra eggs every eight rounds were tried and taken out again.
+// 37. The extra eggs every eight rounds were tried and taken out again; one
+//     more every ten rounds is what replaced them (see 55).
 const gpe = newGame()
 enterRound(gpe, 17)
 while (gpe.phase.kind !== 'playing') update(gpe, DT, idle)
 gpe.lasers = []
 update(gpe, DT, firing)
-check('a round-17 pull still throws one egg', gpe.shots.length === 1, `${gpe.shots.length}`)
-check('straight up', gpe.shots.length === 1 && gpe.shots[0]!.vx === 0)
+check('a round-17 pull throws two eggs', gpe.shots.length === 2, `${gpe.shots.length}`)
+check('straight up', gpe.shots.every((shot) => shot.vx === 0))
 
 // --- eggs shoot lasers down -----------------------------------------------------
 
@@ -1129,11 +1140,12 @@ intoPlay(gfs)
 gfs.lasers = []
 gfs.hen.invulnerable = 0
 gfs.hen.x = 400
-gfs.shield = { remaining: 5, duration: 5 }
+gfs.shield = { hits: SHIELD.hits }
 const livesShielded = gfs.hen.lives
 gfs.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
 update(gfs, DT, idle)
 check('the shield keeps a fox off her', gfs.hen.lives === livesShielded)
+check('for one hit, and a moment to get past', gfs.shield?.hits === SHIELD.hits - 1 && gfs.hen.invulnerable > 0)
 
 const gfz = newGame()
 intoPlay(gfz)
@@ -1450,39 +1462,194 @@ for (let f = 0; f < Math.round(60 / DT) && gpk.phase.kind !== 'over'; f++) {
 }
 check('a round owed three Rambo eggs shows all three, one at a time', seenPickups === 3, `${seenPickups}`)
 
-// 52. The shield runs alongside any other upgrade; anything else replaces.
-let shieldKept = false
-let shieldReplacedNothing = true
-let othersReplace = true
-for (let i = 0; i < 150; i++) {
+// 52. A Rambo egg never turns into the shield any more.
+let rolledShield = false
+const rolled = new Set<string>()
+for (let i = 0; i < 200; i++) {
   const g = newGame()
   intoPlay(g)
   g.pickupTimer = 0.01
   step(g, 0.05, idle)
   const target = g.pickup!
-  grant(g, { kind: 'beam', remaining: 5, duration: 5 })
-  g.shield = null
   g.shots = [egg(target.x + POWER.width / 2 - 6, target.y + POWER.height / 2)]
   update(g, DT, idle)
-  if (g.shield !== null) {
-    shieldKept = true
-    if (g.power.kind !== 'beam') shieldReplacedNothing = false
-  } else if (g.power.kind === 'beam' && g.power.remaining > 4.9 && g.power.duration === 5) {
-    othersReplace = false
-  }
+  if (g.shield !== null) rolledShield = true
+  rolled.add(g.power.kind)
 }
-check('a shield from a Rambo egg turns up', shieldKept)
-check('and keeps the upgrade she already had', shieldReplacedNothing)
-check('while any other upgrade replaces hers', othersReplace)
+check('a Rambo egg never gives the shield', !rolledShield)
+check('and the other nine all still turn up', rolled.size === 9 && !rolled.has('none'), [...rolled].join(','))
+
+// --- dropped shields -----------------------------------------------------------
+
+// 53. Every other deserter drops one.
+let deserters = 0
+let dropped = 0
+for (let i = 0; i < 20; i++) {
+  const g = newGame()
+  intoPlay(g)
+  grant(g, { kind: 'heart', remaining: 12, duration: 12 })
+  g.shotCooldown = 0
+  const fleet = g.ufos.filter((ufo) => ufo.state.kind === 'flying').length
+  update(g, DT, firing)
+  step(g, 1.5, idle)
+  deserters += fleet
+  dropped += g.shieldDrops.length + (g.shield !== null ? 1 : 0)
+}
+const dropShare = dropped / deserters
+check('about one deserter in two drops a shield', dropShare > 0.38 && dropShare < 0.62, `${dropped} of ${deserters}`)
+
+// It falls, lands, lies there four seconds, and is gone.
+const gsd = newGame()
+intoPlay(gsd)
+gsd.hen.x = 700
+// No desertions here: each could drop a shield of its own.
+gsd.desertions = []
+const theDrop = { x: 200, y: 300, landed: false, remaining: SHIELD.groundTime }
+gsd.shieldDrops = [theDrop]
+step(gsd, 0.5, idle)
+check('a dropped shield falls', theDrop.y > 300)
+while (!theDrop.landed) update(gsd, DT, idle)
+check('and lands on the ground', gsd.shieldDrops.includes(theDrop))
+step(gsd, SHIELD.groundTime - 0.3, idle)
+check('where it lies for a few seconds', gsd.shieldDrops.includes(theDrop))
+step(gsd, 0.5, idle)
+check('and then is gone', !gsd.shieldDrops.includes(theDrop))
+
+// The hen gets it by walking over it, or by its falling on her.
+const gsw = newGame()
+intoPlay(gsw)
+gsw.hen.x = 100
+gsw.shieldDrops = [{ x: 300, y: HEN_TOP + HEN.height - SHIELD.height, landed: true, remaining: 3 }]
+let shieldsGained = 0
+for (let i = 0; i < 90; i++) update(gsw, DT, { left: false, right: true, fire: false }, { onShieldGained: () => shieldsGained++ })
+check('walking over a dropped shield picks it up', gsw.shield?.hits === SHIELD.hits && gsw.shieldDrops.length === 0 && shieldsGained === 1)
+
+const gsf = newGame()
+intoPlay(gsf)
+gsf.hen.x = 400
+gsf.shieldDrops = [{ x: 405, y: HEN_TOP - 60, landed: false, remaining: SHIELD.groundTime }]
+step(gsf, 0.8, idle)
+check('a shield falling on her is hers', gsf.shield !== null && gsf.shieldDrops.length === 0)
+
+// A fresh one tops hers back up.
+gsf.shield = { hits: 1 }
+gsf.shieldDrops = [{ x: 405, y: HEN_TOP, landed: false, remaining: SHIELD.groundTime }]
+update(gsf, DT, idle)
+check('picking up another tops the shield back up', gsf.shield?.hits === SHIELD.hits)
+
+// 54. Three hits, or one triple laser; time does nothing to it.
+const shieldAfter = (powers: (1 | 2 | 3)[]) => {
+  const g = newGame()
+  intoPlay(g)
+  g.hen.x = 400
+  g.shield = { hits: SHIELD.hits }
+  const lives = g.hen.lives
+  for (const power of powers) {
+    g.hen.invulnerable = 0
+    g.lasers = [{ x: 410, y: HEN_TOP + 6, vx: 0, vy: 0, ...(power === 1 ? {} : { power }) }]
+    update(g, DT, idle)
+  }
+  return { hits: g.shield?.hits ?? 0, livesLost: lives - g.hen.lives }
+}
+check('two lasers leave one hit', shieldAfter([1, 1]).hits === 1)
+check('three take the shield', shieldAfter([1, 1, 1]).hits === 0 && shieldAfter([1, 1, 1]).livesLost === 0)
+check('a fourth then costs a life', shieldAfter([1, 1, 1, 1]).livesLost === 1)
+check('a double laser counts as two', shieldAfter([2]).hits === 1)
+check('a triple takes the whole shield, and not her', shieldAfter([3]).hits === 0 && shieldAfter([3]).livesLost === 0)
+
+const gst = newGame()
+intoPlay(gst)
+gst.hen.lives = 99
+gst.shield = { hits: SHIELD.hits }
+for (let i = 0; i < Math.round(30 / DT); i++) {
+  gst.lasers = []
+  gst.foxes = []
+  update(gst, DT, idle)
+  if (gst.phase.kind !== 'playing') break
+}
+check('the shield does not run out with time', gst.shield?.hits === SHIELD.hits)
 
 const gsk = newGame()
 intoPlay(gsk)
-gsk.shield = { remaining: 8, duration: 10 }
+gsk.shield = { hits: 2 }
 grant(gsk, { kind: 'gramophone', remaining: 12, duration: 12 })
 step(gsk, 1, idle)
-check('the shield carries on beside a gramophone', gsk.shield !== null && gsk.power.kind === 'gramophone')
-step(gsk, 8, idle)
-check('and runs out on its own clock', gsk.shield === null)
+check('the shield carries on beside another upgrade', gsk.shield !== null && gsk.power.kind === 'gramophone')
+
+// --- more eggs later on --------------------------------------------------------
+
+// 55. One more egg a throw for every ten rounds, side by side, straight up.
+check(
+  'eggs a throw: 1 to round 10, 2 to 20, 3 to 30, 4 after',
+  [1, 10, 11, 20, 21, 30, 31, 42].map(eggsPerThrow).join() === '1,1,2,2,3,3,4,4',
+  [1, 10, 11, 20, 21, 30, 31, 42].map(eggsPerThrow).join(),
+)
+const gpt = newGame()
+enterRound(gpt, 25)
+while (gpt.phase.kind !== 'playing') update(gpt, DT, idle)
+gpt.shots = []
+gpt.shotCooldown = 0
+update(gpt, DT, firing)
+const throwXs = gpt.shots.map((shot) => shot.x).sort((a, b) => a - b)
+check('a round-25 throw is three eggs', gpt.shots.length === 3, `${gpt.shots.length}`)
+check('side by side', throwXs.length === 3 && Math.abs(throwXs[1]! - throwXs[0]! - EGG.spacing) < 0.01)
+check('all going straight up', gpt.shots.every((shot) => shot.vx === 0))
+for (let i = 0; i < 10; i++) {
+  gpt.shotCooldown = 0
+  update(gpt, DT, firing)
+}
+check('and still three throws in flight at most', gpt.shots.filter((s) => !s.wingman).length <= EGG.maxInFlight * 3)
+
+// --- the beam fires no eggs ------------------------------------------------------
+
+// 56. The beam burns by itself; the fire key throws nothing while it lasts.
+const gbe = newGame()
+intoPlay(gbe)
+grant(gbe, { kind: 'beam', remaining: 5, duration: 5 })
+gbe.shots = []
+for (let i = 0; i < 30; i++) {
+  gbe.shotCooldown = 0
+  update(gbe, DT, firing)
+}
+check('no eggs are thrown while the beam burns', gbe.shots.length === 0, `${gbe.shots.length} eggs`)
+
+// 57. One black hole at a time.
+const gbo = newGame()
+intoPlay(gbo)
+gbo.vortex = { x: 300, y: 200, age: 0.5 }
+grant(gbo, { kind: 'blackHole', remaining: 12, duration: 12 })
+gbo.shotCooldown = 0
+update(gbo, DT, firing)
+check('a black hole cannot be fired while one is open', gbo.power.kind === 'blackHole' && gbo.vortex.x === 300)
+
+// --- the end -------------------------------------------------------------------
+
+// 58. Round 42 is the last.
+const gend = newGame()
+enterRound(gend, 42)
+gend.boss = null
+gend.ufos = []
+gend.phase = { kind: 'playing' }
+let won = 0
+let gameOverWon: boolean | null = null
+const endEvents = { onVictory: () => won++, onGameOver: (_s: number, _r: number, w: boolean) => void (gameOverWon = w) }
+update(gend, DT, idle, endEvents)
+step(gend, 2, idle, endEvents)
+check('clearing round 42 ends the invasion', phaseKind(gend) === 'victory' && won === 1, phaseKind(gend))
+step(gend, VICTORY.duration, idle, endEvents)
+check('and the ending finishes as a won game', phaseKind(gend) === 'over' && gameOverWon === true)
+
+const g41 = newGame()
+enterRound(g41, 41)
+g41.ufos = []
+g41.phase = { kind: 'playing' }
+update(g41, DT, idle)
+step(g41, 2, idle)
+check('round 41 still leads on to round 42', g41.round === 42 && phaseKind(g41) !== 'victory', `${g41.round} ${phaseKind(g41)}`)
+
+check('the song has the lyrics asked for', SONG_LINES.map((line) => line.text).join(' ') === 'They came for the cow, and we said moo moo moo. Moo moo moo we said, and they run moooway!')
+check('every line fits its two bars', SONG_LINES.every((line) => line.notes.reduce((sum, note) => sum + note.eighths, 0) <= 16))
+check('and each line is up while it is sung', SONG_LINES.every((line) => lineAt(line.start) === line && lineAt(line.start + 15) === line))
 
 // --- what the sound hangs off -------------------------------------------------
 
