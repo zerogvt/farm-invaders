@@ -29,8 +29,8 @@ amount of fire wears them down, or leaves a mark on them.
 and is spent doing it, so a well-aimed egg is a shield as well as a shot. From
 round 3 some saucers fire **double-width lasers**, and from round 6 some fire
 **triple-width** ones; each takes that many eggs, and every egg narrows it by
-one. They grow more common as the rounds go on, but six lasers in ten stay
-ordinary.
+one. The mothership's volleys mix them in too, from the same rounds. They grow
+more common as the rounds go on, but six lasers in ten stay ordinary.
 
 **The toys are not nailed down.** An egg comes from below, so it punts the toy it
 hits up into the fleet, and anything a loose toy ploughs into goes up. Every
@@ -55,8 +55,14 @@ reaching one every 7 seconds by round 20. There are never more than four in a
 round. Eggs go straight through it, toys do not stop it and the black hole does
 not take it. It falls to the ground and sits where it lands, for a second in
 round 1 and up to ten seconds from round 19. Then it runs off the side *away*
-from the hen, never towards her. If it touches her she loses a life. The shield
-is the one thing that keeps it off her.
+from the hen. If it touches her she loses a life. The shield is the one thing
+that keeps it off her.
+
+From round 11, when a fox will sit for more than five seconds, it **glows
+brighter** — and when it gets up it **chases the hen** instead. The chase is
+slower than she can run, turns to follow her, and gives up after three seconds,
+when the fox runs off the side away from her. She cannot get past a fox, so
+the long sit is her warning: get to the far side and it will not reach her.
 
 **When the hen loses a life** she lets out a **"buk-buk-BAWK!"** and a handful
 of feathers come off her and drift down.
@@ -75,16 +81,18 @@ stop where they are for five seconds. An egg that lands while time is stopped
 does not start a retreat — there is nothing to retreat — so whatever it hits
 simply goes up and scores on the spot.
 
-**Watch the corners for a Rambo egg.** On roughly two rounds in five one turns up
-in a top corner, sits there for ten seconds, and upgrades the hen's eggs if she
-can hit it before it leaves. Which upgrade is not up to her:
+**Watch the corners for a Rambo egg.** One turns up in a top corner, sits there
+for ten seconds, and upgrades the hen's eggs if she can hit it before it leaves.
+Up to round 19 a round brings none or one; rounds 20–29 bring one or two, rounds
+30–39 two or three, and so on, the higher number seven rounds in ten. They
+come one at a time, a few seconds apart. Which upgrade is not up to her:
 
 | Upgrade | What it does |
 | --- | --- |
 | Multishot | Every shot becomes a fan of 5–20 eggs, for six seconds. |
 | Super egg | One shot. It bursts at mid-screen and clears the sky outright. |
 | Beam | A continuous beam for six seconds. It burns whatever it touches, and needs one second on the mothership per egg the mothership would have cost. |
-| Shield | Ten seconds during which lasers simply do not land. |
+| Shield | Ten seconds during which lasers and foxes simply do not land. It runs alongside whatever upgrade she already holds. |
 | Exploding heart | One shot. The whole fleet deserts. The mothership declines — *"no xmas truce. This aint 1914. I'm da central command!"* — and the hen gets a super egg for her trouble. |
 | Gravity waves | Five seconds of expanding rings. Anything a ring washes over loses attitude control, tumbles off at random, and detonates against whatever it blunders into, itself included. |
 | Black hole | One shot. It opens at a random spot in the sky, and every saucer on the board — the mothership too — spirals into it and is swallowed, the nearer ones first. |
@@ -96,7 +104,9 @@ Every upgrade announces itself over the playfield, because which one you have is
 not something you chose — and every one of them carries a clock, shown in the
 HUD as a name, the seconds left and a bar that drains, turning red over the last
 three seconds. The single-shot upgrades are spent by firing them; their clock is
-how long they can be carried unfired.
+how long they can be carried unfired. A new upgrade replaces the one she is
+holding — except the shield, which runs beside it with its own clock on the
+right of the HUD.
 
 ## Running it
 

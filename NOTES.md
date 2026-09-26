@@ -258,3 +258,27 @@ Added on 26 September 2026, from one request of five items:
   round's banner and stops when the mothership goes down. The closing scene
   keeps whatever was playing. A switch restarts the new tune from its top.
 
+Added on 26 September 2026, from one request of three items:
+
+- **The mothership rolls wide lasers** on the same odds as the fleet
+  (`rollLaserPower`), per laser in a volley. Its angled lasers keep an
+  axis-aligned hit box as wide as they are drawn.
+- **Chasers are fixed at the drop**: `chaser` is set when a fox is thrown, from
+  `foxWait(round) > FOX.chaseAfterWait`. So it is per round, not per fox — every
+  fox from round 11 (the first fleet round past 5s) chases, none before.
+  The chase is my design, to keep Vasilis's earlier rule that a fox must not be
+  a certain loss. The hen cannot pass a fox, so an endless chase always wins.
+  It goes at 190 px/s against her 330, follows her, and quits after 3s
+  (`FOX.chaseSpeed`, `FOX.chaseDuration`). From one end of the ground to the
+  other she outlasts it; from the middle she needs to move early.
+- **Rambo eggs per round**: band `max(0, floor(round / 10) - 1)`, plus one with
+  chance 0.7. Round 20 is the first round of the 1–2 band, reading "levels
+  20–30" that way. Rounds 1–19 now show one 70% of the time, up from 40%: a
+  real balance change, and it was asked for. They come one at a time; the next
+  is scheduled 3–8s after one is shot or leaves (`pickupsLeft`).
+- **The shield is its own field** (`state.shield`), not an upgrade kind, so it
+  can run beside another one; `Gained` is what a Rambo egg can turn into.
+  Picking up a second shield restarts its clock. The HUD shows it on the right.
+- Two old checks read the prize off `power` and would have failed whenever the
+  roll was the shield (one in ten); they now accept either.
+

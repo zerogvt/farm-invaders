@@ -1,4 +1,14 @@
-import { bossHitPoints, createGame, foxWait, isBossRound, parleyDuration, startRound, update, HEN_TOP } from '../src/game.ts'
+import {
+  bossHitPoints,
+  createGame,
+  foxWait,
+  isBossRound,
+  parleyDuration,
+  pickupsFor,
+  startRound,
+  update,
+  HEN_TOP,
+} from '../src/game.ts'
 import { placeObstacles } from '../src/obstacles.ts'
 import type { InputState } from '../src/input.ts'
 import {
@@ -349,7 +359,7 @@ const target = gu.pickup!
 gu.shots = [egg(target.x + POWER.width / 2 - 6, target.y + POWER.height / 2)]
 let gained = 0
 update(gu, DT, idle, { onPowerGained: () => gained++ })
-check('shooting it grants an upgrade', gu.power.kind !== 'none', gu.power.kind)
+check('shooting it grants an upgrade', gu.power.kind !== 'none' || gu.shield !== null, gu.power.kind)
 check('the upgrade is announced once', gained === 1, `${gained}`)
 check('and the pickup is consumed', gu.pickup === null && gu.shots.length === 0)
 
@@ -422,7 +432,7 @@ check('two seconds of it is', pinned.state.kind === 'leaving', pinned.state.kind
 const gsh = newGame()
 intoPlay(gsh)
 gsh.hen.invulnerable = 0
-grant(gsh, { kind: 'shield', remaining: 5, duration: 5 })
+gsh.shield = { remaining: 5, duration: 5 }
 gsh.lasers = [{ x: gsh.hen.x + 10, y: HEN_TOP - 4, vx: 0, vy: LASER.baseSpeed }]
 update(gsh, 0.05, idle)
 check('the shield eats a laser', gsh.hen.lives === 3, `lives ${gsh.hen.lives}`)
@@ -828,10 +838,12 @@ step(gc, 0.2, idle)
 const prize = gc.pickup!
 gc.shots = [egg(prize.x + POWER.width / 2 - 6, prize.y + POWER.height / 2)]
 update(gc, DT, idle)
-check('an upgrade arrives with a clock on it', gc.power.kind !== 'none' && gc.power.remaining > 0, gc.power.kind)
+// One in ten is the shield, which keeps its clock apart from the upgrade's.
+const prizeClock = gc.shield ?? (gc.power.kind === 'none' ? null : gc.power)
+check('an upgrade arrives with a clock on it', prizeClock !== null && prizeClock.remaining > 0, gc.power.kind)
 check(
   'and knows what it started with, so a bar can measure it',
-  gc.power.kind !== 'none' && gc.power.duration >= gc.power.remaining,
+  prizeClock !== null && prizeClock.duration >= prizeClock.remaining,
 )
 
 // A one-shot left unfired runs out rather than being carried for ever.
@@ -1021,7 +1033,7 @@ gfe.ufos = []
 gfe.boss = null
 gfe.obstacles = []
 gfe.ufos = [{ column: 0, row: 0, x: 10, y: 60, state: { kind: 'flying' }, wobblePhase: 0 }]
-gfe.foxes = [{ x: 400, y: 280, vx: 0, rotation: 0, landed: false, wait: 0 }]
+gfe.foxes = [{ x: 400, y: 280, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
 gfe.shots = [egg(410, 290)]
 update(gfe, DT, idle)
 check('an egg goes straight through a fox', gfe.foxes.length === 1 && gfe.shots.length === 1)
@@ -1032,7 +1044,7 @@ gfl.hen.lives = 99
 intoPlay(gfl)
 gfl.hen.x = 700
 gfl.obstacles = []
-gfl.foxes = [{ x: 150, y: 300, vx: 0, rotation: 1, landed: false, wait: 0 }]
+gfl.foxes = [{ x: 150, y: 300, vx: 0, rotation: 1, landed: false, wait: 0, chaser: false, chase: 0 }]
 // From 300 it is about 1.7s to the ground.
 step(gfl, 1.75, idle)
 const ranFox = gfl.foxes[0]!
@@ -1051,7 +1063,7 @@ const gfa = newGame()
 gfa.hen.lives = 99
 intoPlay(gfa)
 gfa.hen.x = 60
-gfa.foxes = [{ x: 250, y: HEN_TOP + HEN.height - FOX.height, vx: 0, rotation: 0, landed: true, wait: 0.01 }]
+gfa.foxes = [{ x: 250, y: HEN_TOP + HEN.height - FOX.height, vx: 0, rotation: 0, landed: true, wait: 0.01, chaser: false, chase: 0 }]
 update(gfa, DT, idle)
 check('a fox nearer the left wall still runs right when the hen is on its left', gfa.foxes[0]!.vx > 0, `${gfa.foxes[0]!.vx}`)
 
@@ -1098,7 +1110,7 @@ gfh.lasers = []
 gfh.hen.invulnerable = 0
 gfh.hen.x = 400
 const livesBeforeFox = gfh.hen.lives
-gfh.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0 }]
+gfh.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
 update(gfh, DT, idle)
 check('a fox touching the hen costs a life', gfh.hen.lives === livesBeforeFox - 1, `${livesBeforeFox} -> ${gfh.hen.lives}`)
 check('and one life only', gfh.hen.lives === livesBeforeFox - 1)
@@ -1108,7 +1120,7 @@ check('and it is gone with the lasers', gfh.foxes.length === 0)
 const gft = newGame()
 intoPlay(gft)
 const foxToy = gft.obstacles[0]!
-gft.foxes = [{ x: foxToy.x + 4, y: foxToy.y + 2, vx: 0, rotation: 0, landed: false, wait: 0 }]
+gft.foxes = [{ x: foxToy.x + 4, y: foxToy.y + 2, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
 update(gft, DT, idle)
 check('a toy does not stop a fox', gft.foxes.length === 1)
 
@@ -1117,9 +1129,9 @@ intoPlay(gfs)
 gfs.lasers = []
 gfs.hen.invulnerable = 0
 gfs.hen.x = 400
-grant(gfs, { kind: 'shield', remaining: 5, duration: 5 })
+gfs.shield = { remaining: 5, duration: 5 }
 const livesShielded = gfs.hen.lives
-gfs.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0 }]
+gfs.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
 update(gfs, DT, idle)
 check('the shield keeps a fox off her', gfs.hen.lives === livesShielded)
 
@@ -1130,14 +1142,14 @@ gfz.hen.invulnerable = 0
 gfz.hen.x = 400
 gfz.freeze = { x: 0, remaining: 3 }
 const livesFrozen = gfz.hen.lives
-gfz.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0 }]
+gfz.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
 update(gfz, DT, idle)
 check('a frozen fox cannot hurt her', gfz.hen.lives === livesFrozen)
 
 // The black hole leaves foxes alone: nothing kills one.
 const gfb = newGame()
 intoPlay(gfb)
-gfb.foxes = [{ x: 400, y: 200, vx: 0, rotation: 0, landed: false, wait: 0 }]
+gfb.foxes = [{ x: 400, y: 200, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
 grant(gfb, { kind: 'blackHole', remaining: 12, duration: 12 })
 gfb.shotCooldown = 0
 update(gfb, DT, firing)
@@ -1305,6 +1317,172 @@ const livesBeforeWide = gwh.hen.lives
 gwh.lasers = [{ x: 400 - LASER.width * 3 + 1, y: HEN_TOP + 10, vx: 0, vy: 0, power: 3 }]
 update(gwh, DT, idle)
 check('a wide laser hits across its whole width', gwh.hen.lives === livesBeforeWide - 1, `${livesBeforeWide} -> ${gwh.hen.lives}`)
+
+// --- the mothership's wide lasers -------------------------------------------
+
+// 49. The mothership fires wide lasers too, from the same rounds as the fleet.
+const bossPowers = (round: number): Map<number, number> => {
+  const seen = new Map<number, number>()
+  for (let i = 0; i < 25; i++) {
+    const game = newGame()
+    game.hen.lives = 999
+    enterRound(game, round)
+    while (game.phase.kind !== 'playing') update(game, DT, idle)
+    game.hen.invulnerable = 999
+    const counted = new Set<object>()
+    for (let f = 0; f < 900 && game.boss !== null; f++) {
+      update(game, DT, idle)
+      for (const laser of game.lasers) {
+        if (counted.has(laser)) continue
+        counted.add(laser)
+        seen.set(laser.power ?? 1, (seen.get(laser.power ?? 1) ?? 0) + 1)
+      }
+    }
+  }
+  return seen
+}
+const bossEarly = bossPowers(2)
+check('the round-2 mothership fires only ordinary lasers', !bossEarly.has(2) && !bossEarly.has(3), JSON.stringify([...bossEarly]))
+const bossLate = bossPowers(16)
+check(
+  'a late mothership fires double and triple lasers too',
+  (bossLate.get(2) ?? 0) > 0 && (bossLate.get(3) ?? 0) > 0,
+  JSON.stringify([...bossLate]),
+)
+
+// --- foxes that chase ----------------------------------------------------------
+
+// 50. From the rounds where a fox sits more than five seconds, it chases.
+const foxIn = (round: number) => {
+  const game = newGame()
+  game.hen.lives = 99
+  enterRound(game, round)
+  while (game.phase.kind !== 'playing') update(game, DT, idle)
+  game.foxTimer = 0.01
+  update(game, DT, idle)
+  return game
+}
+check('a round-5 fox does not chase', foxIn(5).foxes[0]?.chaser === false, `wait ${foxWait(5).toFixed(1)}s`)
+check('a round-11 fox does', foxIn(11).foxes[0]?.chaser === true, `wait ${foxWait(11).toFixed(1)}s`)
+
+// When it gets up it goes for her, slower than she can run...
+const gch = newGame()
+gch.hen.lives = 99
+intoPlay(gch)
+gch.hen.invulnerable = 999
+gch.hen.x = 600
+gch.foxes = [{ x: 100, y: HEN_TOP + HEN.height - FOX.height, vx: 0, rotation: 0, landed: true, wait: 0.01, chaser: true, chase: 0 }]
+update(gch, DT, idle)
+update(gch, DT, idle)
+const chaser = gch.foxes[0]!
+check('a chasing fox goes for the hen', chaser.chase > 0 && chaser.vx > 0, `vx ${chaser.vx}`)
+check('slower than she runs', Math.abs(chaser.vx) <= FOX.chaseSpeed && FOX.chaseSpeed < HEN.speed)
+// ...follows her if she crosses over...
+gch.hen.x = 20
+update(gch, DT, idle)
+check('and turns to follow her', chaser.vx < 0, `vx ${chaser.vx}`)
+// ...and gives up, running off the side away from her.
+step(gch, FOX.chaseDuration, idle)
+check('then gives up the chase', chaser.chase === 0 || !gch.foxes.includes(chaser))
+check('and runs off away from her', !gch.foxes.includes(chaser) || chaser.vx > 0, `vx ${chaser.vx}`)
+
+// A hen who got clear during the long sit gets away.
+const gesc = newGame()
+gesc.hen.lives = 99
+intoPlay(gesc)
+gesc.hen.invulnerable = 0
+gesc.lasers = []
+gesc.hen.x = VIEW.width - HEN.width
+const livesBeforeChase = gesc.hen.lives
+gesc.foxes = [{ x: 40, y: HEN_TOP + HEN.height - FOX.height, vx: 0, rotation: 0, landed: true, wait: 0.01, chaser: true, chase: 0 }]
+for (let i = 0; i < Math.round((FOX.chaseDuration + 3) / DT); i++) {
+  gesc.lasers = []
+  update(gesc, DT, idle)
+}
+check('a hen at the far wall outlasts the chase', gesc.hen.lives === livesBeforeChase, `${livesBeforeChase} -> ${gesc.hen.lives}`)
+
+// --- more Rambo eggs later on --------------------------------------------------
+
+// 51. None or one until round 20, then a band higher every ten rounds, with
+//     the higher count seven times in ten.
+const pickupCounts = (round: number): Map<number, number> => {
+  const seen = new Map<number, number>()
+  for (let i = 0; i < 2000; i++) {
+    const n = pickupsFor(round)
+    seen.set(n, (seen.get(n) ?? 0) + 1)
+  }
+  return seen
+}
+for (const [round, low] of [
+  [5, 0],
+  [19, 0],
+  [20, 1],
+  [29, 1],
+  [35, 2],
+  [47, 3],
+] as const) {
+  const seen = pickupCounts(round)
+  const upper = (seen.get(low + 1) ?? 0) / 2000
+  check(
+    `round ${round} brings ${low} or ${low + 1} Rambo eggs, mostly ${low + 1}`,
+    [...seen.keys()].every((n) => n === low || n === low + 1) && upper > 0.65 && upper < 0.75,
+    JSON.stringify([...seen]),
+  )
+}
+
+// They come one after another in the same round.
+const gpk = newGame()
+gpk.hen.lives = 999
+enterRound(gpk, 35)
+gpk.pickupTimer = 0.01
+gpk.pickupsLeft = 2
+let seenPickups = 0
+let wasUp = false
+for (let f = 0; f < Math.round(60 / DT) && gpk.phase.kind !== 'over'; f++) {
+  gpk.hen.invulnerable = 999
+  gpk.lasers = []
+  gpk.foxes = []
+  update(gpk, DT, idle)
+  const up = gpk.pickup !== null
+  if (up && !wasUp) seenPickups++
+  wasUp = up
+  if (gpk.phase.kind !== 'playing' && gpk.phase.kind !== 'intro') break
+}
+check('a round owed three Rambo eggs shows all three, one at a time', seenPickups === 3, `${seenPickups}`)
+
+// 52. The shield runs alongside any other upgrade; anything else replaces.
+let shieldKept = false
+let shieldReplacedNothing = true
+let othersReplace = true
+for (let i = 0; i < 150; i++) {
+  const g = newGame()
+  intoPlay(g)
+  g.pickupTimer = 0.01
+  step(g, 0.05, idle)
+  const target = g.pickup!
+  grant(g, { kind: 'beam', remaining: 5, duration: 5 })
+  g.shield = null
+  g.shots = [egg(target.x + POWER.width / 2 - 6, target.y + POWER.height / 2)]
+  update(g, DT, idle)
+  if (g.shield !== null) {
+    shieldKept = true
+    if (g.power.kind !== 'beam') shieldReplacedNothing = false
+  } else if (g.power.kind === 'beam' && g.power.remaining > 4.9 && g.power.duration === 5) {
+    othersReplace = false
+  }
+}
+check('a shield from a Rambo egg turns up', shieldKept)
+check('and keeps the upgrade she already had', shieldReplacedNothing)
+check('while any other upgrade replaces hers', othersReplace)
+
+const gsk = newGame()
+intoPlay(gsk)
+gsk.shield = { remaining: 8, duration: 10 }
+grant(gsk, { kind: 'gramophone', remaining: 12, duration: 12 })
+step(gsk, 1, idle)
+check('the shield carries on beside a gramophone', gsk.shield !== null && gsk.power.kind === 'gramophone')
+step(gsk, 8, idle)
+check('and runs out on its own clock', gsk.shield === null)
 
 // --- what the sound hangs off -------------------------------------------------
 
