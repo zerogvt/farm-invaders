@@ -1,7 +1,14 @@
 # Farm Invaders
 
+![Farm Invaders: the hen, the cow and the toys on the ground, a fleet of saucers overhead](imgs/farm-invaders.png)
+
+## Tl;DR
 Space Invaders, except the invaders are flying saucers with enormous windscreens
 and the defender is a chicken in a space helmet, armed with eggs.
+
+[Play here](https://zerogvt.github.io/farm-invaders/) 
+
+## Longer Explanation [AI recap]
 
 A run opens with the saucers demanding **"give us the cow now!"**, the hen
 answering **"never!"**, and the shooting starting. The cow stands on the ground
