@@ -589,9 +589,18 @@ function moveHen(state: GameState, dt: number, input: InputState): void {
   // Lying dizzy after a hit, she goes nowhere.
   if (state.hen.dizzy > 0) return
   const direction = (input.right ? 1 : 0) - (input.left ? 1 : 0)
-  if (direction === 0) return
-  const next = state.hen.x + direction * HEN.speed * dt
-  state.hen.x = clamp(next, 0, VIEW.width - HEN.width)
+  if (direction !== 0) {
+    const next = state.hen.x + direction * HEN.speed * dt
+    state.hen.x = clamp(next, 0, VIEW.width - HEN.width)
+    return
+  }
+  // A finger on the playfield: she heads for the point under it at her usual
+  // speed, and stops there rather than jittering either side of it.
+  const target = input.targetX
+  if (target === undefined || target === null) return
+  const gap = target - (state.hen.x + HEN.width / 2)
+  const step = Math.sign(gap) * Math.min(Math.abs(gap), HEN.speed * dt)
+  state.hen.x = clamp(state.hen.x + step, 0, VIEW.width - HEN.width)
 }
 
 // --- the hen's shots -------------------------------------------------------

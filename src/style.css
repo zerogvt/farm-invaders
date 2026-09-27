@@ -13,6 +13,9 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
+  /* No pull-to-refresh or scroll chaining on phones. */
+  overscroll-behavior: none;
   display: grid;
   place-items: center;
   background: #04070f;
@@ -23,7 +26,16 @@ body {
 #game {
   position: relative;
   width: min(100vw, calc(100vh * 4 / 3));
+  /* The dynamic height leaves out a phone browser's address bar. */
+  width: min(100vw, calc(100dvh * 4 / 3));
   aspect-ratio: 4 / 3;
+  /* The playfield is a game, not a page: no scrolling, zooming, double-tap
+     zoom, text selection or long-press menu on it. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #stage {
@@ -183,3 +195,55 @@ button:focus-visible {
 .sound-toggle[aria-pressed="true"] {
   color: var(--ink-dim);
 }
+
+/* A phone held upright gets a hint instead of a postage-stamp game: the field
+   is 4:3 and needs the phone on its side. */
+#rotate {
+  display: none;
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  #game {
+    display: none;
+  }
+
+  #rotate {
+    display: grid;
+    place-items: center;
+    min-height: 100dvh;
+    padding: 2rem;
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+}
+
+/* A phone on its side is short: the panels tighten up to fit. */
+@media (max-height: 520px) {
+  .panel {
+    max-height: calc(100% - 16px);
+    overflow-y: auto;
+    padding: 0.8rem 1.2rem 1rem;
+  }
+
+  .panel h1 {
+    font-size: 1.4rem;
+  }
+
+  .panel p,
+  .controls,
+  .scores ol {
+    font-size: 0.8rem;
+  }
+
+  .panel h2 {
+    margin-top: 0.6rem;
+  }
+
+  button {
+    margin-top: 0.7rem;
+    padding: 0.5rem 1.4rem;
+  }
+}
+

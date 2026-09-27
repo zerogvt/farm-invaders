@@ -148,6 +148,10 @@ Controls: `←` `→` or `A`/`D` to move, `Space` to throw an egg, `M` to switch
 the sound off and on. The speaker button in the bottom right corner does the
 same, and the choice is remembered in the browser.
 
+**On a phone**, hold it sideways and put a finger on the field: the hen heads for
+the spot under it and throws for as long as your finger is down. An upright
+phone gets a hint to turn it.
+
 ## Sound
 
 Everything you hear is synthesised in the browser with the Web Audio API — there

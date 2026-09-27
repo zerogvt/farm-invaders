@@ -141,7 +141,12 @@ function button(text: string, onClick: () => void): HTMLButtonElement {
 function controlsList(): HTMLElement {
   const list = document.createElement('ul')
   list.className = 'controls'
-  for (const line of ['← → or A / D to move', 'Space to throw an egg', 'M or the speaker, bottom right, for sound']) {
+  // On a touch screen the keys mean nothing, so say what a finger does instead.
+  const touch = window.matchMedia('(pointer: coarse)').matches
+  const lines = touch
+    ? ['Put a finger on the field: the hen follows it', 'She throws while your finger is down', 'The speaker, bottom right, for sound']
+    : ['← → or A / D to move', 'Space to throw an egg', 'M or the speaker, bottom right, for sound']
+  for (const line of lines) {
     const item = document.createElement('li')
     item.textContent = line
     list.append(item)

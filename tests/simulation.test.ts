@@ -12,7 +12,7 @@ import {
   HEN_TOP,
 } from '../src/game.ts'
 import { placeObstacles } from '../src/obstacles.ts'
-import type { InputState } from '../src/input.ts'
+import { toPlayfieldX, type InputState } from '../src/input.ts'
 import {
   ABDUCTION,
   BLACK_HOLE,
@@ -1821,6 +1821,38 @@ gdes.shotCooldown = 0
 update(gdes, DT, firing)
 step(gdes, BLACK_HOLE.maxDuration, idle)
 check('a deserter goes into the black hole unscored', gdes.ufos.length === 0 && gdes.score === 0, `score ${gdes.score}`)
+
+// --- touch -------------------------------------------------------------------------
+
+// 64. A finger on the playfield steers the hen towards it.
+check('a touch halfway across a scaled canvas is the middle of the field', toPlayfieldX(250, 50, 400) === VIEW.width / 2)
+check('and at its left edge is the field\'s left edge', toPlayfieldX(50, 50, 400) === 0)
+
+const gtouch = newGame()
+intoPlay(gtouch)
+gtouch.hen.x = 100
+const towards = { left: false, right: false, fire: false, targetX: 600 }
+update(gtouch, DT, towards)
+const firstStep = gtouch.hen.x - 100
+check('the hen heads for the finger', firstStep > 0, `${firstStep}`)
+check('at her usual speed', Math.abs(firstStep - HEN.speed * DT) < 0.01, `${firstStep.toFixed(2)}`)
+step(gtouch, 3, towards)
+check('and stops under it', Math.abs(gtouch.hen.x + HEN.width / 2 - 600) < 0.01, `${(gtouch.hen.x + HEN.width / 2).toFixed(2)}`)
+const settled = gtouch.hen.x
+update(gtouch, DT, towards)
+check('without jittering either side of it', gtouch.hen.x === settled)
+step(gtouch, 3, { left: false, right: false, fire: false, targetX: -300 })
+check('never past the wall, wherever the finger is', gtouch.hen.x === 0)
+update(gtouch, DT, { left: false, right: true, fire: false, targetX: 0 })
+check('the keyboard wins over a finger', gtouch.hen.x > 0)
+
+// While the finger is down she throws, as the fire key would.
+const gtfire = newGame()
+intoPlay(gtfire)
+gtfire.shots = []
+gtfire.shotCooldown = 0
+update(gtfire, DT, { left: false, right: false, fire: true, targetX: 400 })
+check('a finger down throws an egg', gtfire.shots.length === 1)
 
 // --- what the sound hangs off -------------------------------------------------
 
