@@ -382,3 +382,29 @@ Added on 27 September 2026, from one request of seven items:
   throw. It sits inside the 1.6s immunity, so she is never hit while she is
   down. At game over she stays lying down through the abduction.
 
+Added on 27 September 2026, phone support:
+
+- **Touch steering**: `createInput(window, canvas)` listens to touch and pen
+  pointer events on the canvas, not the mouse. The first finger sets
+  `input.targetX` (playfield pixels, via `toPlayfieldX`) and `fire`; a second
+  finger is ignored; lifting clears both. `moveHen` heads for `targetX` at the
+  hen's normal speed and stops on it. The keyboard, if used, wins. The
+  3-in-flight egg cap keeps auto-fire from being an advantage.
+- **Page**: `touch-action: none` and friends on `#game` (no scroll, zoom,
+  double-tap zoom, selection, long-press menu); `overscroll-behavior: none` on
+  the body; `dvh` sizing so a phone's address bar is left out.
+- **Portrait**: `(orientation: portrait) and (pointer: coarse)` hides the game and
+  shows "Turn your phone sideways to play" (`#rotate` in `index.html`).
+- **Short screens**: `(max-height: 520px)` tightens the panels, and they scroll
+  if they still overflow.
+- **Touch instructions**: shown on the title screen on coarse-pointer devices.
+- **Canvas sharpness** is capped at 2x on coarse-pointer devices (3x elsewhere).
+- Audio also unlocks on `touchend`, for older iPhones.
+- **How it was checked**: headless Chromium can be made to report a touch screen
+  with `--blink-settings=primaryPointerType=2,availablePointerTypes=2,primaryHoverType=1,availableHoverTypes=1
+  --touch-events=enabled`. That showed the touch title text, the portrait hint
+  and the landscape layout at 844×390, and synthetic touch pointer events drove
+  `createInput` correctly. Steering in the running game could not be seen,
+  because the virtual clock barely advances the loop. It is covered by the
+  simulation tests. **Not yet tried on a real phone.**
+

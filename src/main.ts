@@ -28,7 +28,7 @@ function main(): void {
 
   telemetry.start(frameEl)
   const sprites = buildSprites()
-  const input = createInput()
+  const input = createInput(window, canvas)
   const ui = createUi(overlay)
   const game = createGame()
 
@@ -37,6 +37,8 @@ function main(): void {
   const sound = createSound(loadMuted())
   const unlock = (): void => sound.unlock()
   window.addEventListener('pointerdown', unlock, { capture: true })
+  // Older iPhones only count a touch's end as the gesture that may start audio.
+  window.addEventListener('touchend', unlock, { capture: true })
   window.addEventListener('keydown', unlock, { capture: true })
   createSoundToggle(frameEl, sound)
 
@@ -261,7 +263,10 @@ function noticeFor(power: Power): string {
  * sprites stay sharp on high-density displays rather than being upscaled.
  */
 function fitCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): void {
-  const ratio = Math.min(3, window.devicePixelRatio || 1)
+  // Phones get a lower cap: at 3x the backing store is over two million pixels
+  // redrawn every frame, which a phone's graphics feel and a desktop's don't.
+  const cap = window.matchMedia('(pointer: coarse)').matches ? 2 : 3
+  const ratio = Math.min(cap, window.devicePixelRatio || 1)
   canvas.width = Math.round(VIEW.width * ratio)
   canvas.height = Math.round(VIEW.height * ratio)
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
