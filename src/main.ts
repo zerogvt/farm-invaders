@@ -58,6 +58,7 @@ function main(): void {
     },
     onShieldHit: () => sound.play('shieldHit'),
     onVictory: () => sound.play('sadTrombone'),
+    onFruit: () => sound.play('fruit'),
     onExtraLife: () => {
       notice = { text: 'Extra life', remaining: NOTICE_DURATION }
       sound.play('extraLife')
@@ -145,6 +146,12 @@ function main(): void {
     // game pauses while hidden instead of teleporting every laser past the hen.
     const dt = Math.min(0.05, (now - previous) / 1000)
     previous = now
+
+    // The ending keeps dancing behind the end panel, so it keeps being run.
+    if (screen === 'over' && game.phase.kind === 'victory') {
+      update(game, dt, input, events)
+      sound.setTrack(game.phase.age < VICTORY.songStart ? 'silence' : 'song')
+    }
 
     if (screen === 'running') {
       const before = game.phase.kind

@@ -260,10 +260,6 @@ export interface Fox {
   landed: boolean
   /** Seconds left sitting on the ground before it runs. */
   wait: number
-  /** A long sitter, which glows brighter and chases the hen when it gets up. */
-  chaser: boolean
-  /** Seconds left of its chase; 0 when it is not chasing. */
-  chase: number
 }
 
 /** A feather knocked off the hen. Purely decorative, like a blast. */
@@ -277,6 +273,27 @@ export interface Feather {
   age: number
   /** Per-feather phase for the sway. */
   phase: number
+}
+
+export type FruitKind = 'cherry' | 'strawberry' | 'apple' | 'orange' | 'banana' | 'pineapple' | 'watermelon'
+
+/** A fruit drifting across the top of the screen, worth points to an egg. */
+export interface Fruit {
+  kind: FruitKind
+  value: number
+  /** Left edge; it travels at a fixed height. */
+  x: number
+  direction: -1 | 1
+  /** Seconds since it appeared, for its bob. */
+  age: number
+}
+
+/** Points floating up from where they were scored. Purely decorative. */
+export interface Popup {
+  x: number
+  y: number
+  text: string
+  age: number
 }
 
 /** The black hole, open in the sky. */
@@ -309,7 +326,13 @@ export type Phase =
   | { kind: 'playing' }
   | { kind: 'cleared'; remaining: number }
   | { kind: 'abduction'; age: number }
-  | { kind: 'victory'; age: number }
+  | {
+      kind: 'victory'
+      age: number
+      /** Whether the end panel has been put up. The scene carries on behind it
+       *  until the player starts again. */
+      announced: boolean
+    }
   | { kind: 'over'; scoreSubmitted: boolean }
 
 export interface GameState {
@@ -343,6 +366,10 @@ export interface GameState {
   shieldDrops: ShieldDrop[]
   /** Keeps the black hole in hand for good. */
   cheat: boolean
+  fruit: Fruit | null
+  /** Seconds until the next fruit, or null while one is up. */
+  fruitTimer: number | null
+  popups: Popup[]
   pickup: Pickup | null
   /** Seconds until the next Rambo egg turns up, or null if none is due. */
   pickupTimer: number | null

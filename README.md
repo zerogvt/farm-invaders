@@ -22,7 +22,14 @@ round the hen clears gets a **"Moo"**.
 tears to a sad trombone, the mothership conceding the cow. Then night falls, and
 the cow, the hen and a radioactive fox dance round a campfire under the moon,
 singing *Moo Moo Moo* — an original tune — a line each: *"They came for the
-cow, and we said moo moo moo. Moo moo moo we said, and they run moooway!"*
+cow, and we said moo moo moo. Moo moo moo we said, and they run moooway!"* After
+one time through, the end panel comes up, and the dance and the song carry on
+behind it until **Play again** is pressed.
+
+**Watch the top of the screen for fruit.** Every so often one drifts across above
+the fleet, and an egg that reaches it scores its value: cherry 100, strawberry
+300, apple 500, orange 700, banana 1000, and — rarely — pineapple 1500 and
+watermelon 2000. Nine fruit in ten are worth 1000 or under.
 
 **The hen throws more eggs as the rounds go on:** one at a time in rounds 1–10,
 two side by side in 11–20, three in 21–30 and four from round 31, all straight
@@ -68,12 +75,6 @@ round 1 and up to ten seconds from round 19. Then it runs off the side *away*
 from the hen. If it touches her she loses a life. The shield is the one thing
 that keeps it off her, and it breaks doing so. Motherships drop foxes too, out
 of their belly, on the same schedule as the fleet.
-
-From round 11, when a fox will sit for more than five seconds, it **glows
-brighter** — and when it gets up it **chases the hen** instead. The chase is
-slower than she can run, turns to follow her, and gives up after three seconds,
-when the fox runs off the side away from her. She cannot get past a fox, so
-the long sit is her warning: get to the far side and it will not reach her.
 
 **When the hen loses a life** she lets out a **"buk-buk-BAWK!"** and a handful
 of feathers come off her and drift down.

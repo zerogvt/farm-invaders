@@ -326,3 +326,25 @@ Added on 26 September 2026:
   beaten one limping away drops none. Their foxes chase from round 11 like
   any other.
 
+Added on 27 September 2026, from one request of three items:
+
+- **Foxes never chase any more.** The chase from 26 September is gone, along
+  with the brighter glow that warned of it, at Vasilis's call. Every fox
+  sits, then runs off the side away from the hen.
+- **Fruit** crosses the top of the screen at `FRUIT.y`, one at a time: first
+  5–12s into a round, then 9–20s after one leaves or is shot. Value goes with
+  the kind (`FRUIT.kinds`): 100 to 2000, weighted so about 92% are at most
+  1000. Tying value to kind, rather than rolling a free number, was my call,
+  so players can learn which to go for. Ordinary eggs hit it, the wingman's
+  included; the heavy ordnance passes through, as everywhere else. It freezes
+  with the fleet. Tests switch fruit off in `newGame()` and `enterRound()`,
+  because an egg hitting a passing fruit would upset checks aimed at things
+  up there.
+- **The ending no longer stops.** The `victory` phase gains `announced`. After
+  `VICTORY.duration` it fires `onGameOver(…, true)` once and stays in
+  `victory`, and `main.ts` keeps updating the game while the panel is up,
+  so the dance and the looping song carry on until restart. This could not
+  be driven end to end in headless Chromium: its virtual clock hardly runs the
+  animation loop, so a scripted playthrough never got past round 42's
+  banner. The simulation side is tested.
+

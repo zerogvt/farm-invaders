@@ -1,6 +1,9 @@
 import {
   bossHitPoints,
   createGame,
+  fruitRect,
+  restart,
+  rollFruit,
   foxWait,
   isBossRound,
   parleyDuration,
@@ -23,6 +26,7 @@ import {
   FEATHERS,
   FOX,
   FREEZE,
+  FRUIT,
   HEN,
   LASER,
   OBSTACLE,
@@ -59,6 +63,7 @@ function newGame(): GameState {
   const game = createGame()
   game.freezeTimer = null
   game.foxTimer = null
+  game.fruitTimer = null
   return game
 }
 
@@ -77,6 +82,7 @@ function enterRound(game: GameState, round: number): void {
   startRound(game, round)
   game.freezeTimer = null
   game.foxTimer = null
+  game.fruitTimer = null
 }
 
 function egg(x: number, y: number): Shot {
@@ -1075,7 +1081,7 @@ gfe.ufos = []
 gfe.boss = null
 gfe.obstacles = []
 gfe.ufos = [{ column: 0, row: 0, x: 10, y: 60, state: { kind: 'flying' }, wobblePhase: 0 }]
-gfe.foxes = [{ x: 400, y: 280, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
+gfe.foxes = [{ x: 400, y: 280, vx: 0, rotation: 0, landed: false, wait: 0 }]
 gfe.shots = [egg(410, 290)]
 update(gfe, DT, idle)
 check('an egg goes straight through a fox', gfe.foxes.length === 1 && gfe.shots.length === 1)
@@ -1086,7 +1092,7 @@ gfl.hen.lives = 99
 intoPlay(gfl)
 gfl.hen.x = 700
 gfl.obstacles = []
-gfl.foxes = [{ x: 150, y: 300, vx: 0, rotation: 1, landed: false, wait: 0, chaser: false, chase: 0 }]
+gfl.foxes = [{ x: 150, y: 300, vx: 0, rotation: 1, landed: false, wait: 0 }]
 // From 300 it is about 1.7s to the ground.
 step(gfl, 1.75, idle)
 const ranFox = gfl.foxes[0]!
@@ -1105,7 +1111,7 @@ const gfa = newGame()
 gfa.hen.lives = 99
 intoPlay(gfa)
 gfa.hen.x = 60
-gfa.foxes = [{ x: 250, y: HEN_TOP + HEN.height - FOX.height, vx: 0, rotation: 0, landed: true, wait: 0.01, chaser: false, chase: 0 }]
+gfa.foxes = [{ x: 250, y: HEN_TOP + HEN.height - FOX.height, vx: 0, rotation: 0, landed: true, wait: 0.01 }]
 update(gfa, DT, idle)
 check('a fox nearer the left wall still runs right when the hen is on its left', gfa.foxes[0]!.vx > 0, `${gfa.foxes[0]!.vx}`)
 
@@ -1152,7 +1158,7 @@ gfh.lasers = []
 gfh.hen.invulnerable = 0
 gfh.hen.x = 400
 const livesBeforeFox = gfh.hen.lives
-gfh.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
+gfh.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0 }]
 update(gfh, DT, idle)
 check('a fox touching the hen costs a life', gfh.hen.lives === livesBeforeFox - 1, `${livesBeforeFox} -> ${gfh.hen.lives}`)
 check('and one life only', gfh.hen.lives === livesBeforeFox - 1)
@@ -1162,7 +1168,7 @@ check('and it is gone with the lasers', gfh.foxes.length === 0)
 const gft = newGame()
 intoPlay(gft)
 const foxToy = gft.obstacles[0]!
-gft.foxes = [{ x: foxToy.x + 4, y: foxToy.y + 2, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
+gft.foxes = [{ x: foxToy.x + 4, y: foxToy.y + 2, vx: 0, rotation: 0, landed: false, wait: 0 }]
 update(gft, DT, idle)
 check('a toy does not stop a fox', gft.foxes.length === 1)
 
@@ -1173,7 +1179,7 @@ gfs.hen.invulnerable = 0
 gfs.hen.x = 400
 gfs.shield = { hits: SHIELD.hits }
 const livesShielded = gfs.hen.lives
-gfs.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
+gfs.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0 }]
 update(gfs, DT, idle)
 check('the shield keeps a fox off her', gfs.hen.lives === livesShielded)
 check('and the shield breaks doing it, full as it was', gfs.shield === null)
@@ -1188,14 +1194,14 @@ gfz.hen.invulnerable = 0
 gfz.hen.x = 400
 gfz.freeze = { x: 0, remaining: 3 }
 const livesFrozen = gfz.hen.lives
-gfz.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
+gfz.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 0 }]
 update(gfz, DT, idle)
 check('a frozen fox cannot hurt her', gfz.hen.lives === livesFrozen)
 
 // The black hole leaves foxes alone: nothing kills one.
 const gfb = newGame()
 intoPlay(gfb)
-gfb.foxes = [{ x: 400, y: 200, vx: 0, rotation: 0, landed: false, wait: 0, chaser: false, chase: 0 }]
+gfb.foxes = [{ x: 400, y: 200, vx: 0, rotation: 0, landed: false, wait: 0 }]
 grant(gfb, { kind: 'blackHole', remaining: 12, duration: 12 })
 gfb.shotCooldown = 0
 update(gfb, DT, firing)
@@ -1396,56 +1402,22 @@ check(
   JSON.stringify([...bossLate]),
 )
 
-// --- foxes that chase ----------------------------------------------------------
+// --- foxes never chase ----------------------------------------------------------
 
-// 50. From the rounds where a fox sits more than five seconds, it chases.
-const foxIn = (round: number) => {
-  const game = newGame()
-  game.hen.lives = 99
-  enterRound(game, round)
-  while (game.phase.kind !== 'playing') update(game, DT, idle)
-  game.foxTimer = 0.01
-  update(game, DT, idle)
-  return game
-}
-check('a round-5 fox does not chase', foxIn(5).foxes[0]?.chaser === false, `wait ${foxWait(5).toFixed(1)}s`)
-check('a round-11 fox does', foxIn(11).foxes[0]?.chaser === true, `wait ${foxWait(11).toFixed(1)}s`)
-
-// When it gets up it goes for her, slower than she can run...
-const gch = newGame()
-gch.hen.lives = 99
-intoPlay(gch)
-gch.hen.invulnerable = 999
-gch.hen.x = 600
-gch.foxes = [{ x: 100, y: HEN_TOP + HEN.height - FOX.height, vx: 0, rotation: 0, landed: true, wait: 0.01, chaser: true, chase: 0 }]
-update(gch, DT, idle)
-update(gch, DT, idle)
-const chaser = gch.foxes[0]!
-check('a chasing fox goes for the hen', chaser.chase > 0 && chaser.vx > 0, `vx ${chaser.vx}`)
-check('slower than she runs', Math.abs(chaser.vx) <= FOX.chaseSpeed && FOX.chaseSpeed < HEN.speed)
-// ...follows her if she crosses over...
-gch.hen.x = 20
-update(gch, DT, idle)
-check('and turns to follow her', chaser.vx < 0, `vx ${chaser.vx}`)
-// ...and gives up, running off the side away from her.
-step(gch, FOX.chaseDuration, idle)
-check('then gives up the chase', chaser.chase === 0 || !gch.foxes.includes(chaser))
-check('and runs off away from her', !gch.foxes.includes(chaser) || chaser.vx > 0, `vx ${chaser.vx}`)
-
-// A hen who got clear during the long sit gets away.
-const gesc = newGame()
-gesc.hen.lives = 99
-intoPlay(gesc)
-gesc.hen.invulnerable = 0
-gesc.lasers = []
-gesc.hen.x = VIEW.width - HEN.width
-const livesBeforeChase = gesc.hen.lives
-gesc.foxes = [{ x: 40, y: HEN_TOP + HEN.height - FOX.height, vx: 0, rotation: 0, landed: true, wait: 0.01, chaser: true, chase: 0 }]
-for (let i = 0; i < Math.round((FOX.chaseDuration + 3) / DT); i++) {
-  gesc.lasers = []
-  update(gesc, DT, idle)
-}
-check('a hen at the far wall outlasts the chase', gesc.hen.lives === livesBeforeChase, `${livesBeforeChase} -> ${gesc.hen.lives}`)
+// 50. Even a long sitter, late on, runs off away from the hen.
+const glong = newGame()
+glong.hen.lives = 99
+enterRound(glong, 25)
+while (glong.phase.kind !== 'playing') update(glong, DT, idle)
+glong.hen.invulnerable = 999
+glong.hen.x = 600
+glong.foxes = [{ x: 100, y: HEN_TOP + HEN.height - FOX.height, vx: 0, rotation: 0, landed: true, wait: 0.01 }]
+update(glong, DT, idle)
+update(glong, DT, idle)
+check('a late-round fox runs away from the hen, not at her', glong.foxes[0]!.vx < 0, `vx ${glong.foxes[0]!.vx}`)
+glong.hen.x = 20
+update(glong, DT, idle)
+check('and does not turn round when she crosses over', glong.foxes[0] === undefined || glong.foxes[0].vx < 0)
 
 // --- more Rambo eggs later on --------------------------------------------------
 
@@ -1670,8 +1642,15 @@ const endEvents = { onVictory: () => won++, onGameOver: (_s: number, _r: number,
 update(gend, DT, idle, endEvents)
 step(gend, 2, idle, endEvents)
 check('clearing round 42 ends the invasion', phaseKind(gend) === 'victory' && won === 1, phaseKind(gend))
-step(gend, VICTORY.duration, idle, endEvents)
-check('and the ending finishes as a won game', phaseKind(gend) === 'over' && gameOverWon === true)
+let gameOvers = 0
+const countingEvents = { ...endEvents, onGameOver: (_s: number, _r: number, w: boolean) => { gameOverWon = w; gameOvers++ } }
+step(gend, VICTORY.duration, idle, countingEvents)
+check('after one pass of the song it is announced as a won game', gameOverWon === true && gameOvers === 1)
+check('but the dance goes on behind the panel', phaseKind(gend) === 'victory')
+step(gend, 30, idle, countingEvents)
+check('for as long as nobody starts again', phaseKind(gend) === 'victory' && gameOvers === 1)
+restart(gend)
+check('until the player does', gend.round === 1 && phaseKind(gend) !== 'victory')
 
 const g41 = newGame()
 enterRound(g41, 41)
@@ -1684,6 +1663,45 @@ check('round 41 still leads on to round 42', g41.round === 42 && phaseKind(g41) 
 check('the song has the lyrics asked for', SONG_LINES.map((line) => line.text).join(' ') === 'They came for the cow, and we said moo moo moo. Moo moo moo we said, and they run moooway!')
 check('every line fits its two bars', SONG_LINES.every((line) => line.notes.reduce((sum, note) => sum + note.eighths, 0) <= 16))
 check('and each line is up while it is sung', SONG_LINES.every((line) => lineAt(line.start) === line && lineAt(line.start + 15) === line))
+
+// --- fruit ----------------------------------------------------------------------
+
+// 59. Fruit drifts across the top now and then.
+const gfr1 = createGame()
+gfr1.freezeTimer = null
+gfr1.foxTimer = null
+check('a round schedules its first fruit', gfr1.fruitTimer !== null && gfr1.fruitTimer >= FRUIT.firstMin && gfr1.fruitTimer <= FRUIT.firstMax)
+const gfr2 = newGame()
+intoPlay(gfr2)
+gfr2.fruitTimer = 0.01
+update(gfr2, DT, idle)
+const fruit = gfr2.fruit!
+check('a fruit turns up at one side of the top', fruit !== null && (fruit.x < 0 || fruit.x >= VIEW.width - 1) && fruitRect(fruit).y < 80)
+const fruitStart = fruit.x
+step(gfr2, 1, idle)
+check('and drifts across', Math.abs(fruit.x - fruitStart) > FRUIT.speed * 0.9)
+step(gfr2, (VIEW.width + FRUIT.size) / FRUIT.speed, idle)
+check('until it is gone off the other side', gfr2.fruit === null && gfr2.fruitTimer !== null)
+
+// An egg that hits it scores its value.
+const gfr3 = newGame()
+intoPlay(gfr3)
+gfr3.fruit = { kind: 'banana', value: 1000, x: 400, direction: 1, age: 0 }
+const fr = fruitRect(gfr3.fruit)
+const scoreBeforeFruit = gfr3.score
+let fruitScored = 0
+gfr3.shots = [egg(fr.x + fr.width / 2 - 6, fr.y + fr.height / 2)]
+update(gfr3, DT, idle, { onFruit: (value) => (fruitScored = value) })
+check('an egg on a fruit scores its value', gfr3.score - scoreBeforeFruit === 1000 && fruitScored === 1000, `${gfr3.score - scoreBeforeFruit}`)
+check('and the egg and fruit are gone', gfr3.fruit === null && gfr3.shots.length === 0)
+check('with the points shown where it was', gfr3.popups.length === 1 && gfr3.popups[0]!.text === '+1000')
+
+// Values run 100 to 2000, mostly 1000 or under.
+const fruitValues: number[] = []
+for (let i = 0; i < 4000; i++) fruitValues.push(rollFruit().value)
+const underThousand = fruitValues.filter((v) => v <= 1000).length / fruitValues.length
+check('fruit is worth 100 to 2000', Math.min(...fruitValues) === 100 && Math.max(...fruitValues) === 2000)
+check('mostly 1000 or under', underThousand > 0.88 && underThousand < 0.95, `${(underThousand * 100).toFixed(1)}%`)
 
 // --- what the sound hangs off -------------------------------------------------
 

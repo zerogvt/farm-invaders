@@ -39,6 +39,7 @@ export type Sfx =
   | 'henNever'
   | 'shieldHit'
   | 'sadTrombone'
+  | 'fruit'
 
 /** The background tunes: the theme, the mothership's march on boss rounds, the
  *  campfire song at the end, and nothing at all. */
@@ -556,6 +557,13 @@ export const EFFECTS: Record<Sfx, (v: Voice) => void> = {
       // most of the sawtooth away: this comes out at about a quarter.
       0.9,
     )
+  },
+
+  // A fruit hit: a bright two-note chime, the way arcade bonuses sound.
+  fruit: (v) => {
+    tone(v, 'square', hz(83), hz(83), 0.08, envelope(v, 0.14, 0.1))
+    const second = { ...v, t: v.t + 0.08 }
+    tone(second, 'square', hz(88), hz(88), 0.22, envelope(second, 0.14, 0.26))
   },
 
   // The shield taking a hit: a glassy ping.

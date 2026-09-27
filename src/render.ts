@@ -8,6 +8,7 @@ import {
   FEATHERS,
   FOX,
   FREEZE,
+  FRUIT,
   GRAMOPHONE,
   GRAVITY,
   HEN,
@@ -25,7 +26,7 @@ import {
   VIEW,
   WIPER,
 } from './config'
-import { bubbleCentre, featherSway, HEN_TOP, laserWidth, parleyDuration, shotSize } from './game'
+import { bubbleCentre, featherSway, fruitRect, HEN_TOP, laserWidth, parleyDuration, shotSize } from './game'
 import { lineAt, SONG_EIGHTH } from './song'
 import { FEATHER_SIZE, rowVariant, type SpriteSet } from './sprites'
 import type { GameState } from './types'
@@ -41,6 +42,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawBoss(ctx, state, sprites, time)
   drawSpeech(ctx, state)
   drawPickup(ctx, state, sprites, time)
+  drawFruit(ctx, state, sprites)
   drawWaves(ctx, state)
   drawProjectiles(ctx, state, sprites, time)
   drawFoxes(ctx, state, sprites, time)
@@ -56,6 +58,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawFeathers(ctx, state, sprites)
   drawCowSpeech(ctx, state)
   drawBlasts(ctx, state)
+  drawPopups(ctx, state)
   drawParley(ctx, state, sprites, time)
   drawAbduction(ctx, state, sprites, time)
   drawVictory(ctx, state, sprites, time)
@@ -775,15 +778,8 @@ function drawFoxes(ctx: CanvasRenderingContext2D, state: GameState, sprites: Spr
   for (const fox of state.foxes) {
     const cx = fox.x + FOX.width / 2
     const cy = fox.y + FOX.height / 2
-    // A long sitter, which will chase her, burns brighter, wider and faster.
-    if (fox.chaser) {
-      const pulse = 0.7 + Math.sin(time * 14) * 0.2
-      glow(ctx, cx, cy, FOX.width * 1.7, `rgba(190,255,110,${pulse})`, 'rgba(120,255,40,0)')
-      glow(ctx, cx, cy, FOX.width * 0.8, `rgba(235,255,200,${pulse * 0.6})`, 'rgba(160,255,90,0)')
-    } else {
-      const pulse = 0.4 + Math.sin(time * 9) * 0.12
-      glow(ctx, cx, cy, FOX.width * 1.1, `rgba(150,255,90,${pulse})`, 'rgba(90,220,40,0)')
-    }
+    const pulse = 0.4 + Math.sin(time * 9) * 0.12
+    glow(ctx, cx, cy, FOX.width * 1.1, `rgba(150,255,90,${pulse})`, 'rgba(90,220,40,0)')
     ctx.save()
     ctx.translate(cx, cy)
     ctx.rotate(fox.rotation)
@@ -960,6 +956,37 @@ function drawShield(ctx: CanvasRenderingContext2D, state: GameState, time: numbe
   ctx.lineWidth = 2.5
   ctx.stroke()
   ctx.restore()
+}
+
+/** A fruit drifting across the top, turning slowly, with a soft glow so it
+ *  reads as a prize rather than scenery. */
+function drawFruit(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
+  const fruit = state.fruit
+  if (fruit === null) return
+  const rect = fruitRect(fruit)
+  const cx = rect.x + rect.width / 2
+  const cy = rect.y + rect.height / 2
+  glow(ctx, cx, cy, FRUIT.size * 0.9, 'rgba(255,240,170,0.35)', 'rgba(255,220,120,0)')
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.rotate(Math.sin(fruit.age * 2) * 0.25)
+  ctx.drawImage(sprites.fruit[fruit.kind], -FRUIT.size / 2, -FRUIT.size / 2, FRUIT.size, FRUIT.size)
+  ctx.restore()
+}
+
+/** Points scored, floating up and fading where they were won. */
+function drawPopups(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const popup of state.popups) {
+    const progress = popup.age / FRUIT.popupDuration
+    ctx.save()
+    ctx.globalAlpha = 1 - progress
+    ctx.font = '700 18px system-ui, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = PALETTE.accent
+    ctx.fillText(popup.text, popup.x, popup.y + 8 - progress * 30)
+    ctx.restore()
+  }
 }
 
 /** Shields a deserter has dropped: a small glass bubble, falling or lying on
