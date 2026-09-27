@@ -34,7 +34,7 @@ import { placeObstacles } from './obstacles'
 import type {
   Boss,
   Bubble,
-  Fruit,
+  Debris,
   FruitKind,
   GameState,
   Laser as LaserShot,
@@ -114,8 +114,14 @@ export interface GameEvents {
   onShieldHit?: (hits: number) => void
   /** The final round is over: the beaten fleet is leaving. */
   onVictory?: () => void
-  /** An egg has hit a fruit worth `value` points. */
+  /** The hen has picked up a fruit worth `value` points. */
   onFruit?: (value: number) => void
+  /** A saucer has been knocked by something other than an egg. */
+  onUfoDamaged?: (ufo: Ufo) => void
+  /** A saucer has been caught in one of the cow's bubbles. */
+  onUfoBubbled?: (ufo: Ufo) => void
+  /** The gramophone's record has ended. */
+  onFinale?: () => void
   onExtraLife?: (lives: number) => void
   onHenHurt?: () => void
   onRoundCleared?: (round: number) => void
@@ -153,7 +159,7 @@ export function createGame(): GameState {
     phase: { kind: 'intro', remaining: ROUND.introDuration },
     round: 1,
     score: 0,
-    hen: { x: VIEW.width / 2 - HEN.width / 2, lives: HEN.lives, invulnerable: 0 },
+    hen: { x: VIEW.width / 2 - HEN.width / 2, lives: HEN.lives, invulnerable: 0, dizzy: 0 },
     ufos: [],
     boss: null,
     shots: [],
@@ -171,9 +177,10 @@ export function createGame(): GameState {
     shield: null,
     shieldDrops: [],
     cheat: false,
-    fruit: null,
-    fruitTimer: null,
+    fruits: [],
     popups: [],
+    debris: [],
+    hudReturn: 0,
     pickup: null,
     pickupTimer: null,
     pickupsLeft: 0,
@@ -213,8 +220,8 @@ export function startRound(state: GameState, round: number): void {
   state.lasers = []
   state.foxes = []
   state.shieldDrops = []
-  state.fruit = null
-  state.fruitTimer = between(FRUIT.firstMin, FRUIT.firstMax)
+  state.fruits = []
+  state.debris = []
   state.foxesThrown = 0
   // Foxes come from the fleet's front rank, or from the mothership on its
   // rounds, on the same schedule either way.
@@ -259,6 +266,7 @@ export function restart(state: GameState): void {
   state.score = 0
   state.hen.lives = HEN.lives
   state.hen.x = VIEW.width / 2 - HEN.width / 2
+  state.hen.dizzy = 0
   state.power = { kind: 'none' }
   state.shield = null
   // Lasts for one run only.
@@ -358,6 +366,7 @@ export function update(state: GameState, dt: number, input: InputState, events: 
   tickWingman(state, dt, events)
   advanceShots(state, dt, events)
   tickBubbles(state, dt, events)
+  tickBubbled(state, dt, events)
   tickWaves(state, dt, events)
   tickBeam(state, dt, events)
   // The black hole is the hen's, so it keeps pulling with time stopped.
@@ -368,7 +377,7 @@ export function update(state: GameState, dt: number, input: InputState, events: 
     advanceFoxes(state, dt)
     tickFoxTimer(state, dt, events)
     tickShieldDrops(state, dt)
-    tickFruit(state, dt)
+    tickFruits(state, dt)
     marchFormation(state, dt)
     tickLeaving(state, dt, events)
     tickWobble(state, dt, events)
@@ -383,6 +392,7 @@ export function update(state: GameState, dt: number, input: InputState, events: 
 
   resolveCollisions(state, frozen, events)
   collectShields(state, events)
+  collectFruits(state, events)
 
   if (state.ufos.length === 0 && state.boss === null) {
     events.onRoundCleared?.(state.round)
@@ -408,6 +418,8 @@ export function update(state: GameState, dt: number, input: InputState, events: 
 function tickTimers(state: GameState, dt: number): void {
   if (state.shotCooldown > 0) state.shotCooldown = Math.max(0, state.shotCooldown - dt)
   if (state.hen.invulnerable > 0) state.hen.invulnerable = Math.max(0, state.hen.invulnerable - dt)
+  if (state.hen.dizzy > 0) state.hen.dizzy = Math.max(0, state.hen.dizzy - dt)
+  if (state.hudReturn > 0) state.hudReturn = Math.max(0, state.hudReturn - dt)
 
   if (state.bossTaunt !== null) {
     state.bossTaunt -= dt
@@ -451,28 +463,56 @@ function tickPopups(state: GameState, dt: number): void {
   state.popups = state.popups.filter((popup) => popup.age < FRUIT.popupDuration)
 }
 
-/** A fruit crossing the top of the screen, or the wait for the next one. It
- *  comes in from a random side and is gone once it is off the other. */
-function tickFruit(state: GameState, dt: number): void {
-  const fruit = state.fruit
-  if (fruit !== null) {
-    fruit.age += dt
-    fruit.x += fruit.direction * FRUIT.speed * dt
-    if (fruit.x + FRUIT.size < 0 || fruit.x > VIEW.width) fruitGone(state)
-    return
+/** Fruit a saucer dropped falls to the ground and lies there a while. */
+function tickFruits(state: GameState, dt: number): void {
+  if (state.fruits.length === 0) return
+  const ground = HEN_TOP + HEN.height
+  const lying = []
+  for (const fruit of state.fruits) {
+    if (!fruit.landed) {
+      fruit.y += FRUIT.fallSpeed * dt
+      if (fruit.y + FRUIT.size >= ground) {
+        fruit.y = ground - FRUIT.size
+        fruit.landed = true
+      }
+    } else {
+      fruit.remaining -= dt
+      if (fruit.remaining <= 0) continue
+    }
+    lying.push(fruit)
   }
-  if (state.fruitTimer === null) return
-  state.fruitTimer -= dt
-  if (state.fruitTimer > 0) return
-  state.fruitTimer = null
-  const { kind, value } = rollFruit()
-  const fromLeft = Math.random() < 0.5
-  state.fruit = { kind, value, x: fromLeft ? -FRUIT.size : VIEW.width, direction: fromLeft ? 1 : -1, age: 0 }
+  state.fruits = lying
 }
 
-function fruitGone(state: GameState): void {
-  state.fruit = null
-  state.fruitTimer = between(FRUIT.nextMin, FRUIT.nextMax)
+/** Some of the saucers that are hit drop a fruit, from where they were. */
+function maybeDropFruit(state: GameState, ufo: Ufo): void {
+  if (Math.random() >= FRUIT.dropChance) return
+  const { kind, value } = rollFruit()
+  state.fruits.push({
+    kind,
+    value,
+    x: ufo.x + UFO.width / 2 - FRUIT.size / 2,
+    y: ufo.y + UFO.height,
+    landed: false,
+    remaining: FRUIT.groundTime,
+  })
+}
+
+/** The hen picks up any fruit she touches, falling or lying, for its points. */
+function collectFruits(state: GameState, events: GameEvents): void {
+  if (state.fruits.length === 0) return
+  const henRect: Rect = { x: state.hen.x, y: HEN_TOP, width: HEN.width, height: HEN.height }
+  const left = []
+  for (const fruit of state.fruits) {
+    if (!overlaps(henRect, { x: fruit.x, y: fruit.y, width: FRUIT.size, height: FRUIT.size })) {
+      left.push(fruit)
+      continue
+    }
+    awardScore(state, fruit.value, events)
+    state.popups.push({ x: fruit.x + FRUIT.size / 2, y: HEN_TOP - 10, text: `+${fruit.value}`, age: 0 })
+    events.onFruit?.(fruit.value)
+  }
+  state.fruits = left
 }
 
 /** Which fruit comes, by weight. Exported for the tests. */
@@ -485,24 +525,6 @@ export function rollFruit(): { kind: FruitKind; value: number } {
   }
   const last = FRUIT.kinds[FRUIT.kinds.length - 1]!
   return { kind: last.kind, value: last.value }
-}
-
-/** Where a fruit is, bob included; the renderer draws it in the same place. */
-export function fruitRect(fruit: Fruit): Rect {
-  const bob = Math.sin(fruit.age * 4) * 4
-  return { x: fruit.x, y: FRUIT.y - FRUIT.size / 2 + bob, width: FRUIT.size, height: FRUIT.size }
-}
-
-function hitsFruit(state: GameState, egg: Rect, events: GameEvents): boolean {
-  const fruit = state.fruit
-  if (fruit === null) return false
-  const rect = fruitRect(fruit)
-  if (!overlaps(egg, rect)) return false
-  awardScore(state, fruit.value, events)
-  state.popups.push({ x: rect.x + rect.width / 2, y: rect.y, text: `+${fruit.value}`, age: 0 })
-  events.onFruit?.(fruit.value)
-  fruitGone(state)
-  return true
 }
 
 /** Feathers drifting down after a hit: knocked loose fast, then slowed to a
@@ -564,6 +586,8 @@ function awardScore(state: GameState, points: number, events: GameEvents): void 
 }
 
 function moveHen(state: GameState, dt: number, input: InputState): void {
+  // Lying dizzy after a hit, she goes nowhere.
+  if (state.hen.dizzy > 0) return
   const direction = (input.right ? 1 : 0) - (input.left ? 1 : 0)
   if (direction === 0) return
   const next = state.hen.x + direction * HEN.speed * dt
@@ -573,7 +597,7 @@ function moveHen(state: GameState, dt: number, input: InputState): void {
 // --- the hen's shots -------------------------------------------------------
 
 function tryShoot(state: GameState, input: InputState, events: GameEvents): void {
-  if (!input.fire) return
+  if (!input.fire || state.hen.dizzy > 0) return
   if (state.shotCooldown > 0) return
 
   const power = state.power
@@ -637,22 +661,12 @@ function tryShoot(state: GameState, input: InputState, events: GameEvents): void
     return
   }
 
-  // The wingman's eggs are her own; they do not use up the hen's three throws.
-  const perThrow = eggsPerThrow(state.round)
+  // The wingman's eggs are her own; they do not use up the hen's three.
   const ownEggs = state.shots.reduce((count, shot) => count + (shot.wingman ? 0 : 1), 0)
-  // A whole throw has to fit under the cap, or a part-spent one would overshoot.
-  if (ownEggs + perThrow > EGG.maxInFlight * perThrow) return
-  for (let i = 0; i < perThrow; i++) {
-    state.shots.push(egg(muzzleX + (i - (perThrow - 1) / 2) * EGG.spacing))
-  }
+  if (ownEggs >= EGG.maxInFlight) return
+  state.shots.push(egg(muzzleX))
   state.shotCooldown = EGG.cooldown
   events.onShot?.('normal', false)
-}
-
-/** Eggs in one ordinary throw: one more for every ten rounds. Exported for the
- *  tests. */
-export function eggsPerThrow(round: number): number {
-  return Math.min(EGG.perThrowMax, Math.ceil(round / EGG.roundsPerExtraEgg))
 }
 
 /**
@@ -770,7 +784,7 @@ function burst(state: GameState, x: number, y: number, events: GameEvents): void
   state.blasts.push({ x, y, age: 0, radius: POWER.blastRadius, duration: POWER.blastDuration })
   events.onSuperSplat?.()
   for (const ufo of state.ufos) {
-    if (ufo.state.kind === 'flying') ufo.state = leaveFrom(ufo.x, UFO.width, 'splattered')
+    if (ufo.state.kind === 'flying') hitUfo(state, ufo, 'splattered', events)
   }
   if (state.boss !== null && state.boss.state.kind === 'flying') {
     state.boss.hitPoints = 0
@@ -800,28 +814,14 @@ function heartBurst(state: GameState, x: number, y: number, events: GameEvents):
   events.onBossTaunt?.()
 }
 
-/** The gramophone reaching the end of the record. Everything still up there
- *  goes up with it, the mothership included. */
+/** The gramophone reaching the end of the record. The last chord rattles every
+ *  saucer still up there out of the fight, the mothership included; they all
+ *  limp off, damaged. */
 function finale(state: GameState, events: GameEvents): void {
-  events.onExplosion?.('big')
-  for (const ufo of state.ufos) {
-    pop(state, events, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
-    awardScore(state, ufoPoints(ufo), events)
-    events.onUfoDowned?.(ufo, ufoPoints(ufo))
-  }
-  state.ufos = []
-
+  events.onFinale?.()
+  for (const ufo of state.ufos) hitUfo(state, ufo, 'damaged', events)
   const boss = state.boss
-  if (boss !== null) {
-    state.blasts.push({
-      x: boss.x + BOSS.width / 2,
-      y: boss.y + BOSS.height / 2,
-      age: 0,
-      radius: POWER.blastRadius * 0.5,
-      duration: POWER.blastDuration,
-    })
-    downBoss(state, events)
-  }
+  if (boss !== null && boss.state.kind === 'flying') damageBoss(state, boss.hitPoints, events)
   state.lasers = []
 }
 
@@ -835,18 +835,43 @@ function openVortex(state: GameState): void {
   const x = BLACK_HOLE.minX + Math.random() * (BLACK_HOLE.maxX - BLACK_HOLE.minX)
   const y = BLACK_HOLE.minY + Math.random() * (BLACK_HOLE.maxY - BLACK_HOLE.minY)
   state.vortex = { x, y, age: 0 }
-  state.lasers = []
+  state.hudReturn = 0
 
+  // Every saucer, whatever it was doing. A deserter goes in unscored, as it
+  // would have gone home unscored.
   for (const ufo of state.ufos) {
-    if (ufo.state.kind === 'leaving' && ufo.state.reason === 'deserted') continue
-    ufo.state = caught(x, y, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
+    const scores = !(ufo.state.kind === 'leaving' && ufo.state.reason === 'deserted')
+    ufo.state = caught(x, y, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2, scores)
   }
   const boss = state.boss
-  if (boss !== null) boss.state = caught(x, y, boss.x + BOSS.width / 2, boss.y + BOSS.height / 2)
+  if (boss !== null) boss.state = caught(x, y, boss.x + BOSS.width / 2, boss.y + BOSS.height / 2, true)
+
+  // And everything else on the board but the hen, her wingman and the cow.
+  const debris = (sprite: Debris['sprite'], variant: string, px: number, py: number): Debris => ({
+    sprite,
+    variant,
+    angle: Math.atan2(py - y, px - x),
+    radius: Math.hypot(px - x, py - y),
+    spin: (Math.random() < 0.5 ? -1 : 1) * (3 + Math.random() * 4),
+    rotation: 0,
+  })
+  for (const toy of state.obstacles) state.debris.push(debris('toy', toy.kind, toy.x + OBSTACLE.width / 2, toy.y + OBSTACLE.height / 2))
+  for (const fox of state.foxes) state.debris.push(debris('fox', '', fox.x + FOX.width / 2, fox.y + FOX.height / 2))
+  for (const fruit of state.fruits) state.debris.push(debris('fruit', fruit.kind, fruit.x + FRUIT.size / 2, fruit.y + FRUIT.size / 2))
+  for (const drop of state.shieldDrops) state.debris.push(debris('shield', '', drop.x + SHIELD.width / 2, drop.y + SHIELD.height / 2))
+  if (state.pickup !== null) state.debris.push(debris('rambo', '', state.pickup.x + POWER.width / 2, state.pickup.y + POWER.height / 2))
+  state.obstacles = []
+  state.foxes = []
+  state.fruits = []
+  state.shieldDrops = []
+  state.pickup = null
+  state.lasers = []
+  state.shots = []
+  state.bubbles = []
 }
 
-function caught(cx: number, cy: number, x: number, y: number): UfoState {
-  return { kind: 'swirling', angle: Math.atan2(y - cy, x - cx), radius: Math.hypot(x - cx, y - cy) }
+function caught(cx: number, cy: number, x: number, y: number, scores: boolean): UfoState {
+  return { kind: 'swirling', angle: Math.atan2(y - cy, x - cx), radius: Math.hypot(x - cx, y - cy), scores }
 }
 
 /**
@@ -867,9 +892,11 @@ function tickVortex(state: GameState, dt: number, events: GameEvents): void {
       continue
     }
     if (spiral(ufo.state, dt)) {
-      const points = ufoPoints(ufo)
-      awardScore(state, points, events)
-      events.onUfoDowned?.(ufo, points)
+      if (ufo.state.scores) {
+        const points = ufoPoints(ufo)
+        awardScore(state, points, events)
+        events.onUfoDowned?.(ufo, points)
+      }
       continue
     }
     ufo.x = vortex.x + Math.cos(ufo.state.angle) * ufo.state.radius - UFO.width / 2
@@ -888,10 +915,16 @@ function tickVortex(state: GameState, dt: number, events: GameEvents): void {
     }
   }
 
+  state.debris = state.debris.filter((piece) => {
+    piece.rotation += piece.spin * dt
+    return !spiral(piece, dt)
+  })
+
   const eating =
+    state.debris.length > 0 ||
     state.ufos.some((ufo) => ufo.state.kind === 'swirling') ||
     (state.boss !== null && state.boss.state.kind === 'swirling')
-  if (!eating && vortex.age >= BLACK_HOLE.openDuration * 2) state.vortex = null
+  if (!eating && vortex.age >= BLACK_HOLE.openDuration * 2) closeVortex(state, events)
   else if (vortex.age >= BLACK_HOLE.maxDuration) closeVortex(state, events)
 }
 
@@ -900,12 +933,15 @@ function tickVortex(state: GameState, dt: number, events: GameEvents): void {
  *  the round could never end. */
 function closeVortex(state: GameState, events: GameEvents): void {
   state.vortex = null
+  state.debris = []
+  state.hudReturn = BLACK_HOLE.hudReturn
   const survivors: Ufo[] = []
   for (const ufo of state.ufos) {
     if (ufo.state.kind !== 'swirling') {
       survivors.push(ufo)
       continue
     }
+    if (!ufo.state.scores) continue
     const points = ufoPoints(ufo)
     awardScore(state, points, events)
     events.onUfoDowned?.(ufo, points)
@@ -915,7 +951,7 @@ function closeVortex(state: GameState, events: GameEvents): void {
 }
 
 /** One step of a fall into the black hole. True once it has reached the middle. */
-function spiral(swirl: Extract<UfoState, { kind: 'swirling' }>, dt: number): boolean {
+function spiral(swirl: { angle: number; radius: number }, dt: number): boolean {
   swirl.radius -= (BLACK_HOLE.pull + swirl.radius * BLACK_HOLE.pullPerPixel) * dt
   swirl.angle += (BLACK_HOLE.baseSpin + BLACK_HOLE.spinNear / (swirl.radius + 30)) * dt
   return swirl.radius <= BLACK_HOLE.swallowRadius
@@ -964,9 +1000,10 @@ export function bubbleCentre(bubble: Bubble): { x: number; y: number } {
 }
 
 /**
- * Bubbles drifting across the board. One touching a saucer pops, and takes the
- * saucer with it — scored, whatever state it was in, except a deserter, which
- * is already out of the war. The mothership loses a hit point per bubble.
+ * Bubbles drifting across the board. One touching a saucer that is still in
+ * the fight closes round it and carries it off the screen, and it scores when
+ * it is gone; nothing is destroyed. The mothership is too big for a bubble, and
+ * loses a hit point per bubble instead.
  */
 function tickBubbles(state: GameState, dt: number, events: GameEvents): void {
   if (state.bubbles.length === 0) return
@@ -977,20 +1014,18 @@ function tickBubbles(state: GameState, dt: number, events: GameEvents): void {
     bubble.y += bubble.vy * dt
     const { x, y } = bubbleCentre(bubble)
 
-    // Deserters are out of the war, and anything falling into a black hole is
+    // Only a saucer still in the fight is caught: a deserter is out of the
+    // war, and anything leaving, bubbled or falling into a black hole is
     // already on its way out of it.
     const victim = state.ufos.find(
       (ufo) =>
-        !(ufo.state.kind === 'leaving' && ufo.state.reason === 'deserted') &&
-        ufo.state.kind !== 'swirling' &&
+        (ufo.state.kind === 'flying' || ufo.state.kind === 'wobbling') &&
         circleTouchesRect(x, y, bubble.radius, ufoRect(ufo)),
     )
     if (victim !== undefined) {
-      state.ufos = state.ufos.filter((ufo) => ufo !== victim)
-      pop(state, events, victim.x + UFO.width / 2, victim.y + UFO.height / 2)
-      const points = ufoPoints(victim)
-      awardScore(state, points, events)
-      events.onUfoDowned?.(victim, points)
+      victim.state = { kind: 'bubbled', vx: bubble.vx, vy: bubble.vy, radius: Math.max(bubble.radius, UFO.width * 0.62) }
+      maybeDropFruit(state, victim)
+      events.onUfoBubbled?.(victim)
       continue
     }
 
@@ -1008,6 +1043,33 @@ function tickBubbles(state: GameState, dt: number, events: GameEvents): void {
     drifting.push(bubble)
   }
   state.bubbles = drifting
+}
+
+/** Saucers carried off in bubbles float on until they are off the screen,
+ *  and score when they are gone. They move with the hen's clock, as the
+ *  bubbles do. */
+function tickBubbled(state: GameState, dt: number, events: GameEvents): void {
+  const survivors: Ufo[] = []
+  for (const ufo of state.ufos) {
+    const carried = ufo.state
+    if (carried.kind !== 'bubbled') {
+      survivors.push(ufo)
+      continue
+    }
+    ufo.x += carried.vx * dt
+    ufo.y += carried.vy * dt
+    const r = carried.radius
+    const cx = ufo.x + UFO.width / 2
+    const cy = ufo.y + UFO.height / 2
+    if (cx + r >= 0 && cx - r <= VIEW.width && cy + r >= 0 && cy - r <= VIEW.height) {
+      survivors.push(ufo)
+      continue
+    }
+    const points = ufoPoints(ufo)
+    awardScore(state, points, events)
+    events.onUfoDowned?.(ufo, points)
+  }
+  state.ufos = survivors
 }
 
 /**
@@ -1079,16 +1141,18 @@ function tickWobble(state: GameState, dt: number, events: GameEvents): void {
     }
   }
 
+  // Two that bump are both knocked out of the fight and limp off, damaged.
+  for (const ufo of doomed) hitUfo(state, ufo, 'damaged', events)
+
   const survivors: Ufo[] = []
   for (const ufo of state.ufos) {
     const offBoard =
       ufo.state.kind === 'wobbling' &&
       (ufo.x + UFO.width < 0 || ufo.x > VIEW.width || ufo.y + UFO.height < 0 || ufo.y > VIEW.height)
-    if (!doomed.has(ufo) && !offBoard) {
+    if (!offBoard) {
       survivors.push(ufo)
       continue
     }
-    if (doomed.has(ufo)) pop(state, events, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
     const points = ufoPoints(ufo)
     awardScore(state, points, events)
     events.onUfoDowned?.(ufo, points)
@@ -1096,6 +1160,7 @@ function tickWobble(state: GameState, dt: number, events: GameEvents): void {
   state.ufos = survivors
 }
 
+/** A toy breaking up. Toys are the only things in the game that go bang. */
 function pop(state: GameState, events: GameEvents, x: number, y: number): void {
   state.blasts.push({ x, y, age: 0, radius: POWER.popRadius, duration: POWER.popDuration })
   events.onExplosion?.('small')
@@ -1273,13 +1338,13 @@ function tickLeaving(state: GameState, dt: number, events: GameEvents): void {
 
     exit.speed = Math.min(SPLAT.fleeMaxSpeed, exit.speed + SPLAT.fleeAcceleration * dt)
     ufo.x += exit.direction * exit.speed * dt
-    if (exit.reason === 'splattered') ufo.y += SPLAT.sinkSpeed * dt
+    if (exit.reason !== 'deserted') ufo.y += SPLAT.sinkSpeed * dt
 
     if (ufo.x + UFO.width >= 0 && ufo.x <= VIEW.width) {
       survivors.push(ufo)
       continue
     }
-    if (exit.reason !== 'splattered') continue
+    if (exit.reason === 'deserted') continue
 
     const points = ufoPoints(ufo)
     awardScore(state, points, events)
@@ -1676,8 +1741,7 @@ function tickBeam(state: GameState, dt: number, events: GameEvents): void {
   for (const ufo of state.ufos) {
     if (ufo.state.kind !== 'flying') continue
     if (!overlaps(column, ufoRect(ufo))) continue
-    ufo.state = leaveFrom(ufo.x, UFO.width, 'splattered')
-    events.onUfoSplattered?.(ufo)
+    hitUfo(state, ufo, 'splattered', events)
   }
 
   const boss = state.boss
@@ -1709,13 +1773,12 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
       continue
     }
     if (!shot.wingman && hitsPickup(state, eggRect, events)) continue
-    if (hitsFruit(state, eggRect, events)) continue
     if (hitsObstacle(state, eggRect, { vx: shot.vx })) {
       events.onToyKicked?.()
       continue
     }
     if (hitsBoss(state, eggRect, events)) continue
-    if (splattersUfo(state, eggRect, frozen, events)) continue
+    if (splattersUfo(state, eggRect, events)) continue
     survivingShots.push(shot)
   }
   state.shots = survivingShots
@@ -1834,19 +1897,12 @@ function tickObstacles(state: GameState, dt: number, events: GameEvents): void {
     obstacle.rotation += obstacle.spin * dt
 
     const rect: Rect = { x: obstacle.x, y: obstacle.y, width: OBSTACLE.width, height: OBSTACLE.height }
-    const survivors: Ufo[] = []
     for (const ufo of state.ufos) {
-      if (obstacle.health > 0 && overlaps(rect, ufoRect(ufo))) {
-        pop(state, events, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
-        const points = ufoPoints(ufo)
-        awardScore(state, points, events)
-        events.onUfoDowned?.(ufo, points)
-        obstacle.health -= 1
-        continue
-      }
-      survivors.push(ufo)
+      if (obstacle.health <= 0 || !overlaps(rect, ufoRect(ufo))) continue
+      if (ufo.state.kind !== 'flying' && ufo.state.kind !== 'wobbling') continue
+      hitUfo(state, ufo, 'damaged', events)
+      obstacle.health -= 1
     }
-    state.ufos = survivors
 
     // The mothership is too big to be knocked out by a teddy bear, so a toy
     // costs it a hit point and breaks up against the hull, as a gravity wave
@@ -1906,30 +1962,19 @@ function hitsBoss(state: GameState, egg: Rect, events: GameEvents): boolean {
  * With time stopped there is no retreat to wait for: a saucer that takes an egg
  * simply goes up, and scores at once.
  */
-function splattersUfo(state: GameState, egg: Rect, frozen: boolean, events: GameEvents): boolean {
+function splattersUfo(state: GameState, egg: Rect, events: GameEvents): boolean {
   const survivors: Ufo[] = []
   let hit = false
 
   for (const ufo of state.ufos) {
     // A saucer falling into the black hole is past being egged.
-    if (hit || ufo.state.kind === 'swirling' || !overlaps(egg, ufoRect(ufo))) {
+    if (hit || ufo.state.kind === 'swirling' || ufo.state.kind === 'bubbled' || !overlaps(egg, ufoRect(ufo))) {
       survivors.push(ufo)
       continue
     }
     hit = true
-
-    if (frozen) {
-      pop(state, events, ufo.x + UFO.width / 2, ufo.y + UFO.height / 2)
-      const points = ufoPoints(ufo)
-      awardScore(state, points, events)
-      events.onUfoDowned?.(ufo, points)
-      continue
-    }
-
-    if (ufo.state.kind === 'flying') {
-      ufo.state = leaveFrom(ufo.x, UFO.width, 'splattered')
-      events.onUfoSplattered?.(ufo)
-    }
+    // With time stopped it reels on the spot until time starts again.
+    hitUfo(state, ufo, 'splattered', events)
     survivors.push(ufo)
   }
 
@@ -1937,14 +1982,33 @@ function splattersUfo(state: GameState, egg: Rect, frozen: boolean, events: Game
   return hit
 }
 
+/**
+ * Something the hen did has hit a saucer. Nobody is ever killed in this game:
+ * the saucer is damaged — egg on the windscreen, or a knock from anything else
+ * — drops out of the fight and limps off the nearer side, and scores when it is
+ * gone. Some drop a fruit as they go. A saucer already on its way out, or
+ * caught in a bubble or a black hole, is past hitting.
+ */
+function hitUfo(state: GameState, ufo: Ufo, how: 'splattered' | 'damaged', events: GameEvents): void {
+  if (ufo.state.kind !== 'flying' && ufo.state.kind !== 'wobbling') return
+  ufo.state = leaveFrom(ufo.x, UFO.width, how)
+  maybeDropFruit(state, ufo)
+  if (how === 'splattered') events.onUfoSplattered?.(ufo)
+  else events.onUfoDamaged?.(ufo)
+}
+
 /** A hull's way off the board: run for whichever wall it is already nearer,
  *  because that is the shortest way out of the fight. */
-function leaveFrom(x: number, width: number, reason: 'splattered' | 'deserted'): Extract<UfoState, { kind: 'leaving' }> {
+function leaveFrom(
+  x: number,
+  width: number,
+  reason: 'splattered' | 'damaged' | 'deserted',
+): Extract<UfoState, { kind: 'leaving' }> {
   return {
     kind: 'leaving',
     reason,
     direction: x + width / 2 < VIEW.width / 2 ? -1 : 1,
-    reeling: reason === 'splattered' ? SPLAT.reelDuration : DESERT.bubbleDuration,
+    reeling: reason === 'deserted' ? DESERT.bubbleDuration : SPLAT.reelDuration,
     speed: SPLAT.fleeSpeed,
   }
 }
@@ -1952,6 +2016,8 @@ function leaveFrom(x: number, width: number, reason: 'splattered' | 'deserted'):
 function hurtHen(state: GameState, events: GameEvents): void {
   state.hen.lives -= 1
   state.hen.invulnerable = HEN.hurtInvulnerability
+  // Nobody is killed in this game: she is knocked flat and lies there dizzy.
+  state.hen.dizzy = HEN.dizzyDuration
   // Clear the air so she does not respawn into a laser or a fox she cannot
   // dodge.
   state.lasers = []

@@ -350,3 +350,35 @@ Added on 27 September 2026, from one request of three items:
 - **Telemetry sends only `game_started` and `game_over`** now; `power_gained`
   was removed at Vasilis's request, along with its `power` property.
 
+Added on 27 September 2026, from one request of seven items:
+
+- **Nobody is killed.** Every hit on a saucer goes through `hitUfo`, which
+  sends it off `splattered` (an egg) or `damaged` (anything else: a toy, the
+  gramophone, two tumbling saucers bumping). It limps off and scores when it
+  is gone. The only thing that still goes bang is a toy breaking up. The black
+  hole is the one exception to "nothing disappears", since the same request
+  asked it to swallow everything; the README calls it a wormhole that sends
+  them home. A deserter it swallows scores nothing, as before.
+- **Bubbles capture**: a saucer in the fight that a burp bubble touches becomes
+  `bubbled` and rides the bubble's velocity off the screen.
+- **Fruit drops** from 12% of hit saucers (`hitUfo` and bubble captures), falls,
+  lies 5s, and is collected by touch like a shield. The request was "stay on the
+  ground for a while like the foxes"; collecting by touch was my reading,
+  since eggs only fly upwards.
+- **One egg a throw again.** The per-decade extra eggs are gone, the second
+  time extra eggs have been taken out. I read "Hen always shoots 1 egg at the
+  beginning of each round" as restating that. Upgrades still carry over the
+  round break; if it meant they should reset every round, that is a one-line
+  change in `startRound`.
+- **The black hole takes everything but the hen, her wingman and the cow**:
+  saucers, the mothership, toys, foxes, fruit, shield drops and the Rambo egg
+  become `debris` and spiral in; lasers, eggs in flight and bubbles are
+  cleared. The HUD's letters and the stars within 360px are pulled in
+  *by the renderer only* (`pulled`/`swirled` in `render.ts`) and fade back over
+  `BLACK_HOLE.hudReturn` once it closes. The cow's clinging to the screen edge
+  is drawing only too; the cow has no state.
+- **Einstein** visits one round in six, down from three.
+- **Dizzy hen**: a hit sets `hen.dizzy` (1.1s), during which she cannot move or
+  throw. It sits inside the 1.6s immunity, so she is never hit while she is
+  down. At game over she stays lying down through the abduction.
+

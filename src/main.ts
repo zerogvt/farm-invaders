@@ -58,6 +58,9 @@ function main(): void {
     onShieldHit: () => sound.play('shieldHit'),
     onVictory: () => sound.play('sadTrombone'),
     onFruit: () => sound.play('fruit'),
+    onUfoDamaged: () => sound.play('bossHit'),
+    onUfoBubbled: () => sound.play('bonk'),
+    onFinale: () => sound.play('wave'),
     onExtraLife: () => {
       notice = { text: 'Extra life', remaining: NOTICE_DURATION }
       sound.play('extraLife')

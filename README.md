@@ -26,14 +26,19 @@ cow, and we said moo moo moo. Moo moo moo we said, and they run moooway!"* After
 one time through, the end panel comes up, and the dance and the song carry on
 behind it until **Play again** is pressed.
 
-**Watch the top of the screen for fruit.** Every so often one drifts across above
-the fleet, and an egg that reaches it scores its value: cherry 100, strawberry
-300, apple 500, orange 700, banana 1000, and — rarely — pineapple 1500 and
-watermelon 2000. Nine fruit in ten are worth 1000 or under.
+**Nobody is ever killed.** No saucer blows up or vanishes: whatever hits one —
+an egg, a loose toy, the gramophone's last chord, a bump with another saucer —
+leaves it damaged, and it limps off the nearer side, smoking or yolky, and
+scores once it is gone. The one exception is the black hole, which is more of a
+wormhole: whatever goes in is sent home.
 
-**The hen throws more eggs as the rounds go on:** one at a time in rounds 1–10,
-two side by side in 11–20, three in 21–30 and four from round 31, all straight
-up. She can still have three throws in the air at once.
+**Hit saucers drop fruit.** About one in eight drops a fruit as it goes. It falls
+to the ground and lies there for five seconds, and the hen gets its points by
+walking over it: cherry 100, strawberry 300, apple 500, orange 700, banana 1000,
+and — rarely — pineapple 1500 and watermelon 2000. Nine fruit in ten are worth
+1000 or under.
+
+**One egg at a time**, whatever the round.
 
 An egg does not shoot a saucer down. One that connects bursts across the canopy
 and blinds the pilot: the saucer drops out of the formation, hangs there reeling
@@ -50,9 +55,9 @@ one. The mothership's volleys mix them in too, from the same rounds. They grow
 more common as the rounds go on, but six lasers in ten stay ordinary.
 
 **The toys are not nailed down.** An egg comes from below, so it punts the toy it
-hits up into the fleet, and anything a loose toy ploughs into goes up. Every
-wreck costs the toy a hit point, so a punted teddy bear is worth three or four
-saucers and no more. Lasers are simply absorbed; they never move a toy, because
+hits up into the fleet, and any saucer a loose toy ploughs into is knocked out of
+the fight. Every one costs the toy a hit point, so a punted teddy bear is worth
+three or four saucers and no more. Lasers are simply absorbed; they never move a toy, because
 a toy pushed downwards is cover turning into a hazard the hen cannot dodge.
 
 **Every second round is a mothership** rather than a fleet. It takes one egg per
@@ -76,8 +81,10 @@ from the hen. If it touches her she loses a life. The shield is the one thing
 that keeps it off her, and it breaks doing so. Motherships drop foxes too, out
 of their belly, on the same schedule as the fleet.
 
-**When the hen loses a life** she lets out a **"buk-buk-BAWK!"** and a handful
-of feathers come off her and drift down.
+**When the hen loses a life** she lets out a **"buk-buk-BAWK!"**, a handful of
+feathers come off her, and she lies dizzy on her side for a second, stars
+circling her head, before she gets up. When the last hen goes down she stays
+down, dizzy, while the cow is taken.
 
 **A tenth of every fleet deserts.** Somewhere in each round, one saucer in ten
 decides it has had enough, says **make ❤️ not war** and flies home. They leave
@@ -95,12 +102,12 @@ holding.
 **Every 4000 points is another hen**, awarded for each threshold crossed rather
 than one per payout, so a single screen-clearing upgrade can hand back two.
 
-**On about one round in three, Einstein turns up**, says **time freeze mate**,
+**On about one round in six, Einstein turns up**, says **time freeze mate**,
 and stops the board. The hen and everything she has already thrown carry on;
 saucers, the mothership, lasers, loose toys and the clock on a Rambo egg all
 stop where they are for five seconds. An egg that lands while time is stopped
-does not start a retreat — there is nothing to retreat — so whatever it hits
-simply goes up and scores on the spot.
+splatters it all the same; it hangs there reeling until time starts again, and
+then limps off.
 
 **Watch the corners for a Rambo egg.** One turns up in a top corner, sits there
 for ten seconds, and upgrades the hen's eggs if she can hit it before it leaves.
@@ -114,10 +121,10 @@ come one at a time, a few seconds apart. Which upgrade is not up to her:
 | Super egg | One shot. It bursts at mid-screen and clears the sky outright. |
 | Beam | A continuous beam for six seconds. It burns whatever it touches, and needs one second on the mothership per egg the mothership would have cost. |
 | Exploding heart | One shot. The whole fleet deserts. The mothership declines — *"no xmas truce. This aint 1914. I'm da central command!"* — and the hen gets a super egg for her trouble. |
-| Gravity waves | Five seconds of expanding rings. Anything a ring washes over loses attitude control, tumbles off at random, and detonates against whatever it blunders into, itself included. |
-| Black hole | One shot. It opens at a random spot in the sky, and every saucer on the board — the mothership too — spirals into it and is swallowed, the nearer ones first. |
-| Gramophone | One shot. It drifts up playing, and three seconds later the entire fleet goes up with it. |
-| Cow burp | One shot. The cow lets go a cloud of bubbles that fans out across the whole screen; every saucer a bubble touches pops, and the mothership loses a hit point per bubble. |
+| Gravity waves | Five seconds of expanding rings. Anything a ring washes over loses attitude control and tumbles off at random; two that bump are both damaged and limp away. |
+| Black hole | One shot. It opens at a random spot in the sky and swallows *everything* but the hen and the cow: every saucer, the mothership, toys, foxes, fruit, shields, the eggs in the air, the stars round it and even the letters of the HUD, which come back when it closes. The cow only just survives, clinging to the edge of the screen. |
+| Gramophone | One shot. It drifts up playing, and three seconds later its last chord knocks the whole fleet, mothership included, out of the fight. |
+| Cow burp | One shot. The cow lets go a cloud of bubbles that fans out across the whole screen; every saucer a bubble touches is caught inside it and carried off the screen, and the mothership loses a hit point per bubble. |
 | Wingman | Ten seconds of a second, brown hen who walks the ground by herself and throws eggs non-stop. Lasers that reach her are absorbed — she cannot be hurt until the upgrade runs out. |
 
 Every upgrade announces itself over the playfield, because which one you have is
