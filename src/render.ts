@@ -26,7 +26,7 @@ import {
   VIEW,
   WIPER,
 } from './config'
-import { bubbleCentre, featherSway, fruitRect, HEN_TOP, laserWidth, parleyDuration, shotSize } from './game'
+import { bubbleCentre, featherSway, HEN_TOP, laserWidth, parleyDuration, shotSize } from './game'
 import { lineAt, SONG_EIGHTH } from './song'
 import { FEATHER_SIZE, rowVariant, type SpriteSet } from './sprites'
 import type { GameState } from './types'
@@ -34,15 +34,17 @@ import type { GameState } from './types'
 /** Draws one frame. `time` is seconds since the game started and drives every
  *  idle animation, so nothing here mutates game state. */
 export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
-  drawSpace(ctx, time)
-  drawCow(ctx, state, sprites)
+  frame = state
+  drawSpace(ctx, state, time)
+  drawCow(ctx, state, sprites, time)
   drawObstacles(ctx, state, sprites)
   drawVortex(ctx, state, sprites, time)
+  drawDebris(ctx, state, sprites)
   drawUfos(ctx, state, sprites, time)
   drawBoss(ctx, state, sprites, time)
   drawSpeech(ctx, state)
   drawPickup(ctx, state, sprites, time)
-  drawFruit(ctx, state, sprites)
+  drawFruits(ctx, state, sprites, time)
   drawWaves(ctx, state)
   drawProjectiles(ctx, state, sprites, time)
   drawFoxes(ctx, state, sprites, time)
@@ -68,14 +70,119 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
 /** Ground level: what the hen and the cow both stand on. */
 const GROUND = HEN_TOP + HEN.height
 
+/** The state being drawn, for the HUD pieces that ask where the black hole is
+ *  without having it passed down to them. */
+let frame: GameState | null = null
+
+/**
+ * How far the open black hole has pulled something drawn at (x, y): 0 not at
+ * all, 1 swallowed. The nearer things go first. Only drawing is pulled — the
+ * HUD's letters and the stars — so nothing in the game changes.
+ */
+function pulled(state: GameState, x: number, y: number): number {
+  const vortex = state.vortex
+  if (vortex === null) return 0
+  const delay = Math.hypot(x - vortex.x, y - vortex.y) / 900
+  return clamp01((vortex.age - 0.2 - delay) / 1)
+}
+
+/** Where something that far pulled is drawn: spiralling in towards the hole,
+ *  and how big. */
+function swirled(state: GameState, x: number, y: number, pull: number): { x: number; y: number; scale: number; spin: number } {
+  const vortex = state.vortex
+  if (vortex === null || pull <= 0) return { x, y, scale: 1, spin: 0 }
+  const eased = pull * pull
+  const angle = Math.atan2(y - vortex.y, x - vortex.x) + eased * 4
+  const radius = Math.hypot(x - vortex.x, y - vortex.y) * (1 - eased)
+  return { x: vortex.x + Math.cos(angle) * radius, y: vortex.y + Math.sin(angle) * radius, scale: 1 - eased, spin: eased * 6 }
+}
+
+/** How visible a swallowed thing is while it comes back after the hole has
+ *  closed. */
+function returning(state: GameState): number {
+  return 1 - state.hudReturn / BLACK_HOLE.hudReturn
+}
+
+/**
+ * HUD text, drawn with whatever font, fill and alignment are set. While a
+ * black hole is open it is pulled in letter by letter; once it closes the text
+ * fades back.
+ */
+function hudText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
+  const state = frame
+  if (state === null || (state.vortex === null && state.hudReturn <= 0)) {
+    ctx.fillText(text, x, y)
+    return
+  }
+  if (state.vortex === null) {
+    ctx.save()
+    ctx.globalAlpha *= returning(state)
+    ctx.fillText(text, x, y)
+    ctx.restore()
+    return
+  }
+  const total = ctx.measureText(text).width
+  const align = ctx.textAlign
+  let left = align === 'center' ? x - total / 2 : align === 'right' || align === 'end' ? x - total : x
+  ctx.save()
+  ctx.textAlign = 'left'
+  for (const letter of text) {
+    const width = ctx.measureText(letter).width
+    const pull = pulled(state, left + width / 2, y + 8)
+    if (pull < 1) {
+      const at = swirled(state, left + width / 2, y + 8, pull)
+      ctx.save()
+      ctx.translate(at.x, at.y)
+      ctx.rotate(at.spin)
+      ctx.scale(at.scale, at.scale)
+      ctx.fillText(letter, -width / 2, -8)
+      ctx.restore()
+    }
+    left += width
+  }
+  ctx.restore()
+}
+
+/** How visible a non-text HUD piece at (x, y) is: fading as the hole pulls it,
+ *  and coming back after. */
+function hudAlpha(x: number, y: number): number {
+  const state = frame
+  if (state === null) return 1
+  if (state.vortex !== null) return 1 - pulled(state, x, y)
+  return state.hudReturn > 0 ? returning(state) : 1
+}
+
 /** Bottom of the HUD's second row, which speech bubbles keep clear of. */
 const HUD_BOTTOM = 62
 
 /** The cow, standing where it always stands. It is gone from the moment the
  *  mothership finishes lifting it, which is why the abduction draws its own. */
-function drawCow(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
+function drawCow(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
   if (state.phase.kind === 'abduction' || state.phase.kind === 'over') return
-  ctx.drawImage(sprites.cow, COW.x, GROUND - COW.height, COW.width, COW.height)
+  const vortex = state.vortex
+  if (vortex === null) {
+    ctx.drawImage(sprites.cow, COW.x, GROUND - COW.height, COW.width, COW.height)
+    return
+  }
+  // The black hole takes everything but the hen and the cow — and the cow only
+  // just. It is lifted off its feet towards the hole and hangs on by its back
+  // hooves to the edge of the screen, stretched and shaking, until it closes.
+  const closing = clamp01((BLACK_HOLE.maxDuration - vortex.age) / BLACK_HOLE.openDuration)
+  const grip = ease(clamp01(vortex.age / 0.6)) * closing
+  const restX = COW.x
+  const restY = GROUND - COW.height / 2
+  const edgeX = 4
+  const edgeY = GROUND - COW.height * 1.4
+  const rearX = restX + (edgeX - restX) * grip
+  const rearY = restY + (edgeY - restY) * grip
+  const angle = Math.atan2(vortex.y - rearY, vortex.x - rearX) * grip + Math.sin(time * 40) * 0.04 * grip
+  ctx.save()
+  ctx.translate(rearX, rearY)
+  ctx.rotate(angle)
+  ctx.scale(1 + 0.18 * grip, 1 - 0.08 * grip)
+  ctx.drawImage(sprites.cow, 0, -COW.height / 2, COW.width, COW.height)
+  ctx.restore()
+  if (grip > 0.6) drawBubble(ctx, rearX + 60, rearY - 30, 'Moo! Hold on!', 120)
 }
 
 /** The cow's own lines: a burp when it lets one go, and a moo for every round
@@ -96,26 +203,30 @@ function drawCowSpeech(ctx: CanvasRenderingContext2D, state: GameState): void {
 function drawBubbles(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const bubble of state.bubbles) {
     const { x, y } = bubbleCentre(bubble)
-    const r = bubble.radius
-    ctx.save()
-    const film = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r)
-    film.addColorStop(0, 'rgba(255,255,255,0.05)')
-    film.addColorStop(0.75, 'rgba(170,225,255,0.12)')
-    film.addColorStop(1, 'rgba(220,170,255,0.42)')
-    ctx.fillStyle = film
-    ctx.beginPath()
-    ctx.arc(x, y, r, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = 'rgba(210,240,255,0.8)'
-    ctx.lineWidth = 1.5
-    ctx.stroke()
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.arc(x, y, r * 0.68, Math.PI * 1.1, Math.PI * 1.45)
-    ctx.stroke()
-    ctx.restore()
+    drawBubbleFilm(ctx, x, y, bubble.radius)
   }
+}
+
+/** One soap-film bubble: the burp's, and the ones carrying saucers away. */
+function drawBubbleFilm(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.save()
+  const film = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r)
+  film.addColorStop(0, 'rgba(255,255,255,0.05)')
+  film.addColorStop(0.75, 'rgba(170,225,255,0.12)')
+  film.addColorStop(1, 'rgba(220,170,255,0.42)')
+  ctx.fillStyle = film
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(210,240,255,0.8)'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(x, y, r * 0.68, Math.PI * 1.1, Math.PI * 1.45)
+  ctx.stroke()
+  ctx.restore()
 }
 
 /**
@@ -289,7 +400,7 @@ function buildStars(count: number): Star[] {
   return stars
 }
 
-function drawSpace(ctx: CanvasRenderingContext2D, time: number): void {
+function drawSpace(ctx: CanvasRenderingContext2D, state: GameState, time: number): void {
   const sky = ctx.createLinearGradient(0, 0, 0, VIEW.height)
   sky.addColorStop(0, PALETTE.backgroundGlow)
   sky.addColorStop(1, PALETTE.background)
@@ -306,10 +417,24 @@ function drawSpace(ctx: CanvasRenderingContext2D, time: number): void {
   for (const star of STARS) {
     // Twinkle between half and full brightness; never all the way off, which
     // reads as a dead pixel rather than a star.
-    ctx.globalAlpha = 0.45 + 0.35 * Math.sin(time * star.speed + star.phase)
+    let alpha = 0.45 + 0.35 * Math.sin(time * star.speed + star.phase)
+    let x = star.x
+    let y = star.y
+    // The stars near a black hole go into it too, and come back after.
+    const near = state.vortex !== null && Math.hypot(star.x - state.vortex.x, star.y - state.vortex.y) < 360
+    if (near) {
+      const pull = pulled(state, star.x, star.y)
+      if (pull >= 1) continue
+      const at = swirled(state, star.x, star.y, pull)
+      x = at.x
+      y = at.y
+    } else if (state.vortex === null && state.hudReturn > 0) {
+      alpha *= returning(state)
+    }
+    ctx.globalAlpha = alpha
     ctx.fillStyle = '#ffffff'
     ctx.beginPath()
-    ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2)
+    ctx.arc(x, y, star.r, 0, Math.PI * 2)
     ctx.fill()
   }
   ctx.globalAlpha = 1
@@ -403,10 +528,23 @@ function drawUfos(ctx: CanvasRenderingContext2D, state: GameState, sprites: Spri
       continue
     }
 
+    // Carried off in a burp bubble, turning slowly inside it.
+    if (ufo.state.kind === 'bubbled') {
+      ctx.save()
+      ctx.translate(centreX, centreY)
+      ctx.rotate(Math.sin(time * 3 + ufo.wobblePhase) * 0.4)
+      ctx.drawImage(clean, -UFO.width / 2, -UFO.height / 2, UFO.width, UFO.height)
+      ctx.restore()
+      drawBubbleFilm(ctx, centreX, centreY, ufo.state.radius)
+      continue
+    }
+
     // Leaving: shuddering on the spot while it reels or makes its point, then
     // banking into its run for the edge. The bank is what sells the retreat as
     // flight rather than as the sprite simply sliding sideways.
     const { direction, reason, reeling, speed } = ufo.state
+    // A knock from anything but an egg leaves it smoking rather than yolky.
+    if (reason === 'damaged') drawSmoke(ctx, centreX, centreY, direction, time, ufo.wobblePhase)
     const tilt =
       reeling > 0
         ? Math.sin(time * 34 + ufo.wobblePhase) * 0.13
@@ -420,6 +558,22 @@ function drawUfos(ctx: CanvasRenderingContext2D, state: GameState, sprites: Spri
     ctx.drawImage(hull, -UFO.width / 2, -UFO.height / 2, UFO.width, UFO.height)
     ctx.restore()
   }
+}
+
+/** Grey puffs trailing a damaged saucer, drifting up and fading. */
+function drawSmoke(ctx: CanvasRenderingContext2D, x: number, y: number, direction: -1 | 1, time: number, phase: number): void {
+  ctx.save()
+  for (let i = 0; i < 4; i++) {
+    const drift = (time * 1.6 + i * 0.25 + phase) % 1
+    const px = x - direction * (UFO.width * 0.3 + drift * 34)
+    const py = y - 4 - drift * 22
+    ctx.globalAlpha = 0.45 * (1 - drift)
+    ctx.fillStyle = '#9aa3b5'
+    ctx.beginPath()
+    ctx.arc(px, py, 5 + drift * 9, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
 }
 
 /** How big a hull falling into the black hole is drawn: full size until it is
@@ -921,12 +1075,40 @@ function drawWingman(ctx: CanvasRenderingContext2D, state: GameState, sprites: S
 }
 
 function drawHen(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  // Knocked flat: she lies on her side with stars round her head, for a moment
+  // after a hit, and for good once the last hen is down.
+  const down = state.hen.lives <= 0 && (state.phase.kind === 'abduction' || state.phase.kind === 'over')
+  if (state.hen.dizzy > 0 || down) {
+    drawDizzyHen(ctx, state.hen.x + HEN.width / 2, sprites, time)
+    return
+  }
   // Blink while immune. The blink is what tells the player the hit registered
   // and that they are briefly safe.
   const immune = state.hen.invulnerable > 0
   if (immune && Math.floor(time * 12) % 2 === 0) return
   const sprite = immune ? sprites.henHurt : sprites.hen
   ctx.drawImage(sprite, state.hen.x, HEN_TOP, HEN.width, HEN.height)
+}
+
+function drawDizzyHen(ctx: CanvasRenderingContext2D, centreX: number, sprites: SpriteSet, time: number): void {
+  ctx.save()
+  ctx.translate(centreX, GROUND - HEN.width / 2)
+  ctx.rotate(-Math.PI / 2)
+  ctx.drawImage(sprites.henHurt, -HEN.width / 2, -HEN.height / 2, HEN.width, HEN.height)
+  ctx.restore()
+  // Three little stars circling above where her head now is, on the left.
+  const headX = centreX - HEN.height * 0.3
+  const headY = GROUND - HEN.width * 0.95
+  ctx.save()
+  ctx.fillStyle = PALETTE.accent
+  ctx.font = '700 12px system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (let i = 0; i < 3; i++) {
+    const angle = time * 5 + (i * Math.PI * 2) / 3
+    ctx.fillText('\u2605', headX + Math.cos(angle) * 14, headY + Math.sin(angle) * 5)
+  }
+  ctx.restore()
 }
 
 /** The shield bubble. Drawn over the hen rather than under her, so it stays
@@ -958,20 +1140,49 @@ function drawShield(ctx: CanvasRenderingContext2D, state: GameState, time: numbe
   ctx.restore()
 }
 
-/** A fruit drifting across the top, turning slowly, with a soft glow so it
- *  reads as a prize rather than scenery. */
-function drawFruit(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
-  const fruit = state.fruit
-  if (fruit === null) return
-  const rect = fruitRect(fruit)
-  const cx = rect.x + rect.width / 2
-  const cy = rect.y + rect.height / 2
-  glow(ctx, cx, cy, FRUIT.size * 0.9, 'rgba(255,240,170,0.35)', 'rgba(255,220,120,0)')
-  ctx.save()
-  ctx.translate(cx, cy)
-  ctx.rotate(Math.sin(fruit.age * 2) * 0.25)
-  ctx.drawImage(sprites.fruit[fruit.kind], -FRUIT.size / 2, -FRUIT.size / 2, FRUIT.size, FRUIT.size)
-  ctx.restore()
+/** Fruit a saucer dropped, falling or lying on the ground, with a soft glow so
+ *  it reads as a prize rather than scenery. It flickers over its last second. */
+function drawFruits(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+  for (const fruit of state.fruits) {
+    if (fruit.landed && fruit.remaining < 1 && Math.floor(time * 10) % 2 === 0) continue
+    const cx = fruit.x + FRUIT.size / 2
+    const cy = fruit.y + FRUIT.size / 2
+    glow(ctx, cx, cy, FRUIT.size * 0.9, 'rgba(255,240,170,0.35)', 'rgba(255,220,120,0)')
+    ctx.save()
+    ctx.translate(cx, cy)
+    if (!fruit.landed) ctx.rotate(time * 3)
+    ctx.drawImage(sprites.fruit[fruit.kind], -FRUIT.size / 2, -FRUIT.size / 2, FRUIT.size, FRUIT.size)
+    ctx.restore()
+  }
+}
+
+/** Everything the black hole has caught besides the saucers, spinning in. */
+function drawDebris(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
+  const vortex = state.vortex
+  if (vortex === null) return
+  for (const piece of state.debris) {
+    const x = vortex.x + Math.cos(piece.angle) * piece.radius
+    const y = vortex.y + Math.sin(piece.angle) * piece.radius
+    const scale = swirlScale(piece.radius)
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(piece.rotation)
+    ctx.scale(scale, scale)
+    if (piece.sprite === 'shield') {
+      drawBubbleFilm(ctx, 0, 0, SHIELD.width / 2)
+    } else {
+      const [image, w, h] =
+        piece.sprite === 'toy'
+          ? [sprites.toys[piece.variant as keyof SpriteSet['toys']], OBSTACLE.width, OBSTACLE.height]
+          : piece.sprite === 'fox'
+            ? [sprites.fox, FOX.width, FOX.height]
+            : piece.sprite === 'fruit'
+              ? [sprites.fruit[piece.variant as keyof SpriteSet['fruit']], FRUIT.size, FRUIT.size]
+              : [sprites.rambo, POWER.width, POWER.height]
+      ctx.drawImage(image, -w / 2, -h / 2, w, h)
+    }
+    ctx.restore()
+  }
 }
 
 /** Points scored, floating up and fading where they were won. */
@@ -1105,12 +1316,16 @@ function drawShieldHits(ctx: CanvasRenderingContext2D, hits: number): void {
   ctx.font = '600 13px system-ui, sans-serif'
   ctx.textAlign = 'right'
   ctx.fillStyle = PALETTE.accent
-  ctx.fillText('SHIELD', right - SHIELD.hits * 16 - 6, 42)
+  hudText(ctx, 'SHIELD', right - SHIELD.hits * 16 - 6, 42)
   for (let i = 0; i < SHIELD.hits; i++) {
+    const x = right - 6 - (SHIELD.hits - 1 - i) * 16
+    ctx.save()
+    ctx.globalAlpha = hudAlpha(x, 49)
     ctx.beginPath()
-    ctx.arc(right - 6 - (SHIELD.hits - 1 - i) * 16, 49, 5.5, 0, Math.PI * 2)
+    ctx.arc(x, 49, 5.5, 0, Math.PI * 2)
     ctx.fillStyle = i < hits ? 'rgba(150,230,255,0.95)' : 'rgba(255,255,255,0.14)'
     ctx.fill()
+    ctx.restore()
   }
   ctx.textAlign = 'left'
 }
@@ -1122,13 +1337,15 @@ function drawClock(ctx: CanvasRenderingContext2D, name: string, power: { remaini
   ctx.font = '600 13px system-ui, sans-serif'
   ctx.textAlign = 'left'
   ctx.fillStyle = PALETTE.accent
-  ctx.fillText(name, left, 38)
+  hudText(ctx, name, left, 38)
 
   ctx.textAlign = 'right'
   // The last three seconds count in red, since that is when it matters.
   ctx.fillStyle = power.remaining <= 3 ? '#ff7a96' : PALETTE.hudDim
-  ctx.fillText(`${power.remaining.toFixed(1)}s`, left + width, 38)
+  hudText(ctx, `${power.remaining.toFixed(1)}s`, left + width, 38)
 
+  ctx.save()
+  ctx.globalAlpha = hudAlpha(left + width / 2, 56)
   ctx.fillStyle = 'rgba(255,255,255,0.14)'
   ctx.beginPath()
   ctx.roundRect(left, 54, width, 5, 2.5)
@@ -1138,6 +1355,7 @@ function drawClock(ctx: CanvasRenderingContext2D, name: string, power: { remaini
   ctx.beginPath()
   ctx.roundRect(left, 54, Math.max(2, width * fraction), 5, 2.5)
   ctx.fill()
+  ctx.restore()
 
   ctx.textAlign = 'left'
 }
@@ -1148,14 +1366,14 @@ function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
   ctx.textBaseline = 'top'
 
   ctx.textAlign = 'left'
-  ctx.fillText(`SCORE ${state.score}`, 16, 14)
+  hudText(ctx, `SCORE ${state.score}`, 16, 14)
 
   drawPowerPanel(ctx, state)
 
   ctx.font = '600 18px system-ui, sans-serif'
   ctx.textAlign = 'center'
   ctx.fillStyle = PALETTE.hudDim
-  ctx.fillText(`ROUND ${state.round}`, VIEW.width / 2, 14)
+  hudText(ctx, `ROUND ${state.round}`, VIEW.width / 2, 14)
 
   // While a mothership is up, how many eggs it still owes is the only number
   // that matters, so it goes directly under the round.
@@ -1163,7 +1381,7 @@ function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
   if (boss !== null && boss.state.kind === 'flying') {
     ctx.font = '600 13px system-ui, sans-serif'
     ctx.fillStyle = PALETTE.accent
-    ctx.fillText(`MOTHERSHIP — ${Math.ceil(boss.hitPoints)} EGGS LEFT`, VIEW.width / 2, 38)
+    hudText(ctx, `MOTHERSHIP — ${Math.ceil(boss.hitPoints)} EGGS LEFT`, VIEW.width / 2, 38)
   }
 
   // Lives as little hens, minus the one currently on the field.
@@ -1171,7 +1389,10 @@ function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
   const iconHeight = 18
   for (let i = 0; i < state.hen.lives - 1; i++) {
     const x = VIEW.width - 16 - iconWidth - i * (iconWidth + 6)
+    ctx.save()
+    ctx.globalAlpha = hudAlpha(x, 20)
     ctx.drawImage(sprites.hen, x, 13, iconWidth, iconHeight)
+    ctx.restore()
   }
 }
 

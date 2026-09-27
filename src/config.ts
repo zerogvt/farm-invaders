@@ -16,6 +16,9 @@ export const HEN = {
   lives: 3,
   /** Seconds of blinking immunity after taking a hit. */
   hurtInvulnerability: 1.6,
+  /** Seconds she lies dizzy after a hit, unable to move or throw. Inside the
+   *  immunity, so she is never hit again while she is down. */
+  dizzyDuration: 1.1,
   /** Points between free lives. Awarded in a loop, so a single screen-clearing
    *  upgrade that vaults several thresholds at once pays out for all of them. */
   extraLifeEvery: 4000,
@@ -31,13 +34,6 @@ export const EGG = {
    *  saucer taking its time to limp away, scarce ammo is what makes
    *  double-tapping a real cost. */
   maxInFlight: 3,
-  /** Every ten rounds the hen throws one more egg at a time, side by side and
-   *  straight up: one in rounds 1–10, two in 11–20, three in 21–30, four
-   *  from 31. `maxInFlight` counts throws, so the cap grows with it. */
-  perThrowMax: 4,
-  roundsPerExtraEgg: 10,
-  /** Gap between the eggs of one throw, centre to centre. */
-  spacing: 15,
 } as const
 
 export const LASER = {
@@ -299,6 +295,9 @@ export const BLACK_HOLE = {
   /** Seconds it takes to open, and the longest it stays open. */
   openDuration: 0.35,
   maxDuration: 4,
+  /** Seconds the HUD's letters and the swallowed stars take to come back once
+   *  the hole has closed. */
+  hudReturn: 0.8,
 } as const
 
 /**
@@ -446,7 +445,7 @@ export const ABDUCTION = {
  */
 export const FREEZE = {
   /** Rounds that get one, on average. */
-  chance: 1 / 3,
+  chance: 1 / 6,
   minDelay: 2,
   maxDelay: 10,
   /** Seconds the board stays stopped. */
@@ -496,23 +495,20 @@ export const OBSTACLE = {
 } as const
 
 /**
- * Fruit. Now and then one drifts across the top of the screen, like the bonus
- * ship in the original invasion, and an egg that hits it scores its value. The
- * value goes with the kind, so a player learns what is worth aiming for; the
+ * Fruit. Now and then a saucer that is hit drops one; it falls to the ground
+ * and lies there a few seconds, and the hen gets its points by touching it. The
+ * value goes with the kind, so a player learns what is worth going for; the
  * weights keep nine in ten at 1000 or under.
  */
 export const FRUIT = {
   size: 32,
-  /** Height of its centre: above the fleet, just under the HUD's first row. */
-  y: 52,
-  speed: 110,
-  /** Seconds into a round the first one comes, and between one leaving (shot or
-   *  not) and the next. */
-  firstMin: 5,
-  firstMax: 12,
-  nextMin: 9,
-  nextMax: 20,
-  /** Seconds the points float up where it was hit. */
+  /** Chance a saucer drops one when it is hit. */
+  dropChance: 0.12,
+  fallSpeed: 120,
+  /** Seconds it lies on the ground before it is gone, and the hen collects it
+   *  by touching it, as she does a shield. */
+  groundTime: 5,
+  /** Seconds the points float up where it was collected. */
   popupDuration: 1.2,
   kinds: [
     { kind: 'cherry', value: 100, weight: 25 },

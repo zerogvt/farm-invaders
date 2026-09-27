@@ -28,8 +28,9 @@ export type UfoState =
   | { kind: 'flying' }
   | {
       kind: 'leaving'
-      /** Why it is going, which decides the sprite and the speech bubble. */
-      reason: 'splattered' | 'deserted'
+      /** Why it is going, which decides the sprite and the speech bubble: egg on
+       *  the windscreen, a knock from anything else, or a change of heart. */
+      reason: 'splattered' | 'damaged' | 'deserted'
       /** -1 to run for the left wall, 1 for the right. Fixed when it turns. */
       direction: -1 | 1
       /** Seconds left of hanging in place — reeling, or making its point. */
@@ -47,10 +48,20 @@ export type UfoState =
       turn: number
     }
   | {
+      /** Caught in one of the cow's burp bubbles and carried off in it. */
+      kind: 'bubbled'
+      vx: number
+      vy: number
+      /** Size of the bubble round it. */
+      radius: number
+    }
+  | {
       kind: 'swirling'
       /** Radians around the black hole, and pixels out from its centre. */
       angle: number
       radius: number
+      /** Whether it scores when it goes in: a deserter does not. */
+      scores: boolean
     }
 
 export interface Ufo {
@@ -277,15 +288,27 @@ export interface Feather {
 
 export type FruitKind = 'cherry' | 'strawberry' | 'apple' | 'orange' | 'banana' | 'pineapple' | 'watermelon'
 
-/** A fruit drifting across the top of the screen, worth points to an egg. */
+/** A fruit a saucer dropped, falling or lying on the ground. */
 export interface Fruit {
   kind: FruitKind
   value: number
-  /** Left edge; it travels at a fixed height. */
   x: number
-  direction: -1 | 1
-  /** Seconds since it appeared, for its bob. */
-  age: number
+  y: number
+  landed: boolean
+  /** Seconds left on the ground once it has landed. */
+  remaining: number
+}
+
+/** Anything the black hole has caught that is not a saucer: a toy, a fox, a
+ *  fruit, a shield, the Rambo egg. It spirals in and is gone. */
+export interface Debris {
+  sprite: 'toy' | 'fox' | 'fruit' | 'shield' | 'rambo'
+  /** Which toy or fruit, where that matters. */
+  variant: string
+  angle: number
+  radius: number
+  spin: number
+  rotation: number
 }
 
 /** Points floating up from where they were scored. Purely decorative. */
@@ -309,6 +332,8 @@ export interface Hen {
   lives: number
   /** Seconds of post-hit immunity remaining; she blinks while this is > 0. */
   invulnerable: number
+  /** Seconds left lying dizzy after a hit; she cannot move or throw. */
+  dizzy: number
 }
 
 /**
@@ -366,10 +391,12 @@ export interface GameState {
   shieldDrops: ShieldDrop[]
   /** Keeps the black hole in hand for good. */
   cheat: boolean
-  fruit: Fruit | null
-  /** Seconds until the next fruit, or null while one is up. */
-  fruitTimer: number | null
+  fruits: Fruit[]
   popups: Popup[]
+  /** What the black hole is swallowing, besides the saucers. */
+  debris: Debris[]
+  /** Seconds left of the HUD and the stars coming back after a black hole. */
+  hudReturn: number
   pickup: Pickup | null
   /** Seconds until the next Rambo egg turns up, or null if none is due. */
   pickupTimer: number | null

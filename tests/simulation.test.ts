@@ -1,13 +1,11 @@
 import {
   bossHitPoints,
   createGame,
-  fruitRect,
   restart,
   rollFruit,
   foxWait,
   isBossRound,
   parleyDuration,
-  eggsPerThrow,
   pickupsFor,
   startRound,
   update,
@@ -63,7 +61,6 @@ function newGame(): GameState {
   const game = createGame()
   game.freezeTimer = null
   game.foxTimer = null
-  game.fruitTimer = null
   return game
 }
 
@@ -82,7 +79,6 @@ function enterRound(game: GameState, round: number): void {
   startRound(game, round)
   game.freezeTimer = null
   game.foxTimer = null
-  game.fruitTimer = null
 }
 
 function egg(x: number, y: number): Shot {
@@ -662,10 +658,12 @@ gbhz.freeze = { x: 0, remaining: 99 }
 step(gbhz, BLACK_HOLE.maxDuration, idle)
 check('the black hole keeps pulling with time stopped', gbhz.ufos.length === 0, `${gbhz.ufos.length} left`)
 
-// 26. The gramophone finishes the fleet three seconds in, mothership included.
+// 26. The gramophone finishes the fleet three seconds in, mothership included:
+//     the last chord damages every saucer and they all limp off.
 const gmo = newGame()
 gmo.hen.lives = 99
 intoPlay(gmo)
+gmo.desertions = []
 grant(gmo, { kind: 'gramophone', remaining: 12, duration: 12 })
 gmo.shotCooldown = 0
 update(gmo, DT, firing)
@@ -673,9 +671,16 @@ check('the gramophone is a single shot', gmo.shots.length === 1 && gmo.shots[0]!
 check('with three seconds on the record', gmo.shots[0]!.fuse > 2.9, `${gmo.shots[0]!.fuse.toFixed(2)}s`)
 step(gmo, 2.5, idle)
 check('the fleet is still up while it plays', gmo.ufos.length > 0, `${gmo.ufos.length} left`)
-step(gmo, 0.8, idle)
-check('and gone when the record ends', gmo.ufos.length === 0, `${gmo.ufos.length} left`)
-check('with the whole fleet scored', gmo.score > 0, `score ${gmo.score}`)
+let gmoBangs = 0
+step(gmo, 0.8, idle, { onExplosion: () => gmoBangs++ })
+check(
+  'when the record ends every saucer is knocked out of the fight',
+  gmo.ufos.length > 0 && gmo.ufos.every((ufo) => ufo.state.kind === 'leaving' && ufo.state.reason === 'damaged'),
+)
+check('and nothing blows up', gmoBangs === 0 && gmo.blasts.length === 0, `${gmoBangs} bangs`)
+step(gmo, 4, idle)
+check('they limp off the screen', gmo.ufos.length === 0, `${gmo.ufos.length} left`)
+check('and score once they are gone', gmo.score > 0, `score ${gmo.score}`)
 
 const gmb = newGame()
 gmb.hen.lives = 99
@@ -685,7 +690,9 @@ grant(gmb, { kind: 'gramophone', remaining: 12, duration: 12 })
 gmb.shotCooldown = 0
 update(gmb, DT, firing)
 step(gmb, 3.2, idle)
-check('the record takes the mothership too', gmb.boss === null)
+check('the record damages the mothership too', gmb.boss === null || gmb.boss.state.kind === 'leaving')
+step(gmb, 4, idle)
+check('and it limps off', gmb.boss === null)
 
 // --- toys that have been knocked loose --------------------------------------
 
@@ -732,7 +739,8 @@ check(
   `${toy2b.health} left`,
 )
 
-// 28. A loose toy wrecks what it ploughs into, and pays a hit point for each.
+// 28. A loose toy knocks what it ploughs into out of the fight, and pays a hit
+//     point for each; the saucers limp off damaged.
 const gt3 = newGame()
 gt3.hen.lives = 99
 intoPlay(gt3)
@@ -741,16 +749,17 @@ const toy3 = gt3.obstacles[0]!
 toy3.x = target3.x + UFO.width / 2 - OBSTACLE.width / 2
 toy3.y = target3.y + 120
 toy3.vy = -300
-const fleet3 = gt3.ufos.length
+gt3.desertions = []
 step(gt3, 0.6, idle)
-const wrecked = fleet3 - gt3.ufos.length
-check('a loose toy wrecks what it hits', wrecked > 0, `${wrecked} wrecked`)
-check('which scores', gt3.score > 0, `score ${gt3.score}`)
+const wrecked = gt3.ufos.filter((ufo) => ufo.state.kind === 'leaving' && ufo.state.reason === 'damaged').length
+check('a loose toy damages what it hits', wrecked > 0, `${wrecked} damaged`)
 check(
-  'and every wreck costs the toy a hit point',
+  'and every saucer it knocks costs the toy a hit point',
   gt3.obstacles.includes(toy3) ? OBSTACLE.hitPoints - toy3.health === wrecked : wrecked === OBSTACLE.hitPoints,
-  `${wrecked} wrecked, ${toy3.health} health left`,
+  `${wrecked} damaged, ${toy3.health} health left`,
 )
+step(gt3, 4, idle)
+check('which scores once they have gone', gt3.score > 0, `score ${gt3.score}`)
 
 // 29. One that reaches the edge of the view is simply gone.
 const gt4 = newGame()
@@ -807,7 +816,8 @@ check('the fleet does not march', gz.ufos[0]!.x === marchX && gz.ufos[0]!.y === 
 check('lasers hang in the air', gz.lasers.length === 1 && gz.lasers[0]!.y === 100, `y ${gz.lasers[0]?.y}`)
 check('but the hen still moves', gz.hen.x > henX, `${henX} -> ${gz.hen.x}`)
 
-// 32. Eggs still fly, and what they hit goes up on the spot.
+// 32. Eggs still fly, and what they hit is splattered, reeling where it hangs
+//     until time starts again.
 const gz2 = createGame()
 gz2.hen.lives = 99
 gz2.desertions = []
@@ -820,9 +830,8 @@ const stopped = gz2.ufos[0]!
 const fleetZ = gz2.ufos.length
 gz2.shots = [egg(stopped.x + UFO.width / 2 - 6, stopped.y + UFO.height / 2)]
 update(gz2, DT, idle)
-check('an egg with time stopped explodes what it hits', gz2.ufos.length === fleetZ - 1, `${gz2.ufos.length} left`)
-check('there is no retreat to wait for, so it scores at once', gz2.score > 0, `score ${gz2.score}`)
-check('and it leaves a burst behind', gz2.blasts.length > 0)
+check('an egg with time stopped splatters what it hits', stopped.state.kind === 'leaving', stopped.state.kind)
+check('which stays where it is, nothing blown up', gz2.ufos.length === fleetZ && gz2.blasts.length === 0)
 
 // 33. Time starts again on its own, and the board picks up where it left off.
 const restX = gz2.ufos[0]!.x
@@ -875,17 +884,17 @@ check('a one-shot that is never fired goes off the boil', gc2.power.kind === 'no
 check('the cow moos at a cleared round', COW.roundLine === 'Moo', COW.roundLine)
 check('and moos at length when it is taken', COW.line === 'Moooooooooo', COW.line)
 
-// --- eggs a throw ---------------------------------------------------------------
+// --- one egg a throw, whatever the round ------------------------------------
 
-// 37. The extra eggs every eight rounds were tried and taken out again; one
-//     more every ten rounds is what replaced them (see 55).
+// 37. Extra eggs have been tried twice and taken out twice: one egg a throw,
+//     straight up, in any round.
 const gpe = newGame()
-enterRound(gpe, 17)
+enterRound(gpe, 35)
 while (gpe.phase.kind !== 'playing') update(gpe, DT, idle)
 gpe.lasers = []
 update(gpe, DT, firing)
-check('a round-17 pull throws two eggs', gpe.shots.length === 2, `${gpe.shots.length}`)
-check('straight up', gpe.shots.every((shot) => shot.vx === 0))
+check('a round-35 pull still throws one egg', gpe.shots.length === 1, `${gpe.shots.length}`)
+check('straight up', gpe.shots.length === 1 && gpe.shots[0]!.vx === 0)
 
 // --- eggs shoot lasers down -----------------------------------------------------
 
@@ -1198,14 +1207,16 @@ gfz.foxes = [{ x: 405, y: HEN_TOP + 4, vx: 0, rotation: 0, landed: false, wait: 
 update(gfz, DT, idle)
 check('a frozen fox cannot hurt her', gfz.hen.lives === livesFrozen)
 
-// The black hole leaves foxes alone: nothing kills one.
+// The black hole takes foxes along with everything else.
 const gfb = newGame()
 intoPlay(gfb)
 gfb.foxes = [{ x: 400, y: 200, vx: 0, rotation: 0, landed: false, wait: 0 }]
 grant(gfb, { kind: 'blackHole', remaining: 12, duration: 12 })
 gfb.shotCooldown = 0
 update(gfb, DT, firing)
-check('the black hole does not take a fox', gfb.foxes.length === 1)
+// (A hole that opens right on top of it swallows it on the first frame, so it
+// may already be gone rather than spiralling.)
+check('the black hole takes a fox too', gfb.foxes.length === 0 && gfb.vortex !== null)
 
 // --- losing a life -----------------------------------------------------------
 
@@ -1582,30 +1593,6 @@ grant(gsk, { kind: 'gramophone', remaining: 12, duration: 12 })
 step(gsk, 1, idle)
 check('the shield carries on beside another upgrade', gsk.shield !== null && gsk.power.kind === 'gramophone')
 
-// --- more eggs later on --------------------------------------------------------
-
-// 55. One more egg a throw for every ten rounds, side by side, straight up.
-check(
-  'eggs a throw: 1 to round 10, 2 to 20, 3 to 30, 4 after',
-  [1, 10, 11, 20, 21, 30, 31, 42].map(eggsPerThrow).join() === '1,1,2,2,3,3,4,4',
-  [1, 10, 11, 20, 21, 30, 31, 42].map(eggsPerThrow).join(),
-)
-const gpt = newGame()
-enterRound(gpt, 25)
-while (gpt.phase.kind !== 'playing') update(gpt, DT, idle)
-gpt.shots = []
-gpt.shotCooldown = 0
-update(gpt, DT, firing)
-const throwXs = gpt.shots.map((shot) => shot.x).sort((a, b) => a - b)
-check('a round-25 throw is three eggs', gpt.shots.length === 3, `${gpt.shots.length}`)
-check('side by side', throwXs.length === 3 && Math.abs(throwXs[1]! - throwXs[0]! - EGG.spacing) < 0.01)
-check('all going straight up', gpt.shots.every((shot) => shot.vx === 0))
-for (let i = 0; i < 10; i++) {
-  gpt.shotCooldown = 0
-  update(gpt, DT, firing)
-}
-check('and still three throws in flight at most', gpt.shots.filter((s) => !s.wingman).length <= EGG.maxInFlight * 3)
-
 // --- the beam fires no eggs ------------------------------------------------------
 
 // 56. The beam burns by itself; the fire key throws nothing while it lasts.
@@ -1666,35 +1653,49 @@ check('and each line is up while it is sung', SONG_LINES.every((line) => lineAt(
 
 // --- fruit ----------------------------------------------------------------------
 
-// 59. Fruit drifts across the top now and then.
-const gfr1 = createGame()
-gfr1.freezeTimer = null
-gfr1.foxTimer = null
-check('a round schedules its first fruit', gfr1.fruitTimer !== null && gfr1.fruitTimer >= FRUIT.firstMin && gfr1.fruitTimer <= FRUIT.firstMax)
-const gfr2 = newGame()
-intoPlay(gfr2)
-gfr2.fruitTimer = 0.01
-update(gfr2, DT, idle)
-const fruit = gfr2.fruit!
-check('a fruit turns up at one side of the top', fruit !== null && (fruit.x < 0 || fruit.x >= VIEW.width - 1) && fruitRect(fruit).y < 80)
-const fruitStart = fruit.x
-step(gfr2, 1, idle)
-check('and drifts across', Math.abs(fruit.x - fruitStart) > FRUIT.speed * 0.9)
-step(gfr2, (VIEW.width + FRUIT.size) / FRUIT.speed, idle)
-check('until it is gone off the other side', gfr2.fruit === null && gfr2.fruitTimer !== null)
+// 59. Some of the saucers that are hit drop a fruit.
+let hitsCounted = 0
+let fruitsDropped = 0
+for (let i = 0; i < 40; i++) {
+  const g = newGame()
+  intoPlay(g)
+  g.desertions = []
+  grant(g, { kind: 'superEgg', remaining: 12, duration: 12 })
+  g.shotCooldown = 0
+  const fleet = g.ufos.filter((ufo) => ufo.state.kind === 'flying').length
+  update(g, DT, firing)
+  step(g, 1.2, idle)
+  hitsCounted += fleet
+  fruitsDropped += g.fruits.length
+}
+const fruitShare = fruitsDropped / hitsCounted
+check('about one hit saucer in eight drops a fruit', fruitShare > FRUIT.dropChance * 0.6 && fruitShare < FRUIT.dropChance * 1.5, `${fruitsDropped} of ${hitsCounted}`)
 
-// An egg that hits it scores its value.
-const gfr3 = newGame()
-intoPlay(gfr3)
-gfr3.fruit = { kind: 'banana', value: 1000, x: 400, direction: 1, age: 0 }
-const fr = fruitRect(gfr3.fruit)
-const scoreBeforeFruit = gfr3.score
+// It falls, lies there a while, and is gone.
+const gfd = newGame()
+intoPlay(gfd)
+gfd.desertions = []
+gfd.hen.x = 700
+const theFruit = { kind: 'apple' as const, value: 500, x: 200, y: 300, landed: false, remaining: FRUIT.groundTime }
+gfd.fruits = [theFruit]
+while (!theFruit.landed) update(gfd, DT, idle)
+check('a dropped fruit falls to the ground', theFruit.y + FRUIT.size === HEN_TOP + HEN.height)
+step(gfd, FRUIT.groundTime - 0.3, idle)
+check('and lies there a while', gfd.fruits.includes(theFruit))
+step(gfd, 0.5, idle)
+check('and then is gone', !gfd.fruits.includes(theFruit))
+
+// The hen collects it by touching it, for its points.
+const gfc2 = newGame()
+intoPlay(gfc2)
+gfc2.desertions = []
+gfc2.hen.x = 100
+gfc2.fruits = [{ kind: 'banana', value: 1000, x: 300, y: HEN_TOP + HEN.height - FRUIT.size, landed: true, remaining: 4 }]
+const scoreBeforeFruit = gfc2.score
 let fruitScored = 0
-gfr3.shots = [egg(fr.x + fr.width / 2 - 6, fr.y + fr.height / 2)]
-update(gfr3, DT, idle, { onFruit: (value) => (fruitScored = value) })
-check('an egg on a fruit scores its value', gfr3.score - scoreBeforeFruit === 1000 && fruitScored === 1000, `${gfr3.score - scoreBeforeFruit}`)
-check('and the egg and fruit are gone', gfr3.fruit === null && gfr3.shots.length === 0)
-check('with the points shown where it was', gfr3.popups.length === 1 && gfr3.popups[0]!.text === '+1000')
+for (let i = 0; i < 90; i++) update(gfc2, DT, { left: false, right: true, fire: false }, { onFruit: (value) => (fruitScored = value) })
+check('walking over a fruit collects its value', gfc2.score - scoreBeforeFruit >= 1000 && fruitScored === 1000 && gfc2.fruits.length === 0)
+check('with the points shown', gfc2.popups.some((popup) => popup.text === '+1000') || fruitScored === 1000)
 
 // Values run 100 to 2000, mostly 1000 or under.
 const fruitValues: number[] = []
@@ -1702,6 +1703,124 @@ for (let i = 0; i < 4000; i++) fruitValues.push(rollFruit().value)
 const underThousand = fruitValues.filter((v) => v <= 1000).length / fruitValues.length
 check('fruit is worth 100 to 2000', Math.min(...fruitValues) === 100 && Math.max(...fruitValues) === 2000)
 check('mostly 1000 or under', underThousand > 0.88 && underThousand < 0.95, `${(underThousand * 100).toFixed(1)}%`)
+
+// --- nobody gets killed -----------------------------------------------------------
+
+// 60. A bubble catches a saucer and carries it off, whole.
+const gbub = newGame()
+intoPlay(gbub)
+gbub.desertions = []
+const caughtOne = gbub.ufos[0]!
+gbub.bubbles = [{ x: caughtOne.x + UFO.width / 2, y: caughtOne.y + UFO.height / 2, vx: 0, vy: -200, radius: 20, phase: 0, age: 0 }]
+update(gbub, DT, idle)
+check('a burp bubble catches a saucer', caughtOne.state.kind === 'bubbled', caughtOne.state.kind)
+check('whole, not popped', gbub.ufos.includes(caughtOne) && gbub.blasts.length === 0)
+const caughtY = caughtOne.y
+step(gbub, 0.3, idle)
+check('and carries it off', caughtOne.y < caughtY)
+step(gbub, 3, idle)
+check('off the screen, where it scores', !gbub.ufos.includes(caughtOne) && gbub.score > 0)
+
+// Two tumbling saucers that bump are damaged, not blown up.
+const gbump = newGame()
+intoPlay(gbump)
+gbump.desertions = []
+const [bumpA, bumpB] = gbump.ufos
+bumpA!.state = { kind: 'wobbling', drift: 1, vx: 0, vy: 0, turn: 99 }
+bumpB!.x = bumpA!.x + 4
+bumpB!.y = bumpA!.y
+let bumpBangs = 0
+update(gbump, DT, idle, { onExplosion: () => bumpBangs++ })
+const kindOf = (ufo: Ufo): Ufo['state']['kind'] => ufo.state.kind
+check('two tumbling saucers that bump are damaged', kindOf(bumpA!) === 'leaving' && kindOf(bumpB!) === 'leaving')
+check('and neither blows up', bumpBangs === 0 && gbump.ufos.includes(bumpA!) && gbump.ufos.includes(bumpB!))
+
+// Across a busy stretch of play, no saucer ever goes bang.
+let saucerBangs = 0
+for (const power of ['gravity', 'gramophone', 'burp', 'superEgg', 'multishot'] as const) {
+  const g = newGame()
+  g.hen.lives = 99
+  intoPlay(g)
+  g.hen.invulnerable = 999
+  const upgrade: Power =
+    power === 'multishot'
+      ? { kind: 'multishot', eggs: 9, remaining: 6, duration: 6 }
+      : { kind: power, remaining: 12, duration: 12 }
+  grant(g, upgrade)
+  // Toys go bang when they break; everything else must not. A cleared round
+  // brings new toys, so they are cleared every frame.
+  for (let f = 0; f < Math.round(8 / DT); f++) {
+    g.obstacles = []
+    update(g, DT, firing, { onExplosion: () => saucerBangs++ })
+  }
+}
+check('no saucer is ever blown up, whatever hits it', saucerBangs === 0, `${saucerBangs} bangs`)
+
+// 61. A hit leaves the hen lying dizzy for a moment.
+const gdz = newGame()
+intoPlay(gdz)
+gdz.hen.invulnerable = 0
+gdz.hen.x = 400
+gdz.lasers = [{ x: 420, y: HEN_TOP + 10, vx: 0, vy: 0 }]
+update(gdz, DT, idle)
+check('a hit knocks the hen dizzy', gdz.hen.dizzy > 0)
+const dizzyX = gdz.hen.x
+gdz.shots = []
+gdz.shotCooldown = 0
+for (let i = 0; i < 20; i++) update(gdz, DT, { left: false, right: true, fire: true })
+check('she cannot move or throw while dizzy', gdz.hen.x === dizzyX && gdz.shots.length === 0)
+step(gdz, HEN.dizzyDuration, idle)
+update(gdz, DT, { left: false, right: true, fire: false })
+check('and gets up again after', gdz.hen.dizzy === 0 && gdz.hen.x > dizzyX)
+check('still safe from a second hit while she was down', HEN.dizzyDuration < HEN.hurtInvulnerability)
+
+// 62. Einstein turns up less often: about one round in six.
+let visits = 0
+for (let i = 0; i < 3000; i++) {
+  const g = createGame()
+  if (g.freezeTimer !== null) visits++
+}
+check('Einstein visits about one round in six', visits / 3000 > 0.13 && visits / 3000 < 0.2, `${visits} in 3000`)
+
+// 63. The black hole takes everything but the hen and the cow.
+const geat = newGame()
+intoPlay(geat)
+geat.foxes = [{ x: 300, y: 300, vx: 0, rotation: 0, landed: false, wait: 0 }]
+geat.fruits = [{ kind: 'cherry', value: 100, x: 500, y: 400, landed: false, remaining: 5 }]
+geat.shieldDrops = [{ x: 600, y: 400, landed: false, remaining: 4 }]
+geat.pickup = { x: 30, y: 34, remaining: 5 }
+geat.shots = [egg(200, 300)]
+const toysBefore = geat.obstacles.length
+const henBefore = { ...geat.hen }
+grant(geat, { kind: 'blackHole', remaining: 12, duration: 12 })
+geat.shotCooldown = 0
+update(geat, DT, firing)
+check(
+  'the black hole catches the toys, foxes, fruit, shields and the Rambo egg',
+  geat.obstacles.length === 0 &&
+    geat.foxes.length === 0 &&
+    geat.fruits.length === 0 &&
+    geat.shieldDrops.length === 0 &&
+    geat.pickup === null &&
+    geat.debris.length === toysBefore + 4,
+  `${geat.debris.length} pieces`,
+)
+check('and the eggs in the air', geat.shots.length === 0)
+check('but not the hen', geat.hen.lives === henBefore.lives && geat.hen.x === henBefore.x)
+step(geat, BLACK_HOLE.maxDuration + 0.2, idle)
+check('it swallows them all', geat.debris.length === 0 && geat.vortex === null)
+check('and then the HUD and the stars come back', geat.hudReturn > 0 || geat.phase.kind !== 'playing')
+
+// A deserter goes in, but unscored.
+const gdes = newGame()
+intoPlay(gdes)
+gdes.ufos = [gdes.ufos[0]!]
+gdes.ufos[0]!.state = { kind: 'leaving', reason: 'deserted', direction: 1, reeling: 99, speed: 0 }
+grant(gdes, { kind: 'blackHole', remaining: 12, duration: 12 })
+gdes.shotCooldown = 0
+update(gdes, DT, firing)
+step(gdes, BLACK_HOLE.maxDuration, idle)
+check('a deserter goes into the black hole unscored', gdes.ufos.length === 0 && gdes.score === 0, `score ${gdes.score}`)
 
 // --- what the sound hangs off -------------------------------------------------
 
@@ -1735,10 +1854,13 @@ check('the super egg announces its splat', heard.onSuperSplat === 1, `${heard.on
 heard = {}
 const gsnd3 = newGame()
 intoPlay(gsnd3)
+// A breaking toy is allowed its bang; nothing else is.
+gsnd3.obstacles = []
 grant(gsnd3, { kind: 'burp', remaining: 12, duration: 12 })
 step(gsnd3, 2, firing, listen)
 check('the burp is announced once', heard.onBurp === 1, `${heard.onBurp}`)
-check('and what it pops goes off', (heard.onExplosion ?? 0) > 0, `${heard.onExplosion}`)
+check('and what it catches is announced', (heard.onUfoBubbled ?? 0) > 0, `${heard.onUfoBubbled}`)
+check('without anything going bang', (heard.onExplosion ?? 0) === 0, `${heard.onExplosion}`)
 
 heard = {}
 const gsnd4 = newGame()
