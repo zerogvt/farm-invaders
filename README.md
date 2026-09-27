@@ -161,8 +161,8 @@ with the Start button.
 ## Telemetry
 
 The game can report to Dynatrace Real User Monitoring: page loads, JavaScript
-errors, and three game events — `game_started`, `power_gained` (which upgrade)
-and `game_over` (score, round, whether sound was muted, and length in seconds).
+errors, and two game events — `game_started` and `game_over` (score, round,
+whether sound was muted, and length in seconds).
 All of it lives in `src/telemetry.ts`.
 
 **It is off unless two things are true**:
@@ -201,7 +201,7 @@ since `sendEvent` doesn't exist on RUM Classic. Everything below is under
 - **Data privacy:** "Data-collection and opt-in mode" on. Leave IP masking and
   "Do Not Track" compliance on, as they are by default.
 - **Capture properties → Allowed API-reported properties:** add `game_event`,
-  `score`, `round`, `power`, `seconds` and `muted`. Enter the keys without the
+  `score`, `round`, `seconds` and `muted`. Enter the keys without the
   `event_properties.` prefix. **Any property not on this list is dropped at
   ingest.** The event still arrives, but with those fields empty, so every
   query filtering on them returns nothing. Adding a key only affects events
@@ -227,7 +227,7 @@ their time in `start_time`, not `timestamp`:
 fetch user.events, from: now() - 24h
 | filter isNotNull(event_properties.game_event)
 | fields start_time, dt.rum.session.id, event_properties.game_event,
-         event_properties.score, event_properties.round, event_properties.power,
+         event_properties.score, event_properties.round,
          event_properties.seconds, event_properties.muted
 | sort start_time desc
 ```

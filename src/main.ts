@@ -50,7 +50,6 @@ function main(): void {
     onPowerGained: (power) => {
       notice = { text: noticeFor(power), remaining: NOTICE_DURATION }
       sound.play('powerUp')
-      telemetry.powerGained(power.kind)
     },
     onShieldGained: () => {
       notice = { text: `Shield up — ${SHIELD.hits} hits`, remaining: NOTICE_DURATION }

@@ -1802,7 +1802,6 @@ check('the freeze is announced', heard.onFreeze === 1, `${heard.onFreeze}`)
   }
   const play = (r: ReturnType<typeof rig>) => {
     r.t.gameStarted()
-    r.t.powerGained('beam')
     r.tick(61_400)
     r.t.gameOver(1234, 5, true)
   }
@@ -1853,12 +1852,11 @@ check('the freeze is announced', heard.onFreeze === 1, `${heard.onFreeze}`)
   returning.agentArrives()
   check('a returning player who agreed is enabled without being asked again', returning.calls.join() === 'enable')
   play(returning)
-  const over = returning.sent[2]
+  const over = returning.sent[1]
   check(
-    'telemetry reports a game start, the upgrade and the game over',
-    returning.sent.map((f) => f['event_properties.game_event']).join() === 'game_started,power_gained,game_over',
+    'telemetry reports only a game start and a game over',
+    returning.sent.map((f) => f['event_properties.game_event']).join() === 'game_started,game_over',
   )
-  check('telemetry names the upgrade', returning.sent[1]?.['event_properties.power'] === 'beam')
   check(
     'a game over carries score, round, mute and length',
     over?.['event_properties.score'] === 1234 &&

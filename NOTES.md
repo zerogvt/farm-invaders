@@ -347,4 +347,6 @@ Added on 27 September 2026, from one request of three items:
   be driven end to end in headless Chromium: its virtual clock hardly runs the
   animation loop, so a scripted playthrough never got past round 42's
   banner. The simulation side is tested.
+- **Telemetry sends only `game_started` and `game_over`** now; `power_gained`
+  was removed at Vasilis's request, along with its `power` property.
 
