@@ -251,8 +251,10 @@ export function restart(state: GameState): void {
   state.hen.x = VIEW.width / 2 - HEN.width / 2
   state.power = { kind: 'none' }
   state.shield = null
+  // Lasts for one run only.
+  state.cheat = false
   state.nextLifeAt = HEN.extraLifeEvery
-  startRound(state, state.cheat ? VICTORY.finalRound : 1)
+  startRound(state, 1)
 }
 
 /**
