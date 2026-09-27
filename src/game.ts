@@ -9,6 +9,7 @@ import {
   FEATHERS,
   FOX,
   FREEZE,
+  FRUIT,
   GRAMOPHONE,
   GRAVITY,
   HEART,
@@ -33,6 +34,8 @@ import { placeObstacles } from './obstacles'
 import type {
   Boss,
   Bubble,
+  Fruit,
+  FruitKind,
   GameState,
   Laser as LaserShot,
   Power,
@@ -111,6 +114,8 @@ export interface GameEvents {
   onShieldHit?: (hits: number) => void
   /** The final round is over: the beaten fleet is leaving. */
   onVictory?: () => void
+  /** An egg has hit a fruit worth `value` points. */
+  onFruit?: (value: number) => void
   onExtraLife?: (lives: number) => void
   onHenHurt?: () => void
   onRoundCleared?: (round: number) => void
@@ -166,6 +171,9 @@ export function createGame(): GameState {
     shield: null,
     shieldDrops: [],
     cheat: false,
+    fruit: null,
+    fruitTimer: null,
+    popups: [],
     pickup: null,
     pickupTimer: null,
     pickupsLeft: 0,
@@ -205,6 +213,8 @@ export function startRound(state: GameState, round: number): void {
   state.lasers = []
   state.foxes = []
   state.shieldDrops = []
+  state.fruit = null
+  state.fruitTimer = between(FRUIT.firstMin, FRUIT.firstMax)
   state.foxesThrown = 0
   // Foxes come from the fleet's front rank, or from the mothership on its
   // rounds, on the same schedule either way.
@@ -311,7 +321,7 @@ export function update(state: GameState, dt: number, input: InputState, events: 
       tickTimers(state, dt)
       if (state.phase.remaining > 0) return
       if (state.round >= VICTORY.finalRound) {
-        state.phase = { kind: 'victory', age: 0 }
+        state.phase = { kind: 'victory', age: 0, announced: false }
         events.onVictory?.()
       } else {
         startRound(state, state.round + 1)
@@ -320,11 +330,14 @@ export function update(state: GameState, dt: number, input: InputState, events: 
 
     case 'victory':
       // The board is empty and stays that way; the ending is all the
-      // renderer's, driven off the phase's age.
+      // renderer's, driven off the phase's age. After one pass of the song the
+      // end panel goes up, but the dance does not stop: it carries on behind
+      // the panel until the player starts again.
       state.phase.age += dt
       tickFeathers(state, dt)
-      if (state.phase.age >= VICTORY.duration) {
-        state.phase = { kind: 'over', scoreSubmitted: false }
+      tickPopups(state, dt)
+      if (!state.phase.announced && state.phase.age >= VICTORY.duration) {
+        state.phase.announced = true
         events.onGameOver?.(state.score, state.round, true)
       }
       return
@@ -355,6 +368,7 @@ export function update(state: GameState, dt: number, input: InputState, events: 
     advanceFoxes(state, dt)
     tickFoxTimer(state, dt, events)
     tickShieldDrops(state, dt)
+    tickFruit(state, dt)
     marchFormation(state, dt)
     tickLeaving(state, dt, events)
     tickWobble(state, dt, events)
@@ -428,6 +442,67 @@ function tickTimers(state: GameState, dt: number): void {
   }
   state.blasts = blasts
   tickFeathers(state, dt)
+  tickPopups(state, dt)
+}
+
+function tickPopups(state: GameState, dt: number): void {
+  if (state.popups.length === 0) return
+  for (const popup of state.popups) popup.age += dt
+  state.popups = state.popups.filter((popup) => popup.age < FRUIT.popupDuration)
+}
+
+/** A fruit crossing the top of the screen, or the wait for the next one. It
+ *  comes in from a random side and is gone once it is off the other. */
+function tickFruit(state: GameState, dt: number): void {
+  const fruit = state.fruit
+  if (fruit !== null) {
+    fruit.age += dt
+    fruit.x += fruit.direction * FRUIT.speed * dt
+    if (fruit.x + FRUIT.size < 0 || fruit.x > VIEW.width) fruitGone(state)
+    return
+  }
+  if (state.fruitTimer === null) return
+  state.fruitTimer -= dt
+  if (state.fruitTimer > 0) return
+  state.fruitTimer = null
+  const { kind, value } = rollFruit()
+  const fromLeft = Math.random() < 0.5
+  state.fruit = { kind, value, x: fromLeft ? -FRUIT.size : VIEW.width, direction: fromLeft ? 1 : -1, age: 0 }
+}
+
+function fruitGone(state: GameState): void {
+  state.fruit = null
+  state.fruitTimer = between(FRUIT.nextMin, FRUIT.nextMax)
+}
+
+/** Which fruit comes, by weight. Exported for the tests. */
+export function rollFruit(): { kind: FruitKind; value: number } {
+  const total = FRUIT.kinds.reduce((sum, entry) => sum + entry.weight, 0)
+  let roll = Math.random() * total
+  for (const entry of FRUIT.kinds) {
+    roll -= entry.weight
+    if (roll < 0) return { kind: entry.kind, value: entry.value }
+  }
+  const last = FRUIT.kinds[FRUIT.kinds.length - 1]!
+  return { kind: last.kind, value: last.value }
+}
+
+/** Where a fruit is, bob included; the renderer draws it in the same place. */
+export function fruitRect(fruit: Fruit): Rect {
+  const bob = Math.sin(fruit.age * 4) * 4
+  return { x: fruit.x, y: FRUIT.y - FRUIT.size / 2 + bob, width: FRUIT.size, height: FRUIT.size }
+}
+
+function hitsFruit(state: GameState, egg: Rect, events: GameEvents): boolean {
+  const fruit = state.fruit
+  if (fruit === null) return false
+  const rect = fruitRect(fruit)
+  if (!overlaps(egg, rect)) return false
+  awardScore(state, fruit.value, events)
+  state.popups.push({ x: rect.x + rect.width / 2, y: rect.y, text: `+${fruit.value}`, age: 0 })
+  events.onFruit?.(fruit.value)
+  fruitGone(state)
+  return true
 }
 
 /** Feathers drifting down after a hit: knocked loose fast, then slowed to a
@@ -1269,8 +1344,6 @@ function tickFoxTimer(state: GameState, dt: number, events: GameEvents): void {
       rotation: 0,
       landed: false,
       wait: 0,
-      chaser: foxWait(state.round) > FOX.chaseAfterWait,
-      chase: 0,
     })
     state.foxesThrown += 1
     events.onFoxThrown?.()
@@ -1312,10 +1385,8 @@ export function foxWait(round: number): number {
 /**
  * Foxes tumble down to the ground and land on their feet. Each then sits where
  * it landed for a while — still deadly to touch — and runs off the side away
- * from the hen. A long sitter chases her instead when it gets up, but slower
- * than she can run and only for a few seconds before it too runs off: one that
- * kept coming would be a certain loss, since she cannot get past it. Nothing
- * stops them on the way.
+ * from the hen, never towards her: she cannot get past a fox, so one that came
+ * for her would be a certain loss. Nothing stops them on the way.
  */
 function advanceFoxes(state: GameState, dt: number): void {
   if (state.foxes.length === 0) return
@@ -1331,22 +1402,9 @@ function advanceFoxes(state: GameState, dt: number): void {
         fox.landed = true
         fox.wait = foxWait(state.round)
       }
-    } else if (fox.chase > 0) {
-      const toHen = state.hen.x + HEN.width / 2 - (fox.x + FOX.width / 2)
-      fox.vx = Math.sign(toHen) * FOX.chaseSpeed
-      // Never past her: it closes on where she is, not beyond.
-      if (Math.abs(toHen) < Math.abs(fox.vx * dt)) fox.vx = toHen / dt
-      fox.chase -= dt
-      if (fox.chase <= 0) {
-        fox.chase = 0
-        fox.vx = awayFromHen(state, fox) * FOX.runSpeed
-      }
     } else if (fox.vx === 0) {
       fox.wait -= dt
-      if (fox.wait <= 0) {
-        if (fox.chaser) fox.chase = FOX.chaseDuration
-        else fox.vx = awayFromHen(state, fox) * FOX.runSpeed
-      }
+      if (fox.wait <= 0) fox.vx = awayFromHen(state, fox) * FOX.runSpeed
     }
     fox.x += fox.vx * dt
     if (fox.x + FOX.width > 0 && fox.x < VIEW.width) running.push(fox)
@@ -1651,6 +1709,7 @@ function resolveCollisions(state: GameState, frozen: boolean, events: GameEvents
       continue
     }
     if (!shot.wingman && hitsPickup(state, eggRect, events)) continue
+    if (hitsFruit(state, eggRect, events)) continue
     if (hitsObstacle(state, eggRect, { vx: shot.vx })) {
       events.onToyKicked?.()
       continue

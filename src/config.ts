@@ -324,13 +324,6 @@ export const FOX = {
   minWait: 1,
   maxWait: 10,
   waitRampRounds: 19,
-  /** A fox that will sit longer than this glows brighter, and when it gets up it
-   *  chases the hen instead of running off. The chase is slower than she is
-   *  and gives up after `chaseDuration`, when it runs off the side away from
-   *  her: a hen that used the long sit to get clear gets away. */
-  chaseAfterWait: 5,
-  chaseSpeed: 190,
-  chaseDuration: 3,
   fallSpeed: 150,
   runSpeed: 260,
   /** Radians per second it tumbles at on the way down. */
@@ -500,6 +493,36 @@ export const OBSTACLE = {
   maxSpeed: 500,
   /** Radians per second a loose toy tumbles at. */
   spin: 2.4,
+} as const
+
+/**
+ * Fruit. Now and then one drifts across the top of the screen, like the bonus
+ * ship in the original invasion, and an egg that hits it scores its value. The
+ * value goes with the kind, so a player learns what is worth aiming for; the
+ * weights keep nine in ten at 1000 or under.
+ */
+export const FRUIT = {
+  size: 32,
+  /** Height of its centre: above the fleet, just under the HUD's first row. */
+  y: 52,
+  speed: 110,
+  /** Seconds into a round the first one comes, and between one leaving (shot or
+   *  not) and the next. */
+  firstMin: 5,
+  firstMax: 12,
+  nextMin: 9,
+  nextMax: 20,
+  /** Seconds the points float up where it was hit. */
+  popupDuration: 1.2,
+  kinds: [
+    { kind: 'cherry', value: 100, weight: 25 },
+    { kind: 'strawberry', value: 300, weight: 22 },
+    { kind: 'apple', value: 500, weight: 20 },
+    { kind: 'orange', value: 700, weight: 15 },
+    { kind: 'banana', value: 1000, weight: 10 },
+    { kind: 'pineapple', value: 1500, weight: 5 },
+    { kind: 'watermelon', value: 2000, weight: 3 },
+  ],
 } as const
 
 /**

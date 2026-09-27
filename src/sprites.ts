@@ -1,5 +1,5 @@
-import { BLACK_HOLE, BOSS, COW, EGG, FOX, FREEZE, GRAMOPHONE, HEART, HEN, LASER, OBSTACLE, POWER, UFO } from './config'
-import type { ToyKind } from './types'
+import { BLACK_HOLE, BOSS, COW, EGG, FOX, FREEZE, FRUIT, GRAMOPHONE, HEART, HEN, LASER, OBSTACLE, POWER, UFO } from './config'
+import type { FruitKind, ToyKind } from './types'
 
 /**
  * Every sprite in the game is drawn here with canvas paths — there are no image
@@ -61,6 +61,7 @@ export interface SpriteSet {
   cow: HTMLCanvasElement
   fox: HTMLCanvasElement
   feather: HTMLCanvasElement
+  fruit: Record<FruitKind, HTMLCanvasElement>
   toys: Record<ToyKind, HTMLCanvasElement>
 }
 
@@ -91,6 +92,15 @@ export function buildSprites(): SpriteSet {
     cow: sprite(COW.width, COW.height, drawCow),
     fox: sprite(FOX.width, FOX.height, drawFox),
     feather: sprite(FEATHER_SIZE.width, FEATHER_SIZE.height, drawFeather),
+    fruit: {
+      cherry: sprite(FRUIT.size, FRUIT.size, drawCherry),
+      strawberry: sprite(FRUIT.size, FRUIT.size, drawStrawberry),
+      apple: sprite(FRUIT.size, FRUIT.size, drawApple),
+      orange: sprite(FRUIT.size, FRUIT.size, drawOrange),
+      banana: sprite(FRUIT.size, FRUIT.size, drawBanana),
+      pineapple: sprite(FRUIT.size, FRUIT.size, drawPineapple),
+      watermelon: sprite(FRUIT.size, FRUIT.size, drawWatermelon),
+    },
     toys: {
       horse: sprite(OBSTACLE.width, OBSTACLE.height, drawHorse),
       duck: sprite(OBSTACLE.width, OBSTACLE.height, drawDuck),
@@ -1308,3 +1318,181 @@ function drawFeather(ctx: CanvasRenderingContext2D, w: number, h: number): void 
   ctx.lineTo(w * 0.5, h)
   ctx.stroke()
 }
+
+// --- fruit -----------------------------------------------------------------
+
+/** A leaf on a short stalk, shared by most of the fruit. */
+function leaf(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, angle: number): void {
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(angle)
+  ctx.fillStyle = '#5fae45'
+  ctx.beginPath()
+  ctx.ellipse(size * 0.5, 0, size * 0.5, size * 0.22, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+}
+
+function shine(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ellipse(ctx, x, y, r, r * 0.6, 'rgba(255,255,255,0.55)')
+}
+
+/** Two cherries on a forked stalk. */
+function drawCherry(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  ctx.strokeStyle = '#6b8f2e'
+  ctx.lineWidth = w * 0.05
+  ctx.beginPath()
+  ctx.moveTo(w * 0.55, h * 0.1)
+  ctx.quadraticCurveTo(w * 0.35, h * 0.3, w * 0.3, h * 0.62)
+  ctx.moveTo(w * 0.55, h * 0.1)
+  ctx.quadraticCurveTo(w * 0.68, h * 0.35, w * 0.72, h * 0.58)
+  ctx.stroke()
+  leaf(ctx, w * 0.55, h * 0.12, w * 0.3, -0.3)
+  ellipse(ctx, w * 0.3, h * 0.72, w * 0.19, w * 0.19, '#d62b3f')
+  ellipse(ctx, w * 0.72, h * 0.7, w * 0.19, w * 0.19, '#c01f33')
+  shine(ctx, w * 0.24, h * 0.66, w * 0.05)
+  shine(ctx, w * 0.66, h * 0.64, w * 0.05)
+}
+
+/** A strawberry: a rounded heart with seeds and a green crown. */
+function drawStrawberry(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  ctx.fillStyle = '#e8364f'
+  ctx.beginPath()
+  ctx.moveTo(w * 0.5, h * 0.95)
+  ctx.bezierCurveTo(w * 0.08, h * 0.6, w * 0.1, h * 0.22, w * 0.5, h * 0.28)
+  ctx.bezierCurveTo(w * 0.9, h * 0.22, w * 0.92, h * 0.6, w * 0.5, h * 0.95)
+  ctx.fill()
+  ctx.fillStyle = '#ffe28a'
+  for (const [x, y] of [
+    [0.35, 0.45],
+    [0.5, 0.42],
+    [0.65, 0.45],
+    [0.4, 0.6],
+    [0.6, 0.6],
+    [0.5, 0.74],
+  ] as const) {
+    ctx.beginPath()
+    ctx.ellipse(w * x, h * y, w * 0.025, h * 0.035, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  for (const angle of [-0.9, -0.3, 0.3, 0.9]) leaf(ctx, w * 0.5, h * 0.27, w * 0.24, -Math.PI / 2 + angle + Math.PI / 2 * Math.sign(angle))
+  ellipse(ctx, w * 0.5, h * 0.24, w * 0.08, h * 0.05, '#4f9a39')
+}
+
+/** A red apple with a stalk and a leaf. */
+function drawApple(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  ellipse(ctx, w * 0.38, h * 0.58, w * 0.25, h * 0.3, '#d93a3a')
+  ellipse(ctx, w * 0.62, h * 0.58, w * 0.25, h * 0.3, '#d93a3a')
+  ctx.strokeStyle = '#6b4a2b'
+  ctx.lineWidth = w * 0.05
+  ctx.beginPath()
+  ctx.moveTo(w * 0.5, h * 0.32)
+  ctx.lineTo(w * 0.53, h * 0.12)
+  ctx.stroke()
+  leaf(ctx, w * 0.53, h * 0.18, w * 0.26, -0.5)
+  shine(ctx, w * 0.33, h * 0.46, w * 0.07)
+}
+
+/** An orange: a dimpled sphere with a leaf. */
+function drawOrange(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  ellipse(ctx, w * 0.5, h * 0.58, w * 0.34, w * 0.34, '#f59a23')
+  ctx.fillStyle = 'rgba(200,110,20,0.5)'
+  for (const [x, y] of [
+    [0.4, 0.55],
+    [0.6, 0.65],
+    [0.52, 0.75],
+    [0.66, 0.5],
+  ] as const) {
+    ctx.beginPath()
+    ctx.arc(w * x, h * y, w * 0.018, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  leaf(ctx, w * 0.5, h * 0.25, w * 0.26, -0.4)
+  shine(ctx, w * 0.38, h * 0.45, w * 0.07)
+}
+
+/** A banana: a yellow crescent with brown tips. */
+function drawBanana(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  ctx.fillStyle = '#ffd84a'
+  ctx.beginPath()
+  ctx.moveTo(w * 0.12, h * 0.3)
+  ctx.quadraticCurveTo(w * 0.25, h * 0.9, w * 0.88, h * 0.72)
+  ctx.quadraticCurveTo(w * 0.4, h * 0.7, w * 0.22, h * 0.25)
+  ctx.closePath()
+  ctx.fill()
+  ctx.strokeStyle = '#d9a92a'
+  ctx.lineWidth = w * 0.03
+  ctx.beginPath()
+  ctx.moveTo(w * 0.2, h * 0.36)
+  ctx.quadraticCurveTo(w * 0.32, h * 0.72, w * 0.8, h * 0.72)
+  ctx.stroke()
+  ellipse(ctx, w * 0.16, h * 0.26, w * 0.05, h * 0.04, '#6b4a2b')
+  ellipse(ctx, w * 0.88, h * 0.72, w * 0.04, h * 0.035, '#6b4a2b')
+}
+
+/** A pineapple: a criss-crossed body under a spiky crown. */
+function drawPineapple(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  ctx.fillStyle = '#4f9a39'
+  for (const angle of [-0.5, -0.2, 0, 0.2, 0.5]) {
+    ctx.save()
+    ctx.translate(w * 0.5, h * 0.36)
+    ctx.rotate(angle)
+    ctx.beginPath()
+    ctx.moveTo(-w * 0.05, 0)
+    ctx.lineTo(0, -h * 0.3)
+    ctx.lineTo(w * 0.05, 0)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
+  ellipse(ctx, w * 0.5, h * 0.64, w * 0.26, h * 0.3, '#e8a93a')
+  ctx.save()
+  ctx.beginPath()
+  ctx.ellipse(w * 0.5, h * 0.64, w * 0.26, h * 0.3, 0, 0, Math.PI * 2)
+  ctx.clip()
+  ctx.strokeStyle = '#a8701e'
+  ctx.lineWidth = w * 0.025
+  ctx.beginPath()
+  for (let i = -3; i <= 3; i++) {
+    ctx.moveTo(w * (0.5 + i * 0.1) - w * 0.3, h * 0.3)
+    ctx.lineTo(w * (0.5 + i * 0.1) + w * 0.3, h * 1.0)
+    ctx.moveTo(w * (0.5 + i * 0.1) + w * 0.3, h * 0.3)
+    ctx.lineTo(w * (0.5 + i * 0.1) - w * 0.3, h * 1.0)
+  }
+  ctx.stroke()
+  ctx.restore()
+}
+
+/** A watermelon slice: green rind, red flesh, black seeds. */
+function drawWatermelon(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const cx = w * 0.5
+  const cy = h * 0.32
+  ctx.fillStyle = '#3f8f3a'
+  ctx.beginPath()
+  ctx.arc(cx, cy, w * 0.46, 0, Math.PI)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = '#d7f0b0'
+  ctx.beginPath()
+  ctx.arc(cx, cy, w * 0.4, 0, Math.PI)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = '#ef4a5a'
+  ctx.beginPath()
+  ctx.arc(cx, cy, w * 0.36, 0, Math.PI)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = DARK
+  for (const [x, y] of [
+    [0.3, 0.42],
+    [0.42, 0.52],
+    [0.58, 0.52],
+    [0.7, 0.42],
+    [0.5, 0.4],
+  ] as const) {
+    ctx.beginPath()
+    ctx.ellipse(w * x, h * y, w * 0.025, h * 0.04, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+

@@ -62,7 +62,6 @@ export interface Telemetry {
   consent(): boolean | null
   setConsent(allowed: boolean): void
   gameStarted(): void
-  powerGained(kind: string): void
   gameOver(score: number, round: number, muted: boolean): void
 }
 
@@ -132,9 +131,6 @@ export function createTelemetry(options: TelemetryOptions): Telemetry {
     gameStarted() {
       gameStartedAt = now()
       send('game_started')
-    },
-    powerGained(kind) {
-      send('power_gained', { power: kind })
     },
     gameOver(score, round, muted) {
       const seconds = gameStartedAt === null ? null : Math.round((now() - gameStartedAt) / 1000)
