@@ -425,6 +425,11 @@ Added on 28 September 2026, from one request of two items:
 
 Added on 28 September 2026, the screen-time limit:
 
+- **Switched off on 28 September 2026**, just after it went live, while
+  Vasilis thinks it over: `BEDTIME.enabled` is `false`. `main.ts` checks it
+  in the two places it reads the clock, so there is no countdown and no
+  bedtime. The code, the scene, the lullaby and their tests all stay. Set it
+  to `true` to bring it back.
 - **The clock is the frame clock**, milliseconds since the page loaded
   (`requestAnimationFrame`'s timestamp), so a reload is the only reset, as
   asked. Title screen, game-over panel and a backgrounded tab all count; it

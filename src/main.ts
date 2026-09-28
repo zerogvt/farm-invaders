@@ -1,6 +1,6 @@
 import { createSound } from './audio'
 import { bedtimeCountdown, isBedtime } from './bedtime'
-import { ABDUCTION, PARLEY_SHIP, SHIELD, VICTORY, VIEW } from './config'
+import { ABDUCTION, BEDTIME, PARLEY_SHIP, SHIELD, VICTORY, VIEW } from './config'
 import { bossHitPoints, createGame, isBossRound, restart, toggleCheat, update, type GameEvents } from './game'
 import { createInput } from './input'
 import { render, renderBedtime } from './render'
@@ -159,7 +159,7 @@ function main(): void {
     // the screen-time limit. Once it is up, the game is over for good,
     // wherever it had got to, and bedtime plays until the page is closed.
     const elapsed = now / 1000
-    if (screen !== 'bedtime' && isBedtime(elapsed)) {
+    if (BEDTIME.enabled && screen !== 'bedtime' && isBedtime(elapsed)) {
       screen = 'bedtime'
       bedtimeFrom = now
       notice = null
@@ -218,7 +218,7 @@ function main(): void {
       ui.setBanner(notice?.text ?? bannerFor(game))
     }
 
-    render(ctx, game, sprites, now / 1000, bedtimeCountdown(elapsed))
+    render(ctx, game, sprites, now / 1000, BEDTIME.enabled ? bedtimeCountdown(elapsed) : null)
     requestAnimationFrame(frame)
   }
   requestAnimationFrame(frame)

@@ -576,6 +576,9 @@ export const PALETTE = {
  * lullaby, over and over.
  */
 export const BEDTIME = {
+  /** Off for now, while Vasilis decides whether it goes live. With it off
+   *  there is no countdown and no bedtime; everything else stays in place. */
+  enabled: false,
   /** Seconds from page load to bedtime. */
   limit: 30 * 60,
   /** Seconds left when the HUD starts counting down. */

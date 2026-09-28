@@ -26,7 +26,8 @@ cow, and we said moo moo moo. Moo moo moo we said, and they run moooway!"* After
 one time through, the end panel comes up, and the dance and the song carry on
 behind it until **Play again** is pressed.
 
-**Thirty minutes a visit.** Most players are children, so the game keeps screen
+**Thirty minutes a visit** (built, but switched off for now with
+`BEDTIME.enabled` in `src/config.ts`). Most players are children, so the game keeps screen
 time short. The clock starts when the page loads, and only reloading the page
 resets it. For the last ten minutes the HUD shows **"Bedtime in 9:59"** under the
 round, turning red for the final minute. When it runs out, the game stops
