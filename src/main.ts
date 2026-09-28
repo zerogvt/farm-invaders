@@ -1,8 +1,9 @@
 import { createSound } from './audio'
+import { bedtimeCountdown, isBedtime } from './bedtime'
 import { ABDUCTION, PARLEY_SHIP, SHIELD, VICTORY, VIEW } from './config'
 import { bossHitPoints, createGame, isBossRound, restart, toggleCheat, update, type GameEvents } from './game'
 import { createInput } from './input'
-import { render } from './render'
+import { render, renderBedtime } from './render'
 import { buildSprites } from './sprites'
 import type { GameState, Power } from './types'
 import { createSoundToggle, loadMuted } from './soundToggle'
@@ -10,7 +11,7 @@ import { telemetry } from './telemetry'
 import { createUi } from './ui'
 import './style.css'
 
-type Screen = 'title' | 'running' | 'over'
+type Screen = 'title' | 'running' | 'over' | 'bedtime'
 
 /** How long a picked-up upgrade is announced over the playfield. */
 const NOTICE_DURATION = 2.2
@@ -144,12 +145,33 @@ function main(): void {
   // Which line of the opening exchange has been voiced, so each is said once.
   let voicedLine: number | null = null
 
+  // When the screen-time limit ran out, on the frame clock.
+  let bedtimeFrom = 0
+
   let previous = performance.now()
   const frame = (now: number): void => {
     // A backgrounded tab resumes with an enormous gap. Clamping it means the
     // game pauses while hidden instead of teleporting every laser past the hen.
     const dt = Math.min(0.05, (now - previous) / 1000)
     previous = now
+
+    // The frame clock counts from the page loading, so only a reload resets
+    // the screen-time limit. Once it is up, the game is over for good,
+    // wherever it had got to, and bedtime plays until the page is closed.
+    const elapsed = now / 1000
+    if (screen !== 'bedtime' && isBedtime(elapsed)) {
+      screen = 'bedtime'
+      bedtimeFrom = now
+      notice = null
+      ui.hidePanel()
+      ui.setBanner(null)
+      sound.setTrack('lullaby')
+    }
+    if (screen === 'bedtime') {
+      renderBedtime(ctx, sprites, (now - bedtimeFrom) / 1000, now / 1000)
+      requestAnimationFrame(frame)
+      return
+    }
 
     // The ending keeps dancing behind the end panel, so it keeps being run.
     if (screen === 'over' && game.phase.kind === 'victory') {
@@ -196,7 +218,7 @@ function main(): void {
       ui.setBanner(notice?.text ?? bannerFor(game))
     }
 
-    render(ctx, game, sprites, now / 1000)
+    render(ctx, game, sprites, now / 1000, bedtimeCountdown(elapsed))
     requestAnimationFrame(frame)
   }
   requestAnimationFrame(frame)

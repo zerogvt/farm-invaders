@@ -1,5 +1,6 @@
 import {
   ABDUCTION,
+  BEDTIME,
   BLACK_HOLE,
   BOSS,
   BURP,
@@ -26,14 +27,17 @@ import {
   VIEW,
   WIPER,
 } from './config'
+import { clockText } from './bedtime'
 import { bubbleCentre, featherSway, HEN_TOP, laserWidth, parleyDuration, shotSize } from './game'
+import { LULLABY_BAR, LULLABY_EIGHTH, lullabyLineAt } from './lullaby'
 import { lineAt, SONG_EIGHTH } from './song'
 import { FEATHER_SIZE, rowVariant, type SpriteSet } from './sprites'
 import type { GameState } from './types'
 
 /** Draws one frame. `time` is seconds since the game started and drives every
- *  idle animation, so nothing here mutates game state. */
-export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number): void {
+ *  idle animation, so nothing here mutates game state. `bedtime` is the
+ *  seconds of play left, once the HUD is counting them down. */
+export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, time: number, bedtime: number | null = null): void {
   frame = state
   drawSpace(ctx, state, time)
   drawCow(ctx, state, sprites, time)
@@ -64,7 +68,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState, sprites:
   drawParley(ctx, state, sprites, time)
   drawAbduction(ctx, state, sprites, time)
   drawVictory(ctx, state, sprites, time)
-  drawHud(ctx, state, sprites)
+  drawHud(ctx, state, sprites, bedtime)
 }
 
 /** Ground level: what the hen and the cow both stand on. */
@@ -1386,7 +1390,7 @@ function drawClock(ctx: CanvasRenderingContext2D, name: string, power: { remaini
   ctx.textAlign = 'left'
 }
 
-function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet): void {
+function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: SpriteSet, bedtime: number | null): void {
   ctx.fillStyle = PALETTE.hud
   ctx.font = '600 18px system-ui, sans-serif'
   ctx.textBaseline = 'top'
@@ -1401,13 +1405,22 @@ function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
   ctx.fillStyle = PALETTE.hudDim
   hudText(ctx, `ROUND ${state.round}`, VIEW.width / 2, 14)
 
+  // The screen-time clock goes directly under the round, the last minute in
+  // red.
+  ctx.font = '600 13px system-ui, sans-serif'
+  let underRound = 38
+  if (bedtime !== null) {
+    ctx.fillStyle = bedtime <= BEDTIME.warnFrom ? '#ff7a96' : PALETTE.hudDim
+    hudText(ctx, `BEDTIME IN ${clockText(bedtime)}`, VIEW.width / 2, underRound)
+    underRound += 18
+  }
+
   // While a mothership is up, how many eggs it still owes is the only number
-  // that matters, so it goes directly under the round.
+  // that matters, so it goes directly under the round (or the clock).
   const boss = state.boss
   if (boss !== null && boss.state.kind === 'flying') {
-    ctx.font = '600 13px system-ui, sans-serif'
     ctx.fillStyle = PALETTE.accent
-    hudText(ctx, `MOTHERSHIP — ${Math.ceil(boss.hitPoints)} EGGS LEFT`, VIEW.width / 2, 38)
+    hudText(ctx, `MOTHERSHIP — ${Math.ceil(boss.hitPoints)} EGGS LEFT`, VIEW.width / 2, underRound)
   }
 
   // Lives as little hens, minus the one currently on the field.
@@ -1636,3 +1649,98 @@ function drawDancer(ctx: CanvasRenderingContext2D, sprites: SpriteSet, dancer: D
   ctx.restore()
 }
 
+
+/**
+ * Bedtime, once the screen-time limit is up. It replaces the game for good: the
+ * night from the ending, and the hen, the cow and a saucer's pilot on the hill,
+ * rocking in time to the lullaby. Each says their line, then sings it, in a
+ * bubble as the audio gets to it. `age` is seconds since bedtime began and
+ * keeps the bubbles in step with the audio, which starts the loop at the same
+ * moment.
+ */
+export function renderBedtime(ctx: CanvasRenderingContext2D, sprites: SpriteSet, age: number, time: number): void {
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height)
+  ctx.save()
+  ctx.globalAlpha = clamp01(age / 1.2)
+  drawNight(ctx, time)
+
+  ctx.font = '700 26px system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillStyle = PALETTE.accent
+  ctx.fillText('Time for bed', VIEW.width / 2, 92)
+  ctx.font = '600 15px system-ui, sans-serif'
+  ctx.fillStyle = PALETTE.hudDim
+  ctx.fillText('See you tomorrow', VIEW.width / 2, 118)
+  ctx.textAlign = 'left'
+
+  const line = lullabyLineAt(Math.floor(age / LULLABY_EIGHTH))
+  const sleepers = sleeperPositions()
+  const bar = LULLABY_BAR * LULLABY_EIGHTH
+  sleepers.forEach((sleeper, i) => {
+    // A slow rock, one sway a bar, each a little behind the one before.
+    const rock = Math.sin((time / bar) * Math.PI * 2 - i * 0.9) * 0.06
+    ctx.save()
+    ctx.translate(sleeper.x, sleeper.feet)
+    ctx.rotate(rock)
+    if (sleeper.who === 'alien') {
+      // Parked on the hill, hovering a hand's breadth off it.
+      const hover = Math.sin(time * 1.6) * 3 - 8
+      glow(ctx, 0, -2, sleeper.width * 0.6, 'rgba(168,240,255,0.25)', 'rgba(168,240,255,0)')
+      ctx.drawImage(sprites.ufo[0]!, -sleeper.width / 2, -sleeper.height + hover, sleeper.width, sleeper.height)
+    } else {
+      ctx.drawImage(sleeper.who === 'hen' ? sprites.hen : sprites.cow, -sleeper.width / 2, -sleeper.height, sleeper.width, sleeper.height)
+    }
+    ctx.restore()
+    if (line?.singer !== sleeper.who && line?.singer !== 'all') drawZzz(ctx, sleeper.x + sleeper.width * 0.3, sleeper.top, time + i * 1.1)
+  })
+  ctx.restore()
+
+  if (line === undefined) return
+  const speaker = sleepers.find((sleeper) => sleeper.who === line.singer)
+  if (speaker === undefined) drawBubble(ctx, VIEW.width / 2, Math.min(...sleepers.map((s) => s.top)) - 16, line.text, 220)
+  else drawBubble(ctx, speaker.x, speaker.top - 4, line.text, 180)
+}
+
+interface Sleeper {
+  who: 'hen' | 'cow' | 'alien'
+  x: number
+  feet: number
+  top: number
+  width: number
+  height: number
+}
+
+/** Where the three stand on the hill, drawn half as big again as in play so
+ *  they read as the scene rather than as specks on it. */
+function sleeperPositions(): Sleeper[] {
+  const scale = 1.6
+  const cast = [
+    { who: 'hen', x: 250, width: HEN.width, height: HEN.height },
+    { who: 'cow', x: 400, width: COW.width, height: COW.height },
+    { who: 'alien', x: 560, width: UFO.width, height: UFO.height },
+  ] as const
+  return cast.map((member) => {
+    // The hill in drawNight is a quadratic from GROUND - 30 at either edge,
+    // bowed up to GROUND - 50 in the middle.
+    const t = member.x / VIEW.width
+    const feet = GROUND - 30 - 80 * t * (1 - t) + 6
+    const height = member.height * scale
+    return { who: member.who, x: member.x, feet, top: feet - height, width: member.width * scale, height }
+  })
+}
+
+/** Three sleepy Zs drifting up and away from a head. */
+function drawZzz(ctx: CanvasRenderingContext2D, x: number, y: number, time: number): void {
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (let i = 0; i < 3; i++) {
+    const rise = (time * 0.35 + i / 3) % 1
+    ctx.fillStyle = `rgba(200,215,255,${0.75 * (1 - rise)})`
+    ctx.font = `700 ${12 + rise * 12}px system-ui, sans-serif`
+    ctx.fillText('z', x + rise * 26 + Math.sin(rise * 6) * 4, y - rise * 50)
+  }
+  ctx.restore()
+}

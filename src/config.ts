@@ -567,3 +567,19 @@ export const PALETTE = {
   hudDim: '#8d9ab8',
   accent: '#ffd76a',
 } as const
+
+/**
+ * Screen time. Players are mostly children, so a page load gets thirty minutes
+ * of play. The clock starts when the page loads and only a reload resets it.
+ * The HUD counts down through the last ten minutes. At zero the game stops
+ * for good and the hen, the cow and a saucer's pilot say goodnight and sing a
+ * lullaby, over and over.
+ */
+export const BEDTIME = {
+  /** Seconds from page load to bedtime. */
+  limit: 30 * 60,
+  /** Seconds left when the HUD starts counting down. */
+  countdownFrom: 10 * 60,
+  /** Seconds left when the countdown turns red. */
+  warnFrom: 60,
+} as const

@@ -36,8 +36,11 @@ import {
   VIEW,
   WINGMAN,
   WIPER,
+  BEDTIME,
 } from '../src/config.ts'
 import { lineAt, SONG_LINES } from '../src/song.ts'
+import { LINE_LENGTH, LULLABY_BAR, LULLABY_LENGTH, LULLABY_LINES, LULLABY_ROOTS, lullabyLineAt } from '../src/lullaby.ts'
+import { bedtimeCountdown, clockText, isBedtime } from '../src/bedtime.ts'
 import type { GameState, Laser, Power, Shot, Ufo } from '../src/types.ts'
 import { createTelemetry, telemetry } from '../src/telemetry.ts'
 
@@ -1653,10 +1656,11 @@ check('and each line is up while it is sung', SONG_LINES.every((line) => lineAt(
 
 // --- fruit ----------------------------------------------------------------------
 
-// 59. Some of the saucers that are hit drop a fruit.
+// 59. Some of the saucers that are hit drop a fruit. 120 games, about 1400
+// hits: with 40, about one run in a thousand fell outside the bounds by chance.
 let hitsCounted = 0
 let fruitsDropped = 0
-for (let i = 0; i < 40; i++) {
+for (let i = 0; i < 120; i++) {
   const g = newGame()
   intoPlay(g)
   g.desertions = []
@@ -1877,6 +1881,29 @@ gtfire.shots = []
 gtfire.shotCooldown = 0
 update(gtfire, DT, { left: false, right: false, fire: true, targetX: 400 })
 check('a finger down throws an egg', gtfire.shots.length === 1)
+
+// --- bedtime ---------------------------------------------------------------------
+
+// 65. Thirty minutes a page load, the last ten counted down, then bedtime.
+check('the limit is thirty minutes, counted down over the last ten', BEDTIME.limit === 1800 && BEDTIME.countdownFrom === 600)
+check('no countdown for the first twenty minutes', bedtimeCountdown(0) === null && bedtimeCountdown(1199.9) === null)
+check('then it counts down', bedtimeCountdown(1200) === 600 && bedtimeCountdown(1799.5) === 1 && bedtimeCountdown(1800) === 0)
+check('and never below zero', bedtimeCountdown(5000) === 0)
+check('it is bedtime at thirty minutes and not before', !isBedtime(1799.9) && isBedtime(1800) && isBedtime(99999))
+check('the clock reads minutes and seconds', clockText(600) === '10:00' && clockText(545) === '9:05' && clockText(0.2) === '0:01' && clockText(0) === '0:00')
+
+const saidBy = (singer: string, spoken: boolean) => LULLABY_LINES.some((line) => line.singer === singer && line.spoken === spoken)
+check('the hen, the cow and the alien each say their piece', ['hen', 'cow', 'alien'].every((who) => saidBy(who, true)))
+check('then each sings a line of the lullaby, and they end together', ['hen', 'cow', 'alien', 'all'].every((who) => saidBy(who, false)))
+check('they say goodnight before they sing it', LULLABY_LINES.filter((line) => line.spoken).every((line) => LULLABY_LINES.filter((l) => !l.spoken).every((l) => l.start > line.start)))
+check('every lullaby line fits its two bars', LULLABY_LINES.every((line) => line.notes.reduce((sum, note) => sum + note.eighths, 0) <= LINE_LENGTH))
+check('no two lullaby lines overlap, and all fit the loop', LULLABY_LINES.every((line, i) => {
+  const next = LULLABY_LINES[i + 1]
+  return line.start + LINE_LENGTH <= (next?.start ?? LULLABY_LENGTH)
+}))
+check('there is a chord (or a rest) for every bar', LULLABY_ROOTS.length === LULLABY_LENGTH / LULLABY_BAR)
+check('each lullaby line is up while it is said or sung', LULLABY_LINES.every((line) => lullabyLineAt(line.start) === line && lullabyLineAt(line.start + LINE_LENGTH - 1) === line))
+check('and it loops', lullabyLineAt(LULLABY_LENGTH) === LULLABY_LINES[0] && lullabyLineAt(LULLABY_LENGTH * 7 + 42) === lullabyLineAt(42))
 
 // --- what the sound hangs off -------------------------------------------------
 
