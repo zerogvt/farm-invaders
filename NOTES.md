@@ -423,3 +423,35 @@ Added on 28 September 2026, from one request of two items:
   4s to 5.2s with it, so the hole isn't cut short. The time a hole blocks the
   round goes up by the same 30%.
 
+Added on 28 September 2026, the screen-time limit:
+
+- **The clock is the frame clock**, milliseconds since the page loaded
+  (`requestAnimationFrame`'s timestamp), so a reload is the only reset, as
+  asked. Title screen, game-over panel and a backgrounded tab all count; it
+  measures time on the page, not time spent playing, since that's what screen
+  time is. My call. On some platforms that clock stops while the computer
+  sleeps, so a closed laptop does not use the time up.
+- **The numbers** are `BEDTIME` in `src/config.ts`: 30 minutes, the countdown
+  from 10, red for the last minute (the red was my addition).
+- **The countdown is on the canvas**, under `ROUND n`, not a DOM element. The
+  canvas is drawn behind the title and game-over panels as well, so it shows
+  on every screen. On a mothership round the eggs-left line moves down a row
+  to make room.
+- **Bedtime is a screen in `main.ts`** (`screen = 'bedtime'`), not a game phase.
+  The simulation stops being updated and the panels and banner are hidden, so
+  there is nothing left to press. Only the sound button and the stats pill
+  remain. A high score being entered at that moment is lost. No telemetry
+  event is sent for it.
+- **The alien is a saucer's pilot**, sitting in a parked saucer on the hill,
+  since there is no standalone alien sprite (the alien doll is a toy). The
+  scene is `renderBedtime` in `src/render.ts`, on the ending's `drawNight`.
+- **The lines and the lullaby are mine**, in `src/lullaby.ts`: three spoken
+  goodnights, then four sung lines, about 38s a loop. The spoken ones go
+  through the singing voice as quick falling notes with nothing under them.
+  Like the other voices, none of it has been heard by anyone yet. The scene
+  was checked in headless Chromium, in stills of each part of the loop.
+- **No test hook to shorten the limit** in the page (a URL parameter would be
+  a way round it for anyone who found it). To see bedtime locally, lower
+  `BEDTIME.limit` in `config.ts` for the session.
+- The fruit drop-rate check was flaky (about one run in a thousand fell
+  outside its bounds by chance); it now samples 120 games instead of 40.

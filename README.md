@@ -26,6 +26,18 @@ cow, and we said moo moo moo. Moo moo moo we said, and they run moooway!"* After
 one time through, the end panel comes up, and the dance and the song carry on
 behind it until **Play again** is pressed.
 
+**Thirty minutes a visit.** Most players are children, so the game keeps screen
+time short. The clock starts when the page loads, and only reloading the page
+resets it. For the last ten minutes the HUD shows **"Bedtime in 9:59"** under the
+round, turning red for the final minute. When it runs out, the game stops
+wherever it had got to and it is night: the hen, the cow and a saucer's pilot
+stand on a hill under the moon and tell the player that's enough for today
+(*"You've played enough for today!"*, *"It's time to go to sleep now."*, *"Even
+we aliens go to bed. Goodnight!"*). Then they sing a short lullaby, a line each
+and the last together: *"Hush now, close your eyes, the moon is in the sky, the
+saucers all fly home, goodnight, sleep tight."* It loops for as long as the page
+stays open. There is no button to leave it.
+
 **Nobody is ever killed.** No saucer blows up or vanishes: whatever hits one —
 an egg, a loose toy, the gramophone's last chord, a bump with another saucer —
 leaves it damaged, and it limps off the nearer side, smoking or yolky, and
@@ -165,7 +177,8 @@ burps when told to, and moos at length on its way into the mothership. The hen
 clucks when she loses a life, a fox arrives with a crackle of Geiger clicks and a
 yip, the black hole opens with a long swirling fall, and the mothership's wiper
 squeaks. In the opening exchange the mothership speaks in a ring-modulated
-growl and the hen answers in chicken. Browsers
+growl and the hen answers in chicken. At bedtime the goodnights are said
+unaccompanied and the lullaby, in a slow 3/4, is sung over a music box. Browsers
 keep audio off until the page has been clicked or typed at, so the sound starts
 with the Start button.
 
@@ -295,7 +308,9 @@ No game engine and no image files. Plain TypeScript, Canvas 2D, and Vite.
 | `src/input.ts` | Keyboard state. |
 | `src/audio.ts` | Every sound effect and the theme, synthesised with Web Audio. The only file that knows what anything sounds like. |
 | `src/soundToggle.ts` | The speaker button and the `M` key, and remembering the choice. |
-| `src/main.ts` | Canvas setup, the frame loop, and which event makes which sound. |
+| `src/song.ts`, `src/lullaby.ts` | The ending's song and the bedtime lullaby: notes and lyrics, shared by the audio and the speech bubbles. |
+| `src/bedtime.ts` | The screen-time arithmetic: how long is left, and when to count it down. |
+| `src/main.ts` | Canvas setup, the frame loop, the screen-time limit, and which event makes which sound. |
 
 ### Design decisions worth knowing
 

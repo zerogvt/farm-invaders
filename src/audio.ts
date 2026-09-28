@@ -1,3 +1,4 @@
+import { LULLABY_BAR, LULLABY_EIGHTH, LULLABY_LENGTH, LULLABY_LINES, LULLABY_ROOTS, type LullabyLine } from './lullaby'
 import { SONG_EIGHTH, SONG_LENGTH, SONG_LINES, SONG_ROOTS, type SongLine, type SongNote, type Vowel } from './song'
 
 /**
@@ -42,8 +43,8 @@ export type Sfx =
   | 'fruit'
 
 /** The background tunes: the theme, the mothership's march on boss rounds, the
- *  campfire song at the end, and nothing at all. */
-export type Track = 'theme' | 'boss' | 'song' | 'silence'
+ *  campfire song at the end, the bedtime lullaby, and nothing at all. */
+export type Track = 'theme' | 'boss' | 'song' | 'lullaby' | 'silence'
 
 export interface Sound {
   /** Starts the audio context. Must be called from a user gesture. */
@@ -676,12 +677,29 @@ const VOWELS: Record<Vowel, { f1: [number, number]; f2: [number, number] }> = {
   oo: { f1: [340, 320], f2: [850, 800] },
 }
 
+type Singer = 'hen' | 'cow' | 'fox' | 'alien'
+
 /** Who sings in what register and on what source: the hen high and buzzy, the
- *  cow low and reedy, the fox in between. "All" is the three at once. */
-const VOICES: Record<'hen' | 'cow' | 'fox', { shift: number; source: OscillatorType; peak: number }> = {
+ *  cow low and reedy, the fox in between. The saucer pilot sings the fox's
+ *  register on a hollower square wave. "All" is everyone in the scene at once. */
+const VOICES: Record<Singer, { shift: number; source: OscillatorType; peak: number }> = {
   hen: { shift: 12, source: 'square', peak: 0.35 },
   cow: { shift: -12, source: 'sawtooth', peak: 0.6 },
   fox: { shift: 0, source: 'sawtooth', peak: 0.45 },
+  alien: { shift: 0, source: 'square', peak: 0.4 },
+}
+
+/** One note of a song, on each of `singers` in their own register. A spoken
+ *  note falls two semitones as it goes, the way a voice does in speech. */
+function sing(v: Voice, note: SongNote, singers: readonly Singer[], eighth: number, spoken = false): void {
+  const length = note.eighths * eighth * 0.92
+  const vowel = VOWELS[note.vowel]
+  for (const singer of singers) {
+    const voice = VOICES[singer]
+    const pitch = hz(note.midi + voice.shift)
+    const to = spoken ? hz(note.midi + voice.shift - 2) : pitch
+    speak(v, [{ at: 0, length, from: pitch, to, f1: vowel.f1, f2: vowel.f2 }], voice.source, voice.peak / singers.length)
+  }
 }
 
 /** Which note, if any, starts on each eighth of the song, and who sings it. */
@@ -701,14 +719,7 @@ export function playSongStep(ctx: AudioContext, out: AudioNode, noise: AudioBuff
   const sung = SONG_NOTES.get(step)
   if (sung !== undefined) {
     const { note, line } = sung
-    const length = note.eighths * eighth * 0.92
-    const vowel = VOWELS[note.vowel]
-    const singers = line.singer === 'all' ? (['hen', 'cow', 'fox'] as const) : [line.singer]
-    for (const singer of singers) {
-      const voice = VOICES[singer]
-      const pitch = hz(note.midi + voice.shift)
-      speak(v, [{ at: 0, length, from: pitch, to: pitch, f1: vowel.f1, f2: vowel.f2 }], voice.source, voice.peak / singers.length)
-    }
+    sing(v, note, line.singer === 'all' ? ['hen', 'cow', 'fox'] : [line.singer], eighth)
     // A plucked doubling, so the tune is clear under the vowels.
     tone(v, 'triangle', hz(note.midi), hz(note.midi), 0.18, envelope(v, 0.16, 0.22, 0.003))
   }
@@ -724,6 +735,44 @@ export function playSongStep(ctx: AudioContext, out: AudioNode, noise: AudioBuff
     }
   }
   hiss(v, 'highpass', 7000, 6000, 0.03, envelope(v, beat % 2 === 0 ? 0.06 : 0.1, 0.04), 0.7)
+}
+
+/** Which note, if any, starts on each eighth of the lullaby loop, and whose. */
+const LULLABY_NOTES = new Map<number, { note: SongNote; line: LullabyLine }>()
+for (const line of LULLABY_LINES) {
+  let at = line.start
+  for (const note of line.notes) {
+    LULLABY_NOTES.set(at, { note, line })
+    at += note.eighths
+  }
+}
+
+/** The music box's pattern over each bar of the lullaby: up the chord and back,
+ *  one note an eighth, in semitones above the root. */
+const MUSIC_BOX = [12, 19, 24, 28, 24, 19]
+
+/** One eighth of the bedtime lullaby. Exported to be rendered offline and
+ *  measured. */
+export function playLullabyStep(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, step: number, t: number, eighth: number): void {
+  const v: Voice = { ctx, out, noise, t }
+
+  const said = LULLABY_NOTES.get(step)
+  if (said !== undefined) {
+    const { note, line } = said
+    sing(v, note, line.singer === 'all' ? ['hen', 'cow', 'alien'] : [line.singer], eighth, line.spoken)
+    // The tune doubled on a soft bell, for the sung lines only.
+    if (!line.spoken) tone(v, 'sine', hz(note.midi + 12), hz(note.midi + 12), 0.5, envelope(v, 0.1, 0.6, 0.004))
+  }
+
+  // Under the singing, a music box and a low hum on each downbeat. Nothing
+  // under the spoken lines.
+  const root = LULLABY_ROOTS[Math.floor(step / LULLABY_BAR)] ?? null
+  if (root === null) return
+  const beat = step % LULLABY_BAR
+  const interval = MUSIC_BOX[beat] ?? 12
+  tone(v, 'sine', hz(root + interval + 12), hz(root + interval + 12), eighth * 2, envelope(v, 0.09, eighth * 2.2, 0.003))
+  tone(v, 'triangle', hz(root + interval), hz(root + interval), eighth * 1.5, envelope(v, 0.05, eighth * 1.6, 0.003))
+  if (beat === 0) tone(v, 'sine', hz(root - 12), hz(root - 12), eighth * 5, envelope(v, 0.35, eighth * 5.5, 0.05))
 }
 
 /**
@@ -750,17 +799,24 @@ function startMusic(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, music
       next = ctx.currentTime + 0.05
       return
     }
-    const eighth = music.track === 'boss' ? 60 / BOSS_TEMPO / 2 : music.track === 'song' ? SONG_EIGHTH : 60 / TEMPO / 2
-    const length = music.track === 'boss' ? BOSS_LEAD.length : music.track === 'song' ? SONG_LENGTH : LEAD.length
+    const { eighth, length, play } = TUNES[music.track]
     while (next < ctx.currentTime + lookahead) {
-      if (music.track === 'boss') playBossStep(ctx, out, noise, step, next, eighth)
-      else if (music.track === 'song') playSongStep(ctx, out, noise, step, next, eighth)
-      else playStep(ctx, out, noise, step, next, eighth)
+      play(ctx, out, noise, step, next, eighth)
       step = (step + 1) % length
       next += eighth
     }
   }
   window.setInterval(tick, 25)
+}
+
+type StepPlayer = (ctx: AudioContext, out: AudioNode, noise: AudioBuffer, step: number, t: number, eighth: number) => void
+
+/** Each tune's pace, length in eighths, and what plays on an eighth. */
+const TUNES: Record<Exclude<Track, 'silence'>, { eighth: number; length: number; play: StepPlayer }> = {
+  theme: { eighth: 60 / TEMPO / 2, length: LEAD.length, play: playStep },
+  boss: { eighth: 60 / BOSS_TEMPO / 2, length: BOSS_LEAD.length, play: playBossStep },
+  song: { eighth: SONG_EIGHTH, length: SONG_LENGTH, play: playSongStep },
+  lullaby: { eighth: LULLABY_EIGHTH, length: LULLABY_LENGTH, play: playLullabyStep },
 }
 
 export function playStep(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, step: number, t: number, eighth: number): void {
