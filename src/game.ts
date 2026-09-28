@@ -925,7 +925,7 @@ function tickVortex(state: GameState, dt: number, events: GameEvents): void {
   }
 
   state.debris = state.debris.filter((piece) => {
-    piece.rotation += piece.spin * dt
+    piece.rotation += (piece.spin * dt) / BLACK_HOLE.slowdown
     return !spiral(piece, dt)
   })
 
@@ -961,8 +961,9 @@ function closeVortex(state: GameState, events: GameEvents): void {
 
 /** One step of a fall into the black hole. True once it has reached the middle. */
 function spiral(swirl: { angle: number; radius: number }, dt: number): boolean {
-  swirl.radius -= (BLACK_HOLE.pull + swirl.radius * BLACK_HOLE.pullPerPixel) * dt
-  swirl.angle += (BLACK_HOLE.baseSpin + BLACK_HOLE.spinNear / (swirl.radius + 30)) * dt
+  const slowed = dt / BLACK_HOLE.slowdown
+  swirl.radius -= (BLACK_HOLE.pull + swirl.radius * BLACK_HOLE.pullPerPixel) * slowed
+  swirl.angle += (BLACK_HOLE.baseSpin + BLACK_HOLE.spinNear / (swirl.radius + 30)) * slowed
   return swirl.radius <= BLACK_HOLE.swallowRadius
 }
 

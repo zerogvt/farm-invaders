@@ -282,19 +282,24 @@ export const BLACK_HOLE = {
   minY: 150,
   maxY: 260,
   /** How fast a caught hull falls inwards: a fixed pull plus a share of its
-   *  distance, per second. From across the screen that is about three
-   *  seconds; from close by, about one and a half. */
+   *  distance, per second, before `slowdown`. From across the screen that is
+   *  about three seconds; from close by, about one and a half. */
   pull: 30,
   pullPerPixel: 0.9,
   /** Spin, in radians per second: a base rate plus more the closer it gets, so
    *  the last turns are the fastest. */
   baseSpin: 1.6,
   spinNear: 240,
+  /** How many times longer the whole swirl takes than `pull` and the spins
+   *  say: the fall, the spin and the HUD being drawn in all run at 1/1.3 of
+   *  that pace, so it takes 30% longer and follows the same path. */
+  slowdown: 1.3,
   /** Swallowed once it is this close to the centre. */
   swallowRadius: 10,
-  /** Seconds it takes to open, and the longest it stays open. */
+  /** Seconds it takes to open, and the longest it stays open: 4s, stretched
+   *  with the swirl so a slower fall is not cut short. */
   openDuration: 0.35,
-  maxDuration: 4,
+  maxDuration: 4 * 1.3,
   /** Seconds the HUD's letters and the swallowed stars take to come back once
    *  the hole has closed. */
   hudReturn: 0.8,

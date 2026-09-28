@@ -83,7 +83,7 @@ function pulled(state: GameState, x: number, y: number): number {
   const vortex = state.vortex
   if (vortex === null) return 0
   const delay = Math.hypot(x - vortex.x, y - vortex.y) / 900
-  return clamp01((vortex.age - 0.2 - delay) / 1)
+  return clamp01((vortex.age / BLACK_HOLE.slowdown - 0.2 - delay) / 1)
 }
 
 /** Where something that far pulled is drawn: spiralling in towards the hole,
@@ -167,8 +167,7 @@ function drawCow(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
   // The black hole takes everything but the hen and the cow — and the cow only
   // just. It is lifted off its feet towards the hole and hangs on by its back
   // hooves to the edge of the screen, stretched and shaking, until it closes.
-  const closing = clamp01((BLACK_HOLE.maxDuration - vortex.age) / BLACK_HOLE.openDuration)
-  const grip = ease(clamp01(vortex.age / 0.6)) * closing
+  const grip = holdingOn(vortex)
   const restX = COW.x
   const restY = GROUND - COW.height / 2
   const edgeX = 4
@@ -183,6 +182,13 @@ function drawCow(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
   ctx.drawImage(sprites.cow, 0, -COW.height / 2, COW.width, COW.height)
   ctx.restore()
   if (grip > 0.6) drawBubble(ctx, rearX + 60, rearY - 30, 'Moo! Hold on!', 120)
+}
+
+/** How hard the hen and the cow are having to hang on against the black hole:
+ *  0 before it has them, rising to 1 as it opens, and back to 0 as it closes. */
+function holdingOn(vortex: NonNullable<GameState['vortex']>): number {
+  const closing = clamp01((BLACK_HOLE.maxDuration - vortex.age) / BLACK_HOLE.openDuration)
+  return ease(clamp01(vortex.age / 0.6)) * closing
 }
 
 /** The cow's own lines: a burp when it lets one go, and a moo for every round
@@ -614,7 +620,7 @@ function drawVortex(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sp
     ctx.beginPath()
     for (let i = 0; i <= 40; i++) {
       const t = i / 40
-      const angle = -time * 3 + arm * (Math.PI / 2) + t * Math.PI * 2.2
+      const angle = (-time * 3) / BLACK_HOLE.slowdown + arm * (Math.PI / 2) + t * Math.PI * 2.2
       const reach = r * (1 + t * 3)
       const x = Math.cos(angle) * reach
       const y = Math.sin(angle) * reach
@@ -627,7 +633,7 @@ function drawVortex(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sp
 
   ctx.save()
   ctx.translate(vortex.x, vortex.y)
-  ctx.rotate(time * 4)
+  ctx.rotate((time * 4) / BLACK_HOLE.slowdown)
   ctx.drawImage(sprites.blackHole, -r, -r, r * 2, r * 2)
   ctx.restore()
 }
@@ -1087,7 +1093,27 @@ function drawHen(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprit
   const immune = state.hen.invulnerable > 0
   if (immune && Math.floor(time * 12) % 2 === 0) return
   const sprite = immune ? sprites.henHurt : sprites.hen
-  ctx.drawImage(sprite, state.hen.x, HEN_TOP, HEN.width, HEN.height)
+  const vortex = state.vortex
+  if (vortex === null) {
+    ctx.drawImage(sprite, state.hen.x, HEN_TOP, HEN.width, HEN.height)
+    return
+  }
+  // The black hole spares her, but only just: like the cow, she hangs on. Her
+  // feet stay planted while the rest of her is dragged towards the hole,
+  // stretched out and shaking, until it closes. Drawing only: she still moves
+  // and throws as normal.
+  const grip = holdingOn(vortex)
+  const feetX = state.hen.x + HEN.width / 2
+  const feetY = HEN_TOP + HEN.height
+  const lean = Math.max(-1.2, Math.min(1.2, Math.atan2(vortex.x - feetX, feetY - vortex.y) * 1.6))
+  ctx.save()
+  ctx.translate(feetX, feetY)
+  ctx.rotate(lean * grip + Math.sin(time * 40) * 0.05 * grip)
+  ctx.scale(1 - 0.1 * grip, 1 + 0.25 * grip)
+  ctx.drawImage(sprite, -HEN.width / 2, -HEN.height, HEN.width, HEN.height)
+  ctx.restore()
+  // Out of the way of the cow's own cry for help, which is by the left wall.
+  if (grip > 0.6 && feetX > 230) drawBubble(ctx, feetX, HEN_TOP - 18, 'Bawk! Hold on!', 120)
 }
 
 function drawDizzyHen(ctx: CanvasRenderingContext2D, centreX: number, sprites: SpriteSet, time: number): void {

@@ -408,3 +408,18 @@ Added on 27 September 2026, phone support:
   because the virtual clock barely advances the loop. It is covered by the
   simulation tests. **Not yet tried on a real phone.**
 
+Added on 28 September 2026, from one request of two items:
+
+- **The hen hangs on in the black hole**, like the cow. Her feet stay where
+  they are, and she leans towards the hole (her angle to it, amplified 1.6x
+  and capped at about 70°), stretched and shaking. It's drawing only, like the
+  cow's: she still moves and throws. Both use one grip curve (`holdingOn` in
+  `src/render.ts`). She says "Bawk! Hold on!" unless she is within 230px of
+  the left wall, where the cow's bubble is. The wording, and leaving out the
+  wingman and a dizzy hen, were my calls.
+- **The swirl takes 30% longer**: `BLACK_HOLE.slowdown` (1.3) divides the fall,
+  the orbit, the debris tumble, the hole's spinning arms and the HUD letters
+  being drawn in. The path is the same, only slower. `maxDuration` went from
+  4s to 5.2s with it, so the hole isn't cut short. The time a hole blocks the
+  round goes up by the same 30%.
+
