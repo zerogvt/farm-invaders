@@ -1822,6 +1822,30 @@ update(gdes, DT, firing)
 step(gdes, BLACK_HOLE.maxDuration, idle)
 check('a deserter goes into the black hole unscored', gdes.ufos.length === 0 && gdes.score === 0, `score ${gdes.score}`)
 
+// The swirl takes 30% longer than the pull and spin alone would say.
+function fallTime(slowdown: number): number {
+  let radius = 300
+  let t = 0
+  while (radius > BLACK_HOLE.swallowRadius) {
+    radius -= ((BLACK_HOLE.pull + radius * BLACK_HOLE.pullPerPixel) * DT) / slowdown
+    t += DT
+  }
+  return t
+}
+const gslow = newGame()
+intoPlay(gslow)
+gslow.ufos = [gslow.ufos[0]!]
+gslow.vortex = { x: 400, y: 200, age: 1 }
+gslow.ufos[0]!.state = { kind: 'swirling', angle: 0, radius: 300, scores: true }
+let fell = 0
+while (gslow.ufos.length > 0 && fell < 10) {
+  update(gslow, DT, idle)
+  fell += DT
+}
+const unslowed = fallTime(1)
+check('a hull takes 30% longer to fall into the black hole', Math.abs(fell / unslowed - 1.3) < 0.03, `${fell.toFixed(2)}s against ${unslowed.toFixed(2)}s`)
+check('and the hole stays open 30% longer to let it', Math.abs(BLACK_HOLE.maxDuration - 5.2) < 1e-9)
+
 // --- touch -------------------------------------------------------------------------
 
 // 64. A finger on the playfield steers the hen towards it.
