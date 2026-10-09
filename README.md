@@ -6,7 +6,7 @@
 Space Invaders, except the invaders are flying saucers with enormous windscreens
 and the defender is a chicken in a space helmet, armed with eggs.
 
-[Play here](https://zerogvt.github.io/farm-invaders/) 
+[Play here](https://farm-invaders.pages.dev) 
 
 ## Longer Explanation [AI recap]
 
