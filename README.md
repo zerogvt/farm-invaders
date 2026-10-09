@@ -152,7 +152,7 @@ one black hole can be open at a time.
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173/farm-invaders/
+npm run dev      # http://localhost:5173/
 npm test         # headless simulation checks
 npm run build    # typecheck + production build into dist/
 ```
@@ -196,16 +196,15 @@ All of it lives in `src/telemetry.ts`.
    the kill switch. Set it to `false` and push, and the next deploy neither
    loads the Dynatrace agent nor sends anything. The build then drops the
    telemetry code entirely.
-2. The repository variable `DT_RUM_SRC` (**Settings → Secrets and variables →
-   Actions → Variables**) holds the agent's script URL from the Dynatrace web
-   application's setup page. The deploy workflow passes it to the build as
-   `VITE_DT_RUM_SRC`. Unset, the build reports nothing, which is also how local
-   builds, tests and forks behave. Deleting the variable and re-running the
-   deploy is a second way to turn telemetry off, without a commit.
+2. The Cloudflare Pages project's build variable `VITE_DT_RUM_SRC` (**Settings →
+   Variables and Secrets**) holds the agent's script URL from the Dynatrace web
+   application's setup page. Unset, the build reports nothing, which is also how
+   local builds, tests and forks behave. Deleting the variable and retrying the
+   latest deployment is a second way to turn telemetry off, without a commit.
 
 The URL is not a secret. Anyone can read it from the page, and all it lets
 anyone do is send data *into* this one application. Restrict the application's
-beacon origins to `https://zerogvt.github.io` and cap its sessions in Dynatrace.
+beacon origins to `https://farm-invaders.pages.dev` and cap its sessions in Dynatrace.
 Never put a Dynatrace API token in this code.
 
 **The player has to agree first.** The Dynatrace application runs in
@@ -232,7 +231,7 @@ since `sendEvent` doesn't exist on RUM Classic. Everything below is under
   query filtering on them returns nothing. Adding a key only affects events
   sent afterwards. Add a key here whenever `telemetry.ts` starts sending a new
   field.
-- **Beacon origins:** accept beacons only from `https://zerogvt.github.io`.
+- **Beacon origins:** accept beacons only from `https://farm-invaders.pages.dev`.
 - **Cost control:** cap or sample sessions.
 
 **Checking it works.** Open the live game with DevTools on the Network tab. The
@@ -288,8 +287,7 @@ lag behind the events.
    five calls).
 3. Delete the telemetry block in `tests/simulation.test.ts` (its import, and
    the block that starts `// Telemetry.`).
-4. Delete the `env:` block under `npm run build` in
-   `.github/workflows/deploy.yml`, and the `DT_RUM_SRC` variable.
+4. Delete the `VITE_DT_RUM_SRC` variable from the Cloudflare Pages project.
 5. Delete this section.
 
 `npm run build` and `npm test` will then report anything left over.
@@ -489,13 +487,17 @@ canopies can share one hull. Swapping to emoji or PNGs means rewriting
   seven. Replacing them is
   confined to the toy painters in `src/sprites.ts` and the `ToyKind` union.
 
-## Deploying to GitHub Pages
+## Deploying to Cloudflare Pages
 
-`.github/workflows/deploy.yml` builds and publishes `dist/` on every push to
-`main`. It assumes **this directory is the repository root**. Two things must be
-true before it works:
+The game is a Cloudflare Pages project connected to this repository, served at
+<https://farm-invaders.pages.dev/>. Every push to `main` builds and deploys it;
+pushes to other branches get preview deployments. The project's build settings:
 
-1. The repository is named `farm-invaders`, so that `base` in `vite.config.ts`
-   matches the URL GitHub Pages serves from (`/farm-invaders/`). If the
-   repository has a different name, change `base` to match it.
-2. Pages is enabled with **Settings → Pages → Source → GitHub Actions**.
+- **Build command:** `npm test && npm run build`, so a failing check stops
+  the deploy.
+- **Build output directory:** `dist`
+- **Variable:** `VITE_DT_RUM_SRC` (see the telemetry section above).
+
+`base` in `vite.config.ts` is `/` because Pages serves from the domain root. If
+the game ever moves under a sub-path, change `base` to match it, or the page
+comes up blank.
