@@ -1,5 +1,8 @@
+import { PLAY_LIMIT_CHOICES } from './config'
+import { limitLabel, type Allowance } from './playtime'
 import { loadScores, qualifies, saveScore } from './scores'
 import type { HighScore } from './types'
+import { loadVersion, versionRows } from './version'
 
 /**
  * Screens that sit on top of the canvas: the title card, the round banner and
@@ -12,12 +15,16 @@ export interface Ui {
   showTitle(onStart: () => void): void
   /** `won` after the final round, when the panel says so instead. */
   showGameOver(score: number, round: number, onRestart: () => void, won?: boolean): void
+  /** The pause card: carry on, or look at the About card meanwhile. */
+  showPaused(onResume: () => void): void
+  /** The parents' card: the daily play allowance. `onClose` once it is saved. */
+  showParents(onClose: () => void): void
   hidePanel(): void
   /** The transient "ROUND 3" / "NURSERY CLEARED" text over the playfield. */
   setBanner(text: string | null): void
 }
 
-export function createUi(root: HTMLElement): Ui {
+export function createUi(root: HTMLElement, allowance: Allowance): Ui {
   const panel = document.createElement('div')
   panel.className = 'panel'
   panel.hidden = true
@@ -42,8 +49,95 @@ export function createUi(root: HTMLElement): Ui {
       panel.hidden = true
       onStart()
     })
-    panel.append(start)
+    const limit = allowance.limit()
+    const parents = button(
+      limit === null ? '⚙ Parents: no daily limit' : `⚙ Parents: ${limitLabel(limit)} a day, ${Math.ceil(allowance.left() / 60)} min left today`,
+      () => showParents(() => showTitle(onStart)),
+    )
+    parents.className = 'link'
+    const about = button('ℹ About', () => void showAbout(() => showTitle(onStart)))
+    about.className = 'link'
+    panel.append(start, parents, about)
     start.focus()
+  }
+
+  function showParents(onClose: () => void): void {
+    panel.hidden = false
+    panel.innerHTML = ''
+    let limit = allowance.limit()
+
+    const slider = document.createElement('input')
+    slider.type = 'range'
+    slider.min = '0'
+    slider.max = String(PLAY_LIMIT_CHOICES.length - 1)
+    slider.step = '1'
+    slider.value = String(PLAY_LIMIT_CHOICES.indexOf(limit))
+    slider.setAttribute('aria-label', 'Play time a day')
+    const label = document.createElement('output')
+    label.textContent = limitLabel(limit)
+    slider.addEventListener('input', () => {
+      limit = PLAY_LIMIT_CHOICES[Number(slider.value)] ?? null
+      label.textContent = limitLabel(limit)
+    })
+    const row = document.createElement('div')
+    row.className = 'play-limit'
+    row.append(slider, label)
+
+    const done = button('Done', () => {
+      allowance.setLimit(limit)
+      onClose()
+    })
+    panel.append(
+      heading('For parents ⚙'),
+      paragraph('How much play time a day?'),
+      row,
+      paragraph(
+        `Played today: ${Math.floor(allowance.played() / 60)} min. Only time spent playing counts. ` +
+          'When it runs out the game says goodnight until tomorrow.',
+      ),
+      done,
+    )
+    slider.focus()
+  }
+
+  /** Who made the game, and which build is running, to check that the last commit is the one deployed. */
+  async function showAbout(onBack: () => void): Promise<void> {
+    panel.hidden = false
+    panel.innerHTML = ''
+    const marker = document.createElement('div')
+    panel.append(heading('Farm Invaders'), marker)
+    const info = await loadVersion()
+    // Backed out (or the game started) while version.json was loading.
+    if (!marker.isConnected) return
+
+    const logo = document.createElement('img')
+    logo.className = 'maker'
+    logo.src = '/ufo_zerogvt.svg'
+    logo.alt = 'zerogvt'
+    logo.width = 1600
+    logo.height = 1000
+
+    const line = document.createElement('p')
+    line.className = 'maker-line'
+    const name = document.createElement('b')
+    name.textContent = 'zerogvt'
+    const copyright = document.createElement('small')
+    copyright.textContent = `© ${new Date().getFullYear()} zerogvt`
+    line.append('A game by ', name, ' 🛸', document.createElement('br'), copyright)
+
+    const details = document.createElement('dl')
+    details.className = 'about'
+    for (const [label, value] of versionRows(info)) {
+      const term = document.createElement('dt')
+      term.textContent = label
+      const description = document.createElement('dd')
+      description.textContent = value
+      details.append(term, description)
+    }
+
+    const back = button('Back', onBack)
+    marker.replaceWith(logo, line, details, back)
+    back.focus()
   }
 
   function showGameOver(score: number, round: number, onRestart: () => void, won = false): void {
@@ -101,6 +195,18 @@ export function createUi(root: HTMLElement): Ui {
     field.focus()
   }
 
+  function showPaused(onResume: () => void): void {
+    panel.hidden = false
+    panel.innerHTML = ''
+    const touch = window.matchMedia('(pointer: coarse)').matches
+    panel.append(heading('Paused'), paragraph(touch ? 'The saucers will wait.' : 'The saucers will wait. P or Esc to carry on.'))
+    const resume = button('Resume', onResume)
+    const about = button('ℹ About', () => void showAbout(() => showPaused(onResume)))
+    about.className = 'link'
+    panel.append(resume, about)
+    resume.focus()
+  }
+
   function hidePanel(): void {
     panel.hidden = true
   }
@@ -115,7 +221,7 @@ export function createUi(root: HTMLElement): Ui {
     banner.hidden = false
   }
 
-  return { showTitle, showGameOver, hidePanel, setBanner }
+  return { showTitle, showGameOver, showPaused, showParents, hidePanel, setBanner }
 }
 
 function heading(text: string): HTMLElement {
@@ -144,8 +250,8 @@ function controlsList(): HTMLElement {
   // On a touch screen the keys mean nothing, so say what a finger does instead.
   const touch = window.matchMedia('(pointer: coarse)').matches
   const lines = touch
-    ? ['Put a finger on the field: the hen follows it', 'She throws while your finger is down', 'The speaker, bottom right, for sound']
-    : ['← → or A / D to move', 'Space to throw an egg', 'M or the speaker, bottom right, for sound']
+    ? ['Put a finger on the field: the hen follows it', 'She throws while your finger is down', 'Bottom right: pause, and the speaker for sound']
+    : ['← → or A / D to move', 'Space to throw an egg', 'P or Esc to pause', 'M or the speaker, bottom right, for sound']
   for (const line of lines) {
     const item = document.createElement('li')
     item.textContent = line

@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev": "node scripts/version.mjs && vite",
+    "build": "node scripts/version.mjs && tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "esbuild tests/simulation.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/simulation.test.mjs && node node_modules/.cache/simulation.test.mjs"

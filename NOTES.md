@@ -424,27 +424,27 @@ Added on 28 September 2026, from one request of two items:
 
 Added on 28 September 2026, the screen-time limit:
 
-- **Switched off on 28 September 2026**, just after it went live, while
-  Vasilis thinks it over: `BEDTIME.enabled` is `false`. `main.ts` checks it
-  in the two places it reads the clock, so there is no countdown and no
-  bedtime. The code, the scene, the lullaby and their tests all stay. Set it
-  to `true` to bring it back.
-- **The clock is the frame clock**, milliseconds since the page loaded
-  (`requestAnimationFrame`'s timestamp), so a reload is the only reset, as
-  asked. Title screen, game-over panel and a backgrounded tab all count; it
-  measures time on the page, not time spent playing, since that's what screen
-  time is. My call. On some platforms that clock stops while the computer
-  sleeps, so a closed laptop does not use the time up.
-- **The numbers** are `BEDTIME` in `src/config.ts`: 30 minutes, the countdown
-  from 10, red for the last minute (the red was my addition).
+- **Replaced on 9 October 2026** by a parents' daily allowance, ported from
+  the syllable game (see the next point). The 30-minutes-a-page-load clock
+  and `BEDTIME.enabled` are gone; the scene, the lullaby and the countdown stay.
+- **The allowance** (`src/playtime.ts`, `PLAY_LIMIT_CHOICES` in `config.ts`):
+  10 min to 2 hours in 5 min steps, or no limit (the default, so nothing
+  changes for anyone until a parent sets it). It counts only `screen ===
+  'running'` frames, per local calendar day, in `localStorage`
+  (`farminvaders.playLimit.v1`, `farminvaders.played.v1`), saved every 5s,
+  on pause, at bedtime and on `pagehide`. Like syllable there is no parental
+  gate: a child who finds ⚙ Parents can change it.
+- **The numbers** left in `BEDTIME` in `src/config.ts`: the countdown from 10
+  minutes, red for the last minute.
 - **The countdown is on the canvas**, under `ROUND n`, not a DOM element. The
   canvas is drawn behind the title and game-over panels as well, so it shows
   on every screen. On a mothership round the eggs-left line moves down a row
   to make room.
 - **Bedtime is a screen in `main.ts`** (`screen = 'bedtime'`), not a game phase.
-  The simulation stops being updated and the panels and banner are hidden, so
-  there is nothing left to press. Only the sound button and the stats pill
-  remain. A high score being entered at that moment is lost. No telemetry
+  The simulation stops being updated and the panels and banner are hidden.
+  The sound button, the stats pill and the parents' cog (bottom left) remain.
+  The cog opens the parents' card; if the new limit leaves time today it goes
+  back to the title card, otherwise bedtime carries on. A high score being entered at that moment is lost. No telemetry
   event is sent for it.
 - **The alien is a saucer's pilot**, sitting in a parked saucer on the hill,
   since there is no standalone alien sprite (the alien doll is a toy). The
@@ -455,7 +455,8 @@ Added on 28 September 2026, the screen-time limit:
   Like the other voices, none of it has been heard by anyone yet. The scene
   was checked in headless Chromium, in stills of each part of the loop.
 - **No test hook to shorten the limit** in the page (a URL parameter would be
-  a way round it for anyone who found it). To see bedtime locally, lower
-  `BEDTIME.limit` in `config.ts` for the session.
+  a way round it for anyone who found it). To see bedtime locally, set a
+  10 min limit and put `{"day":"<today>","seconds":600}` in
+  `farminvaders.played.v1` from DevTools, then press Start.
 - The fruit drop-rate check was flaky (about one run in a thousand fell
   outside its bounds by chance); it now samples 120 games instead of 40.

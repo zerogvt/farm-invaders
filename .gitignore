@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# Written by scripts/version.mjs on every dev run and build.
+public/version.json
 *.local
 .DS_Store
 

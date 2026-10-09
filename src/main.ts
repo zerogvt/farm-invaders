@@ -1,8 +1,10 @@
 import { createSound } from './audio'
-import { bedtimeCountdown, isBedtime } from './bedtime'
-import { ABDUCTION, BEDTIME, PARLEY_SHIP, SHIELD, VICTORY, VIEW } from './config'
+import { bedtimeCountdown } from './bedtime'
+import { ABDUCTION, PARLEY_SHIP, SHIELD, VICTORY, VIEW } from './config'
 import { bossHitPoints, createGame, isBossRound, restart, toggleCheat, update, type GameEvents } from './game'
 import { createInput } from './input'
+import { createCornerButton, PARENTS_ICON, PAUSE_ICON } from './cornerButton'
+import { createAllowance } from './playtime'
 import { render, renderBedtime } from './render'
 import { buildSprites } from './sprites'
 import type { GameState, Power } from './types'
@@ -11,7 +13,7 @@ import { telemetry } from './telemetry'
 import { createUi } from './ui'
 import './style.css'
 
-type Screen = 'title' | 'running' | 'over' | 'bedtime'
+type Screen = 'title' | 'running' | 'paused' | 'over' | 'bedtime'
 
 /** How long a picked-up upgrade is announced over the playfield. */
 const NOTICE_DURATION = 2.2
@@ -30,7 +32,9 @@ function main(): void {
   telemetry.start(frameEl)
   const sprites = buildSprites()
   const input = createInput(window, canvas)
-  const ui = createUi(overlay)
+  const allowance = createAllowance()
+  window.addEventListener('pagehide', allowance.save)
+  const ui = createUi(overlay, allowance)
   const game = createGame()
 
   // Browsers keep audio off until the page has been clicked or typed at, so
@@ -44,6 +48,66 @@ function main(): void {
   createSoundToggle(frameEl, sound)
 
   let screen: Screen = 'title'
+
+  // Pausing stops the simulation and suspends the audio clock, so the tune and
+  // any sound still ringing carry on from where they were.
+  const pause = (): void => {
+    if (screen !== 'running') return
+    screen = 'paused'
+    allowance.save()
+    sound.setPaused(true)
+    ui.setBanner(null)
+    ui.showPaused(resume)
+  }
+  const resume = (): void => {
+    if (screen !== 'paused') return
+    screen = 'running'
+    sound.setPaused(false)
+    ui.hidePanel()
+  }
+  const pauseButton = createCornerButton(frameEl, 'pause-toggle', 'Pause (P)', PAUSE_ICON, pause)
+
+  // When the day's play time ran out, on the frame clock.
+  let bedtimeFrom = 0
+  // The game stops wherever it had got to, and bedtime plays until a parent
+  // changes the limit (the corner button) or the day changes and the page is
+  // reloaded.
+  const goToBed = (): void => {
+    screen = 'bedtime'
+    bedtimeFrom = performance.now()
+    notice = null
+    allowance.save()
+    ui.hidePanel()
+    ui.setBanner(null)
+    sound.setTrack('lullaby')
+  }
+  const startGame = (): void => {
+    if (allowance.left() === 0) {
+      goToBed()
+      return
+    }
+    restart(game)
+    sound.setTrack('theme')
+    telemetry.gameStarted()
+    screen = 'running'
+  }
+  const parentsButton = createCornerButton(frameEl, 'parents-toggle', 'For parents', PARENTS_ICON, () => {
+    ui.showParents(() => {
+      if (allowance.left() === 0) {
+        ui.hidePanel()
+        return
+      }
+      screen = 'title'
+      sound.setTrack('theme')
+      ui.showTitle(startGame)
+    })
+  })
+  window.addEventListener('keydown', (event) => {
+    if (event.repeat || (event.code !== 'KeyP' && event.code !== 'Escape')) return
+    if (event.target instanceof HTMLInputElement) return
+    if (screen === 'running') pause()
+    else if (screen === 'paused') resume()
+  })
   // A transient line over the playfield, used for upgrade pickups. The
   // simulation announces the pickup and the UI decides what to say about it,
   // which is why this timer lives here rather than in the game state.
@@ -106,22 +170,13 @@ function main(): void {
       ui.showGameOver(
         score,
         round,
-        () => {
-          restart(game)
-          sound.setTrack('theme')
-          telemetry.gameStarted()
-          screen = 'running'
-        },
+        startGame,
         won,
       )
     },
   }
 
-  ui.showTitle(() => {
-    restart(game)
-    telemetry.gameStarted()
-    screen = 'running'
-  })
+  ui.showTitle(startGame)
 
   // Physical keys, so it types the same on any keyboard layout.
   const word = ['KeyY', 'KeyO', 'KeyL', 'KeyK']
@@ -145,9 +200,6 @@ function main(): void {
   // Which line of the opening exchange has been voiced, so each is said once.
   let voicedLine: number | null = null
 
-  // When the screen-time limit ran out, on the frame clock.
-  let bedtimeFrom = 0
-
   let previous = performance.now()
   const frame = (now: number): void => {
     // A backgrounded tab resumes with an enormous gap. Clamping it means the
@@ -155,18 +207,13 @@ function main(): void {
     const dt = Math.min(0.05, (now - previous) / 1000)
     previous = now
 
-    // The frame clock counts from the page loading, so only a reload resets
-    // the screen-time limit. Once it is up, the game is over for good,
-    // wherever it had got to, and bedtime plays until the page is closed.
-    const elapsed = now / 1000
-    if (BEDTIME.enabled && screen !== 'bedtime' && isBedtime(elapsed)) {
-      screen = 'bedtime'
-      bedtimeFrom = now
-      notice = null
-      ui.hidePanel()
-      ui.setBanner(null)
-      sound.setTrack('lullaby')
+    // Only time spent playing counts against the parents' allowance.
+    if (screen === 'running') {
+      allowance.add(dt)
+      if (allowance.left() === 0) goToBed()
     }
+    pauseButton.setVisible(screen === 'running')
+    parentsButton.setVisible(screen === 'bedtime')
     if (screen === 'bedtime') {
       renderBedtime(ctx, sprites, (now - bedtimeFrom) / 1000, now / 1000)
       requestAnimationFrame(frame)
@@ -218,7 +265,7 @@ function main(): void {
       ui.setBanner(notice?.text ?? bannerFor(game))
     }
 
-    render(ctx, game, sprites, now / 1000, BEDTIME.enabled ? bedtimeCountdown(elapsed) : null)
+    render(ctx, game, sprites, now / 1000, bedtimeCountdown(allowance.left()))
     requestAnimationFrame(frame)
   }
   requestAnimationFrame(frame)

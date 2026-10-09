@@ -569,18 +569,24 @@ export const PALETTE = {
 } as const
 
 /**
- * Screen time. Players are mostly children, so a page load gets thirty minutes
- * of play. The clock starts when the page loads and only a reload resets it.
- * The HUD counts down through the last ten minutes. At zero the game stops
- * for good and the hen, the cow and a saucer's pilot say goodnight and sing a
- * lullaby, over and over.
+ * The parents' daily play allowance, in minutes, picked on a slider on the
+ * parents' card: 10 min to 2 hours in 5 min steps, and past the right end no
+ * limit at all (null), which is where it starts. Ported from the syllable game.
+ */
+export const PLAY_LIMIT_CHOICES: readonly (number | null)[] = [
+  ...Array.from({ length: (120 - 10) / 5 + 1 }, (_, i) => 10 + i * 5),
+  null,
+]
+
+/**
+ * Screen time. Players are mostly children, so a parent can set a daily
+ * allowance (PLAY_LIMIT_CHOICES). Only time spent playing counts. The HUD
+ * counts down through the last ten minutes. At zero the game stops and the
+ * hen, the cow and a saucer's pilot say goodnight and sing a lullaby, over and
+ * over, until the parents' button in the corner changes the limit or the day
+ * changes.
  */
 export const BEDTIME = {
-  /** Off for now, while Vasilis decides whether it goes live. With it off
-   *  there is no countdown and no bedtime; everything else stays in place. */
-  enabled: false,
-  /** Seconds from page load to bedtime. */
-  limit: 30 * 60,
   /** Seconds left when the HUD starts counting down. */
   countdownFrom: 10 * 60,
   /** Seconds left when the countdown turns red. */

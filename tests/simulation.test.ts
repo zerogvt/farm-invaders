@@ -12,6 +12,7 @@ import {
   HEN_TOP,
 } from '../src/game.ts'
 import { placeObstacles } from '../src/obstacles.ts'
+import { versionRows } from '../src/version.ts'
 import { toPlayfieldX, type InputState } from '../src/input.ts'
 import {
   ABDUCTION,
@@ -37,10 +38,12 @@ import {
   WINGMAN,
   WIPER,
   BEDTIME,
+  PLAY_LIMIT_CHOICES,
 } from '../src/config.ts'
 import { lineAt, SONG_LINES } from '../src/song.ts'
 import { LINE_LENGTH, LULLABY_BAR, LULLABY_LENGTH, LULLABY_LINES, LULLABY_ROOTS, lullabyLineAt } from '../src/lullaby.ts'
-import { bedtimeCountdown, clockText, isBedtime } from '../src/bedtime.ts'
+import { bedtimeCountdown, clockText } from '../src/bedtime.ts'
+import { dayKey, limitLabel, parseLimit, playedToday, playLeft } from '../src/playtime.ts'
 import type { GameState, Laser, Power, Shot, Ufo } from '../src/types.ts'
 import { createTelemetry, telemetry } from '../src/telemetry.ts'
 
@@ -1884,12 +1887,35 @@ check('a finger down throws an egg', gtfire.shots.length === 1)
 
 // --- bedtime ---------------------------------------------------------------------
 
-// 65. Thirty minutes a page load, the last ten counted down, then bedtime.
-check('the limit is thirty minutes, counted down over the last ten', BEDTIME.limit === 1800 && BEDTIME.countdownFrom === 600)
-check('no countdown for the first twenty minutes', bedtimeCountdown(0) === null && bedtimeCountdown(1199.9) === null)
-check('then it counts down', bedtimeCountdown(1200) === 600 && bedtimeCountdown(1799.5) === 1 && bedtimeCountdown(1800) === 0)
-check('and never below zero', bedtimeCountdown(5000) === 0)
-check('it is bedtime at thirty minutes and not before', !isBedtime(1799.9) && isBedtime(1800) && isBedtime(99999))
+// 65. The parents' daily allowance, the last ten minutes counted down, then bedtime.
+check(
+  'parents pick 10 min to 2 hours in 5 min steps, then no limit',
+  PLAY_LIMIT_CHOICES[0] === 10 && PLAY_LIMIT_CHOICES.at(-2) === 120 && PLAY_LIMIT_CHOICES.at(-1) === null && PLAY_LIMIT_CHOICES.length === 24,
+)
+check(
+  'today’s seconds are kept, and a new day starts afresh',
+  dayKey(new Date(2026, 9, 9, 23, 59)) === '2026-10-09' &&
+    playedToday({ day: '2026-10-09', seconds: 90 }, '2026-10-09').seconds === 90 &&
+    playedToday({ day: '2026-10-08', seconds: 90 }, '2026-10-09').seconds === 0 &&
+    playedToday(null, '2026-10-09').seconds === 0 &&
+    playedToday({ day: '2026-10-09', seconds: 'x' }, '2026-10-09').seconds === 0,
+)
+{
+  const played = { day: '2026-10-09', seconds: 9 * 60 }
+  check(
+    'what is left of the allowance, and none without a limit',
+    playLeft(played, 10) === 60 && playLeft(played, null) === Infinity && playLeft({ ...played, seconds: 11 * 60 }, 10) === 0,
+  )
+}
+check('only limits on the slider are read back', parseLimit('30') === 30 && parseLimit('33') === null && parseLimit(null) === null && parseLimit('') === null)
+check(
+  'limits are named in minutes and hours',
+  limitLabel(45) === '45 min' && limitLabel(60) === '1 hour' && limitLabel(90) === '1 hour 30 min' && limitLabel(120) === '2 hours' && limitLabel(null) === 'No limit ∞',
+)
+check('the countdown covers the last ten minutes', BEDTIME.countdownFrom === 600)
+check('no countdown with more left, or no limit', bedtimeCountdown(600.1) === null && bedtimeCountdown(Infinity) === null)
+check('then it counts down', bedtimeCountdown(600) === 600 && bedtimeCountdown(0.5) === 1 && bedtimeCountdown(0) === 0)
+check('and never below zero', bedtimeCountdown(-5) === 0)
 check('the clock reads minutes and seconds', clockText(600) === '10:00' && clockText(545) === '9:05' && clockText(0.2) === '0:01' && clockText(0) === '0:00')
 
 const saidBy = (singer: string, spoken: boolean) => LULLABY_LINES.some((line) => line.singer === singer && line.spoken === spoken)
@@ -2105,6 +2131,22 @@ check('the freeze is announced', heard.onFreeze === 1, `${heard.onFreeze}`)
     threw = true
   }
   check('telemetry never throws: broken agent, blocked storage or no agent at all', !threw)
+}
+
+// The About card's build rows.
+{
+  const rows = versionRows(
+    { version: '0.1.120', commit: 'abc1234', committed: '2026-10-09T12:00:00+03:00', dirty: false, built: '2026-10-09T09:30:00Z' },
+    'en-GB',
+  )
+  check(
+    'about card lists version, commit, commit date and build time',
+    rows.map(([label]) => label).join() === 'Version,Commit,Committed,Built' && rows[0]?.[1] === '0.1.120' && rows[1]?.[1] === 'abc1234',
+    JSON.stringify(rows),
+  )
+  check('about card flags a build with uncommitted changes', versionRows({ commit: 'abc1234', dirty: true })[0]?.[1] === 'abc1234 + local changes')
+  check('about card leaves out what the build could not tell', versionRows({ version: '0.1.5', built: 'not a date' }).length === 1)
+  check('about card without version.json says the version is unknown', JSON.stringify(versionRows(null)) === '[["Version","unknown"]]')
 }
 
 // Throwing rather than calling process.exit keeps this runnable without pulling

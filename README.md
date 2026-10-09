@@ -26,18 +26,22 @@ cow, and we said moo moo moo. Moo moo moo we said, and they run moooway!"* After
 one time through, the end panel comes up, and the dance and the song carry on
 behind it until **Play again** is pressed.
 
-**Thirty minutes a visit** (built, but switched off for now with
-`BEDTIME.enabled` in `src/config.ts`). Most players are children, so the game keeps screen
-time short. The clock starts when the page loads, and only reloading the page
-resets it. For the last ten minutes the HUD shows **"Bedtime in 9:59"** under the
-round, turning red for the final minute. When it runs out, the game stops
+**A daily play allowance, set by parents.** Most players are children, so
+**⚙ Parents** on the title card sets how much play a day: 10 minutes to 2 hours
+in 5-minute steps, or no limit, which is where it starts. Only time spent
+playing counts (not the title card, the pause card or the game-over panel), and
+it is kept per calendar day in the browser, so neither a new game nor a reload
+starts a new allowance. For the last ten minutes the HUD shows **"Bedtime in
+9:59"** under the round, turning red for the final minute. When it runs out, the game stops
 wherever it had got to and it is night: the hen, the cow and a saucer's pilot
 stand on a hill under the moon and tell the player that's enough for today
 (*"You've played enough for today!"*, *"It's time to go to sleep now."*, *"Even
 we aliens go to bed. Goodnight!"*). Then they sing a short lullaby, a line each
 and the last together: *"Hush now, close your eyes, the moon is in the sky, the
 saucers all fly home, goodnight, sleep tight."* It loops for as long as the page
-stays open. There is no button to leave it.
+stays open. The only way out is the small cog in the bottom left corner, the
+parents' card: raising the limit goes back to the title card. Starting a game
+with nothing left today goes straight to bedtime.
 
 **Nobody is ever killed.** No saucer blows up or vanishes: whatever hits one —
 an egg, a loose toy, the gramophone's last chord, a bump with another saucer —
@@ -159,7 +163,9 @@ npm run build    # typecheck + production build into dist/
 
 Controls: `←` `→` or `A`/`D` to move, `Space` to throw an egg, `M` to switch
 the sound off and on. The speaker button in the bottom right corner does the
-same, and the choice is remembered in the browser.
+same, and the choice is remembered in the browser. `P` or `Esc`, or the pause
+button beside the speaker, pauses the game and its music. The paused card has
+Resume and the About card.
 
 **On a phone**, hold it sideways and put a finger on the field: the hen heads for
 the spot under it and throws for as long as your finger is down. An upright
@@ -294,7 +300,8 @@ lag behind the events.
 
 ## How it is put together
 
-No game engine and no image files. Plain TypeScript, Canvas 2D, and Vite.
+No game engine, and the game itself uses no image files. The only images are the
+zerogvt logo on the About card and the site icons. Plain TypeScript, Canvas 2D, and Vite.
 
 | File | What lives there |
 | --- | --- |
@@ -302,14 +309,20 @@ No game engine and no image files. Plain TypeScript, Canvas 2D, and Vite.
 | `src/game.ts` | The whole simulation: marching, splattering, retreats, the mothership, upgrades, collisions, rounds. Touches no DOM, which is why it can be tested headlessly. |
 | `src/sprites.ts` | Every sprite, drawn with canvas paths at startup. The only file that knows what anything looks like. |
 | `src/render.ts` | Draws a frame from game state. Never mutates it. |
-| `src/ui.ts` | Title card, round banner and game-over panel, as real DOM so buttons and the initials field are keyboard-operable. |
+| `src/ui.ts` | Title card, pause card, parents' card, About card, round banner and game-over panel, as real DOM so buttons and the initials field are keyboard-operable. |
+| `src/version.ts` | The About card's build rows (version, commit, commit date, build time), read from `version.json`. |
+| `scripts/version.mjs` | Writes `public/version.json` before every `npm run dev` and `npm run build`. The version is package.json's major.minor plus the commit count, so every commit bumps it. |
+| `scripts/make-icons.py` | Draws the site icon, the hen's head in her helmet, into `public/favicon.svg`, `favicon-32.png` and `apple-touch-icon.png`. Standard library only; rerun it after changing its shapes. |
+| `public/` | Served as-is: the icons, `ufo_zerogvt.svg` (the maker's logo, shared with the syllable game) and the generated `version.json` (gitignored). |
 | `src/scores.ts` | High scores in `localStorage`. |
 | `src/input.ts` | Keyboard state. |
 | `src/audio.ts` | Every sound effect and the theme, synthesised with Web Audio. The only file that knows what anything sounds like. |
 | `src/soundToggle.ts` | The speaker button and the `M` key, and remembering the choice. |
+| `src/cornerButton.ts` | The small round buttons over the playfield's corners: pause during play, the parents' cog at bedtime. Pausing itself (and `P` / `Esc`) is in `src/main.ts`. |
 | `src/song.ts`, `src/lullaby.ts` | The ending's song and the bedtime lullaby: notes and lyrics, shared by the audio and the speech bubbles. |
-| `src/bedtime.ts` | The screen-time arithmetic: how long is left, and when to count it down. |
-| `src/main.ts` | Canvas setup, the frame loop, the screen-time limit, and which event makes which sound. |
+| `src/playtime.ts` | The parents' daily allowance: seconds played today, what is left, and keeping both in `localStorage`. |
+| `src/bedtime.ts` | When to count down to bedtime, and the HUD clock text. |
+| `src/main.ts` | Canvas setup, the frame loop, pausing, counting play time and going to bed, and which event makes which sound. |
 
 ### Design decisions worth knowing
 
@@ -497,6 +510,10 @@ pushes to other branches get preview deployments. The project's build settings:
   the deploy.
 - **Build output directory:** `dist`
 - **Variable:** `VITE_DT_RUM_SRC` (see the telemetry section above).
+
+To check which commit is live, open **ℹ About** on the title card: it shows the
+version, commit and build time from `version.json`, which Pages writes on every
+build.
 
 `base` in `vite.config.ts` is `/` because Pages serves from the domain root. If
 the game ever moves under a sub-path, change `base` to match it, or the page
