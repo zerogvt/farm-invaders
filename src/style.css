@@ -129,6 +129,27 @@ button.link {
   text-underline-offset: 3px;
 }
 
+/* Parents' card: a slider for the daily play time, and what it is set to. */
+.play-limit {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin: 0.6rem 0;
+}
+
+.play-limit input {
+  flex: 1;
+  height: 2rem;
+  accent-color: var(--accent);
+}
+
+.play-limit output {
+  min-width: 7.5em;
+  font-weight: 600;
+  color: var(--accent);
+  text-align: right;
+}
+
 /* About card: who made the game, and which build is running. */
 .maker {
   display: block;
@@ -253,6 +274,12 @@ button:focus-visible {
    during play. */
 .pause-toggle {
   right: 56px;
+}
+
+/* The parents' button, bottom left, only at bedtime. */
+.parents-toggle {
+  right: auto;
+  left: 10px;
 }
 
 .sound-toggle[hidden] {

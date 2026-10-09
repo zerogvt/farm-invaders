@@ -1,3 +1,5 @@
+import { PLAY_LIMIT_CHOICES } from './config'
+import { limitLabel, type Allowance } from './playtime'
 import { loadScores, qualifies, saveScore } from './scores'
 import type { HighScore } from './types'
 import { loadVersion, versionRows } from './version'
@@ -15,12 +17,14 @@ export interface Ui {
   showGameOver(score: number, round: number, onRestart: () => void, won?: boolean): void
   /** The pause card: carry on, or look at the About card meanwhile. */
   showPaused(onResume: () => void): void
+  /** The parents' card: the daily play allowance. `onClose` once it is saved. */
+  showParents(onClose: () => void): void
   hidePanel(): void
   /** The transient "ROUND 3" / "NURSERY CLEARED" text over the playfield. */
   setBanner(text: string | null): void
 }
 
-export function createUi(root: HTMLElement): Ui {
+export function createUi(root: HTMLElement, allowance: Allowance): Ui {
   const panel = document.createElement('div')
   panel.className = 'panel'
   panel.hidden = true
@@ -45,10 +49,55 @@ export function createUi(root: HTMLElement): Ui {
       panel.hidden = true
       onStart()
     })
+    const limit = allowance.limit()
+    const parents = button(
+      limit === null ? '⚙ Parents: no daily limit' : `⚙ Parents: ${limitLabel(limit)} a day, ${Math.ceil(allowance.left() / 60)} min left today`,
+      () => showParents(() => showTitle(onStart)),
+    )
+    parents.className = 'link'
     const about = button('ℹ About', () => void showAbout(() => showTitle(onStart)))
     about.className = 'link'
-    panel.append(start, about)
+    panel.append(start, parents, about)
     start.focus()
+  }
+
+  function showParents(onClose: () => void): void {
+    panel.hidden = false
+    panel.innerHTML = ''
+    let limit = allowance.limit()
+
+    const slider = document.createElement('input')
+    slider.type = 'range'
+    slider.min = '0'
+    slider.max = String(PLAY_LIMIT_CHOICES.length - 1)
+    slider.step = '1'
+    slider.value = String(PLAY_LIMIT_CHOICES.indexOf(limit))
+    slider.setAttribute('aria-label', 'Play time a day')
+    const label = document.createElement('output')
+    label.textContent = limitLabel(limit)
+    slider.addEventListener('input', () => {
+      limit = PLAY_LIMIT_CHOICES[Number(slider.value)] ?? null
+      label.textContent = limitLabel(limit)
+    })
+    const row = document.createElement('div')
+    row.className = 'play-limit'
+    row.append(slider, label)
+
+    const done = button('Done', () => {
+      allowance.setLimit(limit)
+      onClose()
+    })
+    panel.append(
+      heading('For parents ⚙'),
+      paragraph('How much play time a day?'),
+      row,
+      paragraph(
+        `Played today: ${Math.floor(allowance.played() / 60)} min. Only time spent playing counts. ` +
+          'When it runs out the game says goodnight until tomorrow.',
+      ),
+      done,
+    )
+    slider.focus()
   }
 
   /** Who made the game, and which build is running, to check that the last commit is the one deployed. */
@@ -172,7 +221,7 @@ export function createUi(root: HTMLElement): Ui {
     banner.hidden = false
   }
 
-  return { showTitle, showGameOver, showPaused, hidePanel, setBanner }
+  return { showTitle, showGameOver, showPaused, showParents, hidePanel, setBanner }
 }
 
 function heading(text: string): HTMLElement {
