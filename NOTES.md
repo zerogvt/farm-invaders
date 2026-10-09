@@ -11,15 +11,14 @@ it*.
   and the two refs are level. The branch was called `ufos-and-chickens` for as
   long as there was no remote to open a pull request against; it was renamed to
   `main` when the repository was created.
-- **A push to `main` is a deploy.** `.github/workflows/deploy.yml` runs
-  `npm ci`, `npm test` and `npm run build` on every push and publishes `dist/`
-  to GitHub Pages, so a red check is a failed deploy rather than a note to
-  yourself.
+- **A push to `main` is a deploy.** Cloudflare Pages runs `npm test && npm run
+  build` on every push and publishes `dist/` to <https://farm-invaders.pages.dev/>,
+  so a failed build there is a failed deploy. It moved from GitHub Pages on
+  9 October 2026.
 - Renamed on 20 September 2026 from `lolinvaders` / "LOL Invaders". `base` in
-  `vite.config.ts` must match the **GitHub repository name**, not the folder
-  name — if they diverge, Pages serves `index.html` from one path and its asset
-  tags point at another, and the page comes up blank. It is `/farm-invaders/`,
-  which matches the repository that was created.
+  `vite.config.ts` must match the path the game is served from — if they
+  diverge, `index.html` loads but its asset tags point elsewhere, and the page
+  comes up blank. It is `/`, the root of farm-invaders.pages.dev.
 - The high-score key in `src/config.ts` was renamed with everything else. It
   had never been deployed at that point, so no real score was lost.
 
