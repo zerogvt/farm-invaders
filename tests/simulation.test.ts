@@ -12,6 +12,7 @@ import {
   HEN_TOP,
 } from '../src/game.ts'
 import { placeObstacles } from '../src/obstacles.ts'
+import { versionRows } from '../src/version.ts'
 import { toPlayfieldX, type InputState } from '../src/input.ts'
 import {
   ABDUCTION,
@@ -2105,6 +2106,22 @@ check('the freeze is announced', heard.onFreeze === 1, `${heard.onFreeze}`)
     threw = true
   }
   check('telemetry never throws: broken agent, blocked storage or no agent at all', !threw)
+}
+
+// The About card's build rows.
+{
+  const rows = versionRows(
+    { version: '0.1.120', commit: 'abc1234', committed: '2026-10-09T12:00:00+03:00', dirty: false, built: '2026-10-09T09:30:00Z' },
+    'en-GB',
+  )
+  check(
+    'about card lists version, commit, commit date and build time',
+    rows.map(([label]) => label).join() === 'Version,Commit,Committed,Built' && rows[0]?.[1] === '0.1.120' && rows[1]?.[1] === 'abc1234',
+    JSON.stringify(rows),
+  )
+  check('about card flags a build with uncommitted changes', versionRows({ commit: 'abc1234', dirty: true })[0]?.[1] === 'abc1234 + local changes')
+  check('about card leaves out what the build could not tell', versionRows({ version: '0.1.5', built: 'not a date' }).length === 1)
+  check('about card without version.json says the version is unknown', JSON.stringify(versionRows(null)) === '[["Version","unknown"]]')
 }
 
 // Throwing rather than calling process.exit keeps this runnable without pulling

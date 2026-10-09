@@ -1,5 +1,6 @@
 import { loadScores, qualifies, saveScore } from './scores'
 import type { HighScore } from './types'
+import { loadVersion, versionRows } from './version'
 
 /**
  * Screens that sit on top of the canvas: the title card, the round banner and
@@ -42,8 +43,50 @@ export function createUi(root: HTMLElement): Ui {
       panel.hidden = true
       onStart()
     })
-    panel.append(start)
+    const about = button('ℹ About', () => void showAbout(() => showTitle(onStart)))
+    about.className = 'link'
+    panel.append(start, about)
     start.focus()
+  }
+
+  /** Who made the game, and which build is running, to check that the last commit is the one deployed. */
+  async function showAbout(onBack: () => void): Promise<void> {
+    panel.hidden = false
+    panel.innerHTML = ''
+    const marker = document.createElement('div')
+    panel.append(heading('Farm Invaders'), marker)
+    const info = await loadVersion()
+    // Backed out (or the game started) while version.json was loading.
+    if (!marker.isConnected) return
+
+    const logo = document.createElement('img')
+    logo.className = 'maker'
+    logo.src = '/ufo_zerogvt.svg'
+    logo.alt = 'zerogvt'
+    logo.width = 1600
+    logo.height = 1000
+
+    const line = document.createElement('p')
+    line.className = 'maker-line'
+    const name = document.createElement('b')
+    name.textContent = 'zerogvt'
+    const copyright = document.createElement('small')
+    copyright.textContent = `© ${new Date().getFullYear()} zerogvt`
+    line.append('A game by ', name, ' 🛸', document.createElement('br'), copyright)
+
+    const details = document.createElement('dl')
+    details.className = 'about'
+    for (const [label, value] of versionRows(info)) {
+      const term = document.createElement('dt')
+      term.textContent = label
+      const description = document.createElement('dd')
+      description.textContent = value
+      details.append(term, description)
+    }
+
+    const back = button('Back', onBack)
+    marker.replaceWith(logo, line, details, back)
+    back.focus()
   }
 
   function showGameOver(score: number, round: number, onRestart: () => void, won = false): void {
