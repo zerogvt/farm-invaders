@@ -1,0 +1,11 @@
+// Cloudflare deploy config. Without this file, `wrangler deploy` tries to
+// auto-configure the project by rewriting vite.config.ts, which fails. This
+// tells it the game is a plain static site: serve whatever `vite build` puts
+// in dist/.
+{
+  "name": "farm-invaders",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}
