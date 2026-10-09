@@ -3,7 +3,7 @@
 // tells it the game is a plain static site: serve whatever `vite build` puts
 // in dist/.
 {
-  "name": "zerogvt",
+  "name": "farm-invaders",
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "./dist"
