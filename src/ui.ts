@@ -13,6 +13,8 @@ export interface Ui {
   showTitle(onStart: () => void): void
   /** `won` after the final round, when the panel says so instead. */
   showGameOver(score: number, round: number, onRestart: () => void, won?: boolean): void
+  /** The pause card: carry on, or look at the About card meanwhile. */
+  showPaused(onResume: () => void): void
   hidePanel(): void
   /** The transient "ROUND 3" / "NURSERY CLEARED" text over the playfield. */
   setBanner(text: string | null): void
@@ -144,6 +146,18 @@ export function createUi(root: HTMLElement): Ui {
     field.focus()
   }
 
+  function showPaused(onResume: () => void): void {
+    panel.hidden = false
+    panel.innerHTML = ''
+    const touch = window.matchMedia('(pointer: coarse)').matches
+    panel.append(heading('Paused'), paragraph(touch ? 'The saucers will wait.' : 'The saucers will wait. P or Esc to carry on.'))
+    const resume = button('Resume', onResume)
+    const about = button('ℹ About', () => void showAbout(() => showPaused(onResume)))
+    about.className = 'link'
+    panel.append(resume, about)
+    resume.focus()
+  }
+
   function hidePanel(): void {
     panel.hidden = true
   }
@@ -158,7 +172,7 @@ export function createUi(root: HTMLElement): Ui {
     banner.hidden = false
   }
 
-  return { showTitle, showGameOver, hidePanel, setBanner }
+  return { showTitle, showGameOver, showPaused, hidePanel, setBanner }
 }
 
 function heading(text: string): HTMLElement {
@@ -187,8 +201,8 @@ function controlsList(): HTMLElement {
   // On a touch screen the keys mean nothing, so say what a finger does instead.
   const touch = window.matchMedia('(pointer: coarse)').matches
   const lines = touch
-    ? ['Put a finger on the field: the hen follows it', 'She throws while your finger is down', 'The speaker, bottom right, for sound']
-    : ['← → or A / D to move', 'Space to throw an egg', 'M or the speaker, bottom right, for sound']
+    ? ['Put a finger on the field: the hen follows it', 'She throws while your finger is down', 'Bottom right: pause, and the speaker for sound']
+    : ['← → or A / D to move', 'Space to throw an egg', 'P or Esc to pause', 'M or the speaker, bottom right, for sound']
   for (const line of lines) {
     const item = document.createElement('li')
     item.textContent = line

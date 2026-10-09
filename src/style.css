@@ -249,6 +249,16 @@ button:focus-visible {
   color: var(--ink-dim);
 }
 
+/* The pause button sits just left of the sound switch, and is only there
+   during play. */
+.pause-toggle {
+  right: 56px;
+}
+
+.sound-toggle[hidden] {
+  display: none;
+}
+
 /* A phone held upright gets a hint instead of a postage-stamp game: the field
    is 4:3 and needs the phone on its side. */
 #rotate {

@@ -159,7 +159,9 @@ npm run build    # typecheck + production build into dist/
 
 Controls: `←` `→` or `A`/`D` to move, `Space` to throw an egg, `M` to switch
 the sound off and on. The speaker button in the bottom right corner does the
-same, and the choice is remembered in the browser.
+same, and the choice is remembered in the browser. `P` or `Esc`, or the pause
+button beside the speaker, pauses the game and its music. The paused card has
+Resume and the About card.
 
 **On a phone**, hold it sideways and put a finger on the field: the hen heads for
 the spot under it and throws for as long as your finger is down. An upright
@@ -303,7 +305,7 @@ zerogvt logo on the About card and the site icons. Plain TypeScript, Canvas 2D, 
 | `src/game.ts` | The whole simulation: marching, splattering, retreats, the mothership, upgrades, collisions, rounds. Touches no DOM, which is why it can be tested headlessly. |
 | `src/sprites.ts` | Every sprite, drawn with canvas paths at startup. The only file that knows what anything looks like. |
 | `src/render.ts` | Draws a frame from game state. Never mutates it. |
-| `src/ui.ts` | Title card, About card, round banner and game-over panel, as real DOM so buttons and the initials field are keyboard-operable. |
+| `src/ui.ts` | Title card, pause card, About card, round banner and game-over panel, as real DOM so buttons and the initials field are keyboard-operable. |
 | `src/version.ts` | The About card's build rows (version, commit, commit date, build time), read from `version.json`. |
 | `scripts/version.mjs` | Writes `public/version.json` before every `npm run dev` and `npm run build`. The version is package.json's major.minor plus the commit count, so every commit bumps it. |
 | `scripts/make-icons.py` | Draws the site icon, the hen's head in her helmet, into `public/favicon.svg`, `favicon-32.png` and `apple-touch-icon.png`. Standard library only; rerun it after changing its shapes. |
@@ -312,6 +314,7 @@ zerogvt logo on the About card and the site icons. Plain TypeScript, Canvas 2D, 
 | `src/input.ts` | Keyboard state. |
 | `src/audio.ts` | Every sound effect and the theme, synthesised with Web Audio. The only file that knows what anything sounds like. |
 | `src/soundToggle.ts` | The speaker button and the `M` key, and remembering the choice. |
+| `src/pauseButton.ts` | The pause button beside the speaker. Pausing itself (and `P` / `Esc`) is in `src/main.ts`. |
 | `src/song.ts`, `src/lullaby.ts` | The ending's song and the bedtime lullaby: notes and lyrics, shared by the audio and the speech bubbles. |
 | `src/bedtime.ts` | The screen-time arithmetic: how long is left, and when to count it down. |
 | `src/main.ts` | Canvas setup, the frame loop, the screen-time limit, and which event makes which sound. |

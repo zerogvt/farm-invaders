@@ -3,6 +3,7 @@ import { bedtimeCountdown, isBedtime } from './bedtime'
 import { ABDUCTION, BEDTIME, PARLEY_SHIP, SHIELD, VICTORY, VIEW } from './config'
 import { bossHitPoints, createGame, isBossRound, restart, toggleCheat, update, type GameEvents } from './game'
 import { createInput } from './input'
+import { createPauseButton } from './pauseButton'
 import { render, renderBedtime } from './render'
 import { buildSprites } from './sprites'
 import type { GameState, Power } from './types'
@@ -11,7 +12,7 @@ import { telemetry } from './telemetry'
 import { createUi } from './ui'
 import './style.css'
 
-type Screen = 'title' | 'running' | 'over' | 'bedtime'
+type Screen = 'title' | 'running' | 'paused' | 'over' | 'bedtime'
 
 /** How long a picked-up upgrade is announced over the playfield. */
 const NOTICE_DURATION = 2.2
@@ -44,6 +45,29 @@ function main(): void {
   createSoundToggle(frameEl, sound)
 
   let screen: Screen = 'title'
+
+  // Pausing stops the simulation and suspends the audio clock, so the tune and
+  // any sound still ringing carry on from where they were.
+  const pause = (): void => {
+    if (screen !== 'running') return
+    screen = 'paused'
+    sound.setPaused(true)
+    ui.setBanner(null)
+    ui.showPaused(resume)
+  }
+  const resume = (): void => {
+    if (screen !== 'paused') return
+    screen = 'running'
+    sound.setPaused(false)
+    ui.hidePanel()
+  }
+  const pauseButton = createPauseButton(frameEl, pause)
+  window.addEventListener('keydown', (event) => {
+    if (event.repeat || (event.code !== 'KeyP' && event.code !== 'Escape')) return
+    if (event.target instanceof HTMLInputElement) return
+    if (screen === 'running') pause()
+    else if (screen === 'paused') resume()
+  })
   // A transient line over the playfield, used for upgrade pickups. The
   // simulation announces the pickup and the UI decides what to say about it,
   // which is why this timer lives here rather than in the game state.
@@ -159,10 +183,13 @@ function main(): void {
     // the screen-time limit. Once it is up, the game is over for good,
     // wherever it had got to, and bedtime plays until the page is closed.
     const elapsed = now / 1000
+    pauseButton.setVisible(screen === 'running')
     if (BEDTIME.enabled && screen !== 'bedtime' && isBedtime(elapsed)) {
       screen = 'bedtime'
       bedtimeFrom = now
       notice = null
+      // Bedtime can arrive mid-pause; the lullaby still has to play.
+      sound.setPaused(false)
       ui.hidePanel()
       ui.setBanner(null)
       sound.setTrack('lullaby')

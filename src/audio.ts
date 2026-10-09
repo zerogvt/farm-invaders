@@ -53,6 +53,8 @@ export interface Sound {
   play(name: Sfx, delay?: number): void
   readonly muted: boolean
   setMuted(muted: boolean): void
+  /** Freezes every sound and the tune in place while the game is paused. */
+  setPaused(paused: boolean): void
   /** Switches the background tune. The new one starts from its top. */
   setTrack(track: Track): void
 }
@@ -81,6 +83,7 @@ export function createSound(startMuted: boolean): Sound {
   let musicBus: GainNode | null = null
   let noise: AudioBuffer | null = null
   let muted = startMuted
+  let paused = false
   const lastPlayed = new Map<Sfx, number>()
   // Shared with the music scheduler, which reads it on every tick.
   const music = { track: 'theme' as Track, changed: false }
@@ -102,9 +105,15 @@ export function createSound(startMuted: boolean): Sound {
       noise = whiteNoise(ctx)
       startMusic(ctx, musicBus, noise, music)
     }
-    // Muted means suspended: the music scheduler runs off the context's clock,
-    // so a stopped clock pauses the tune in place rather than piling notes up.
-    if (muted) void ctx.suspend()
+    applyQuiet()
+  }
+
+  // Muted or paused means suspended: the music scheduler runs off the
+  // context's clock, so a stopped clock pauses the tune in place rather than
+  // piling notes up.
+  function applyQuiet(): void {
+    if (ctx === null) return
+    if (muted || paused) void ctx.suspend()
     else void ctx.resume()
   }
 
@@ -120,9 +129,12 @@ export function createSound(startMuted: boolean): Sound {
 
   function setMuted(next: boolean): void {
     muted = next
-    if (ctx === null) return
-    if (muted) void ctx.suspend()
-    else void ctx.resume()
+    applyQuiet()
+  }
+
+  function setPaused(next: boolean): void {
+    paused = next
+    applyQuiet()
   }
 
   function setTrack(track: Track): void {
@@ -138,6 +150,7 @@ export function createSound(startMuted: boolean): Sound {
       return muted
     },
     setMuted,
+    setPaused,
     setTrack,
   }
 }
